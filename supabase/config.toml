@@ -1,0 +1,7 @@
+[functions.admin-users]
+entrypoint = "./functions/admin-users/index.js"
+verify_jwt = true
+
+[functions.admin-firearms]
+entrypoint = "./functions/admin-firearms/index.js"
+verify_jwt = true
