@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../auth/useAuth.js'
 
-export default function RoleDashboard({ title, description, children }) {
+export default function RoleDashboard({ title, description, children, sidebar = null, settings = null, hideUser = false }) {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
@@ -23,7 +23,7 @@ export default function RoleDashboard({ title, description, children }) {
     navigate('/login', { replace: true })
   }
 
-  return (
+  const dashboard = (
     <main className="dashboard-page">
       <header className="dashboard-header">
         <div>
@@ -31,7 +31,7 @@ export default function RoleDashboard({ title, description, children }) {
           <h1>{title}</h1>
           <p>{description}</p>
         </div>
-        <div className="dashboard-user">
+        {!hideUser && <div className="dashboard-user">
           <strong>{profile.full_name || 'Name not provided'}</strong>
           <span>{profile.email}</span>
           <div className="dashboard-user-actions">
@@ -40,11 +40,21 @@ export default function RoleDashboard({ title, description, children }) {
               {signingOut ? 'Signing out...' : 'Sign out'}
             </button>
           </div>
-        </div>
+        </div>}
       </header>
 
       {error && <div className="alert alert-error" role="alert">{error}</div>}
       <section className="dashboard-grid">{children}</section>
     </main>
+  )
+
+  if (!sidebar) return dashboard
+
+  return (
+    <div className={`admin-shell${sidebar.props.collapsed ? ' sidebar-collapsed' : ''}`}>
+      {sidebar}
+      {dashboard}
+      {settings}
+    </div>
   )
 }

@@ -5,6 +5,10 @@ import FirearmImportPanel from './import/FirearmImportPanel.jsx'
 import FirearmLayoutPanel from './import/FirearmLayoutPanel.jsx'
 import AccountManagementPanel from './accounts/AccountManagementPanel.jsx'
 import AdminAnalyticsPanel from './analytics/AdminAnalyticsPanel.jsx'
+import DemoAdminDashboard from './DemoAdminDashboard.jsx'
+import AdminSettings from './AdminSettings.jsx'
+import AdminSidebar from './AdminSidebar.jsx'
+import { isDemoMode } from '../../lib/supabase.js'
 import { isFirearmDeleteConfirmed } from './firearm-utils.js'
 
 async function getFunctionErrorMessage(error) {
@@ -17,6 +21,14 @@ async function getFunctionErrorMessage(error) {
 }
 
 export default function AdminDashboard() {
+  if (isDemoMode) return <DemoAdminDashboard />
+
+  return <LiveAdminDashboard />
+}
+
+function LiveAdminDashboard() {
+  const [activePage, setActivePage] = useState('overview')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [firearms, setFirearms] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -81,15 +93,25 @@ export default function AdminDashboard() {
     void loadFirearms()
   }, [loadFirearms])
 
+  function navigateSection(section) {
+    setActivePage(section)
+    const target = document.getElementById(section)
+    const scrollTarget = target?.firstElementChild ?? target
+    scrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
     <RoleDashboard
-      title="Admin dashboard"
+      title="Welcome back"
       description="Manage Trigger3D accounts, firearm content, and system-wide reporting."
+      hideUser
+      settings={<AdminSettings />}
+      sidebar={<AdminSidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} />}
     >
-      <AdminAnalyticsPanel refreshKey={analyticsRefreshKey} />
-      <AccountManagementPanel />
+      <section className="admin-dashboard-section" id="overview"><article className="dashboard-card dashboard-card-wide admin-welcome"><p className="eyebrow">Administrator workspace</p><h2>Everything you need, in one place.</h2><p>Review learning activity, manage accounts, and maintain 3D firearm content from the sidebar.</p></article><AdminAnalyticsPanel refreshKey={analyticsRefreshKey} /></section>
+      <section className="admin-dashboard-section" id="accounts"><AccountManagementPanel /></section>
 
-      <article className="dashboard-card dashboard-card-wide">
+      <article className="dashboard-card dashboard-card-wide" id="firearms">
         <h2>Imported firearms</h2>
         <p>To replace a model or question set, delete its current bundle and import the corrected bundle below.</p>
         {actionError && <div className="alert alert-error" role="alert">{actionError}</div>}
@@ -125,8 +147,8 @@ export default function AdminDashboard() {
         )}
       </article>
 
-      <FirearmImportPanel onImported={refreshFirearms} />
-      <FirearmLayoutPanel firearms={firearms} />
+      <section className="admin-dashboard-section" id="imports"><FirearmImportPanel onImported={refreshFirearms} /></section>
+      <section className="admin-dashboard-section" id="layout"><FirearmLayoutPanel firearms={firearms} /></section>
     </RoleDashboard>
   )
 }

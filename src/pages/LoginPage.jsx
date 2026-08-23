@@ -3,14 +3,14 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { isAllowedStudentEmail, normalizeEmail } from '../auth/email.js'
 import { isValidFullName, normalizeFullName } from '../auth/name.js'
 import useAuth from '../auth/useAuth.js'
-import { supabase } from '../lib/supabase.js'
+import { isDemoMode, supabase } from '../lib/supabase.js'
 
 const allowedDomain = (
   import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || 'parsu.edu.ph'
 ).replace(/^@/, '')
 
 export default function LoginPage() {
-  const { isConfigured, loading: sessionLoading, user } = useAuth()
+  const { demoSignIn, isConfigured, loading: sessionLoading, user } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [mode, setMode] = useState('login')
@@ -71,6 +71,13 @@ export default function LoginPage() {
     setSubmitting(true)
 
     try {
+      if (isDemoMode) {
+        const { error: demoError } = demoSignIn(email, password)
+        if (demoError) throw demoError
+        navigate('/admin', { replace: true })
+        return
+      }
+
       if (mode === 'signup') {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: normalizedEmail,
@@ -120,6 +127,8 @@ export default function LoginPage() {
             ? 'Students, faculty, and administrators can sign in here.'
             : `Registration is available only to students with an @${allowedDomain} email.`}
         </p>
+
+        {isDemoMode && <div className="alert alert-success" role="status">Demo preview: use <strong>admin@trigger3d.demo</strong> and password <strong>demo12345</strong>.</div>}
 
         {!isConfigured && (
           <div className="alert alert-error" role="alert">

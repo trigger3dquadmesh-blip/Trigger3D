@@ -6,6 +6,7 @@ import { ROLES } from './config/roles.js'
 import AdminDashboard from './features/admin/AdminDashboard.jsx'
 import FacultyDashboard from './features/faculty/FacultyDashboard.jsx'
 import StudentDashboard from './features/student/StudentDashboard.jsx'
+import ThemeToggle from './components/ThemeToggle.jsx'
 import AccountPage from './pages/AccountPage.jsx'
 import ChangePasswordPage from './pages/ChangePasswordPage.jsx'
 import HomePage from './pages/HomePage.jsx'
@@ -21,7 +22,9 @@ const AssessmentPage = lazy(
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <ThemeToggle />
+      <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route
@@ -96,6 +99,7 @@ export default function App() {
       />
       <Route path="/404" element={<NotFoundPage />} />
       <Route path="*" element={<Navigate to="/404" replace />} />
-    </Routes>
+      </Routes>
+    </>
   )
 }
