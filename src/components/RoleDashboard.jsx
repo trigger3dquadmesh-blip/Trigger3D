@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../auth/useAuth.js'
 
-export default function RoleDashboard({ title, description, children, sidebar = null, settings = null, hideUser = false }) {
+export default function RoleDashboard({ title, description, children, sidebar = null, hideUser = false }) {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
@@ -54,7 +54,6 @@ export default function RoleDashboard({ title, description, children, sidebar = 
     <div className={`admin-shell${sidebar.props.collapsed ? ' sidebar-collapsed' : ''}`}>
       {sidebar}
       {dashboard}
-      {settings}
     </div>
   )
 }

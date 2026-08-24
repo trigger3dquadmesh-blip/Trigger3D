@@ -9,6 +9,12 @@ function csvCell(value) {
     : text
 }
 
+function surnameForSort(name) {
+  if (!name || name === 'Name not provided') return ''
+  const parts = name.trim().split(/\s+/)
+  return parts.at(-1) || ''
+}
+
 export function groupAssessmentResults(rows) {
   const attempts = new Map()
 
@@ -39,7 +45,16 @@ export function groupAssessmentResults(rows) {
     })
   })
 
-  return [...attempts.values()]
+  return [...attempts.values()].sort((left, right) => {
+    const leftSurname = surnameForSort(left.student_name)
+    const rightSurname = surnameForSort(right.student_name)
+
+    if (!leftSurname && rightSurname) return 1
+    if (leftSurname && !rightSurname) return -1
+
+    return leftSurname.localeCompare(rightSurname, undefined, { sensitivity: 'base' })
+      || left.student_name.localeCompare(right.student_name, undefined, { sensitivity: 'base' })
+  })
 }
 
 export function aggregateQuestionResults(rows) {

@@ -7,6 +7,11 @@ export function accountMatchesSearch(account, query) {
     .some((value) => value.toLowerCase().includes(normalizedQuery))
 }
 
+export function filterAccountsByRole(accounts, role) {
+  if (role === 'all') return accounts
+  return accounts.filter((account) => account.role === role)
+}
+
 export function isAccountDeleteConfirmed(email, confirmation) {
   return confirmation?.trim().toLowerCase() === email.trim().toLowerCase()
 }

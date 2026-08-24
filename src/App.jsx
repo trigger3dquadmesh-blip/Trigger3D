@@ -9,6 +9,7 @@ import StudentDashboard from './features/student/StudentDashboard.jsx'
 import ThemeToggle from './components/ThemeToggle.jsx'
 import AccountPage from './pages/AccountPage.jsx'
 import ChangePasswordPage from './pages/ChangePasswordPage.jsx'
+import SettingsPage from './pages/SettingsPage.jsx'
 import HomePage from './pages/HomePage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
@@ -40,6 +41,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <ChangePasswordPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
           </ProtectedRoute>
         }
       />

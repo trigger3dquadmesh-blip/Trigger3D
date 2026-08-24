@@ -1,14 +1,33 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import RoleDashboard from '../../components/RoleDashboard.jsx'
 import { supabase } from '../../lib/supabase.js'
+import { isDemoMode } from '../../lib/supabase.js'
+import AdminSettings from '../admin/AdminSettings.jsx'
 import AssessmentReleasePanel from './AssessmentReleasePanel.jsx'
+import DemoFacultyDashboard from './DemoFacultyDashboard.jsx'
 import FacultyResultsPanel from './FacultyResultsPanel.jsx'
-import { isClassDeleteConfirmed } from './class-utils.js'
+import FacultySidebar from './FacultySidebar.jsx'
+import { isClassDeleteConfirmed, sortClassesByName } from './class-utils.js'
+import { filterEnrollmentsByStudentQuery } from './enrollment-search.js'
+import { getSavedDashboardPage, saveDashboardPage } from '../../components/dashboard-location.js'
+import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
+
+const facultyPages = ['overview', 'classes', 'students', 'assessments', 'results']
+const facultyDashboardPageKey = 'trigger3d.faculty.active-page'
 
 export default function FacultyDashboard() {
+  if (isDemoMode) return <DemoFacultyDashboard />
+
+  return <LiveFacultyDashboard />
+}
+
+function LiveFacultyDashboard() {
   const [classes, setClasses] = useState([])
   const [selectedClassId, setSelectedClassId] = useState('')
   const [enrollments, setEnrollments] = useState([])
+  const [studentSearch, setStudentSearch] = useState('')
+  const [confirmationAction, setConfirmationAction] = useState('')
+  const [classDeleteConfirmation, setClassDeleteConfirmation] = useState('')
   const [className, setClassName] = useState('')
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -16,6 +35,12 @@ export default function FacultyDashboard() {
   const [updatingId, setUpdatingId] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [activePage, setActivePage] = useState(() => (
+    getSavedDashboardPage(localStorage, facultyDashboardPageKey, facultyPages, 'overview')
+  ))
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  useAutoDismissNotice(notice, () => setNotice(''))
 
   const loadClasses = useCallback(async () => {
     const { data, error: classesError } = await supabase
@@ -29,9 +54,10 @@ export default function FacultyDashboard() {
       return
     }
 
-    setClasses(data)
+    const sortedClasses = sortClassesByName(data)
+    setClasses(sortedClasses)
     setSelectedClassId((current) => (
-      data.some((item) => item.id === current) ? current : data[0]?.id || ''
+      sortedClasses.some((item) => item.id === current) ? current : sortedClasses[0]?.id || ''
     ))
     setLoading(false)
   }, [])
@@ -123,14 +149,8 @@ export default function FacultyDashboard() {
     setUpdatingId('')
   }
 
-  async function handleArchiveToggle() {
+  async function saveArchiveState(archiveState) {
     if (!selectedClass) return
-    const archiveState = !selectedClass.archived_at
-
-    if (archiveState && !window.confirm(
-      `Archive ${selectedClass.name}? Students will lose access and open assessments `
-      + 'will close, but enrollments and results will be kept.',
-    )) return
 
     setClassAction('archive')
     setError('')
@@ -156,14 +176,19 @@ export default function FacultyDashboard() {
     setClassAction('')
   }
 
-  async function handleDeleteClass() {
+  function handleArchiveToggle() {
     if (!selectedClass) return
 
-    const confirmation = window.prompt(
-      `Permanently delete ${selectedClass.name}? This removes every enrollment, `
-      + `assessment attempt, answer, and score. Type ${selectedClass.code} to confirm.`,
-    )
-    if (!isClassDeleteConfirmed(selectedClass.code, confirmation)) return
+    if (!selectedClass.archived_at) {
+      setConfirmationAction('archive')
+      return
+    }
+
+    void saveArchiveState(false)
+  }
+
+  async function deleteClass() {
+    if (!selectedClass) return
 
     setClassAction('delete')
     setError('')
@@ -188,13 +213,36 @@ export default function FacultyDashboard() {
     setClassAction('')
   }
 
+  function handleDeleteClass() {
+    if (!selectedClass) return
+    setClassDeleteConfirmation('')
+    setConfirmationAction('delete')
+  }
+
   const selectedClass = classes.find((item) => item.id === selectedClassId)
+  const filteredEnrollments = useMemo(
+    () => filterEnrollmentsByStudentQuery(enrollments, studentSearch),
+    [enrollments, studentSearch],
+  )
+
+  function navigateSection(section) {
+    setError('')
+    setNotice('')
+    setActivePage(section)
+    saveDashboardPage(localStorage, facultyDashboardPageKey, section)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   return (
     <RoleDashboard
       title="Faculty dashboard"
       description="Create classes and manage student enrollment."
+      hideUser
+      sidebar={<FacultySidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings roleName="Faculty" sidebar />} />}
     >
+      {activePage === 'overview' && <article className="dashboard-card dashboard-card-wide admin-welcome"><p className="eyebrow">Faculty workspace</p><h2>Your teaching space, organized.</h2><p>Create classes, guide student access, and review assessment activity from the sidebar.</p></article>}
+
+      {activePage === 'classes' && <>
       <article className="dashboard-card dashboard-card-wide">
         <h2>Create a class</h2>
         <form className="inline-form" onSubmit={handleCreateClass}>
@@ -229,7 +277,10 @@ export default function FacultyDashboard() {
                 type="button"
                 className={item.id === selectedClassId ? 'class-item active' : 'class-item'}
                 key={item.id}
-                onClick={() => setSelectedClassId(item.id)}
+                onClick={() => {
+                  setSelectedClassId(item.id)
+                  setStudentSearch('')
+                }}
               >
                 <strong>{item.name}</strong>
                 <span>{item.code}{item.archived_at ? ' · archived' : ''}</span>
@@ -260,10 +311,24 @@ export default function FacultyDashboard() {
           </div>
         )}
       </article>
+      </>}
 
+      {activePage === 'students' &&
       <article className="dashboard-card dashboard-card-wide">
-        <h2>{selectedClass ? `${selectedClass.name} students` : 'Students'}</h2>
-        {selectedClass && <p>Enrollment code: <strong>{selectedClass.code}</strong></p>}
+        <div className="account-panel-heading">
+          <div>
+            <h2>{selectedClass ? `${selectedClass.name} students` : 'Students'}</h2>
+            {selectedClass && <p>Enrollment code: <strong>{selectedClass.code}</strong></p>}
+          </div>
+          {selectedClass && enrollments.length > 0 && (
+            <input
+              aria-label="Search enrolled students"
+              value={studentSearch}
+              onChange={(event) => setStudentSearch(event.target.value)}
+              placeholder="Search student name or email"
+            />
+          )}
+        </div>
         {selectedClass?.archived_at && (
           <div className="alert" role="status">
             This class is archived. Records remain available, but Students cannot access it.
@@ -272,10 +337,12 @@ export default function FacultyDashboard() {
         {!selectedClass ? (
           <p>Create or select a class to view enrollment.</p>
         ) : enrollments.length === 0 ? (
-          <p>No students enrolled yet.</p>
+          <p>No students are enrolled in {selectedClass.name} yet.</p>
+        ) : filteredEnrollments.length === 0 ? (
+          <p>No enrolled student named &quot;{studentSearch.trim()}&quot; was found.</p>
         ) : (
           <div className="student-list">
-            {enrollments.map((enrollment) => (
+            {filteredEnrollments.map((enrollment) => (
               <div className="student-row" key={enrollment.id}>
                 <div>
                   <strong>{enrollment.student.full_name || 'Name not provided'}</strong>
@@ -297,10 +364,41 @@ export default function FacultyDashboard() {
             ))}
           </div>
         )}
-      </article>
+      </article>}
 
-      <AssessmentReleasePanel selectedClass={selectedClass} />
-      <FacultyResultsPanel selectedClass={selectedClass} />
+      {activePage === 'assessments' && <AssessmentReleasePanel selectedClass={selectedClass} />}
+      {activePage === 'results' && <FacultyResultsPanel selectedClass={selectedClass} />}
+
+      {confirmationAction === 'archive' && selectedClass && (
+        <div className="confirmation-backdrop" role="presentation">
+          <section aria-labelledby="archive-class-title" aria-modal="true" className="confirmation-dialog" role="dialog">
+            <p className="eyebrow">Confirm action</p>
+            <h2 id="archive-class-title">Archive this class?</h2>
+            <p>Students will lose access and open assessments will close. Enrollments and results will be kept.</p>
+            <div className="confirmation-actions">
+              <button onClick={() => setConfirmationAction('')} type="button">Cancel</button>
+              <button className="danger-action" onClick={() => { setConfirmationAction(''); void saveArchiveState(true) }} type="button">Archive class</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {confirmationAction === 'delete' && selectedClass && (
+        <div className="confirmation-backdrop" role="presentation">
+          <section aria-labelledby="delete-class-title" aria-modal="true" className="confirmation-dialog" role="dialog">
+            <p className="eyebrow">Permanent deletion</p>
+            <h2 id="delete-class-title">Delete {selectedClass.name}?</h2>
+            <p>This removes every enrollment, assessment attempt, answer, and score. Type <strong>{selectedClass.code}</strong> to confirm.</p>
+            <label htmlFor="delete-class-confirmation">Class code
+              <input autoComplete="off" id="delete-class-confirmation" onChange={(event) => setClassDeleteConfirmation(event.target.value)} placeholder={selectedClass.code} value={classDeleteConfirmation} />
+            </label>
+            <div className="confirmation-actions">
+              <button onClick={() => setConfirmationAction('')} type="button">Cancel</button>
+              <button className="danger-action" disabled={!isClassDeleteConfirmed(selectedClass.code, classDeleteConfirmation) || classAction === 'delete'} onClick={() => { setConfirmationAction(''); void deleteClass() }} type="button">{classAction === 'delete' ? 'Deleting...' : 'Delete permanently'}</button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {(error || notice) && (
         <div

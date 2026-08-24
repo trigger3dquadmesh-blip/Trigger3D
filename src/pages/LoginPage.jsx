@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { isAllowedStudentEmail, normalizeEmail } from '../auth/email.js'
 import { isValidFullName, normalizeFullName } from '../auth/name.js'
 import useAuth from '../auth/useAuth.js'
@@ -11,7 +11,6 @@ const allowedDomain = (
 
 export default function LoginPage() {
   const { demoSignIn, isConfigured, loading: sessionLoading, user } = useAuth()
-  const location = useLocation()
   const navigate = useNavigate()
   const [mode, setMode] = useState('login')
   const [fullName, setFullName] = useState('')
@@ -72,9 +71,12 @@ export default function LoginPage() {
 
     try {
       if (isDemoMode) {
+        if (mode === 'signup') {
+          throw new Error('Student registration requires a Supabase connection. Use the demo student account to preview the dashboard.')
+        }
         const { error: demoError } = demoSignIn(email, password)
         if (demoError) throw demoError
-        navigate('/admin', { replace: true })
+        navigate('/account', { replace: true })
         return
       }
 
@@ -108,7 +110,7 @@ export default function LoginPage() {
 
         if (signInError) throw signInError
 
-        navigate(location.state?.from || '/account', { replace: true })
+        navigate('/account', { replace: true })
       }
     } catch (authError) {
       setError(authError.message || 'Authentication failed. Please try again.')
@@ -128,7 +130,15 @@ export default function LoginPage() {
             : `Registration is available only to students with an @${allowedDomain} email.`}
         </p>
 
-        {isDemoMode && <div className="alert alert-success" role="status">Demo preview: use <strong>admin@trigger3d.demo</strong> and password <strong>demo12345</strong>.</div>}
+        {isDemoMode && (
+          <div className="alert alert-success" role="status">
+            <strong>Demo accounts</strong><br />
+            Administrator: <strong>admin@trigger3d.demo</strong><br />
+            Student: <strong>student@trigger3d.demo</strong><br />
+            Faculty: <strong>faculty@trigger3d.demo</strong><br />
+            Password for all: <strong>demo12345</strong>
+          </div>
+        )}
 
         {!isConfigured && (
           <div className="alert alert-error" role="alert">

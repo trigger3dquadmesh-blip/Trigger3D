@@ -1,14 +1,15 @@
+import SidebarIcon from '../../components/SidebarIcon.jsx'
 import AdminProfileCard from './AdminProfileCard.jsx'
 
 const items = [
-  ['overview', '⌂', 'Overview'],
-  ['accounts', '♙', 'Accounts'],
-  ['firearms', '⌁', 'Firearm content'],
-  ['imports', '⇧', 'Import bundle'],
-  ['layout', '⌘', 'Exploded view'],
+  ['overview', 'dashboard', 'Overview'],
+  ['accounts', 'classroom', 'Accounts'],
+  ['firearms', 'cube', 'Firearm content'],
+  ['imports', 'upload', 'Import bundle'],
+  ['layout', 'layers', 'Exploded view'],
 ]
 
-export default function AdminSidebar({ activePage, collapsed, onNavigate, onToggle }) {
+export default function AdminSidebar({ activePage, collapsed, onNavigate, onToggle, settings }) {
   return (
     <aside className="admin-sidebar">
       <div className="admin-sidebar-brand">
@@ -19,10 +20,11 @@ export default function AdminSidebar({ activePage, collapsed, onNavigate, onTogg
       <nav aria-label="Admin dashboard sections" className="admin-navigation">
         {items.map(([id, icon, label]) => (
           <button className={activePage === id ? 'active' : ''} key={id} onClick={() => onNavigate(id)} type="button">
-            <span aria-hidden="true">{icon}</span><b>{label}</b>
+            <span><SidebarIcon name={icon} /></span><b>{label}</b>
           </button>
         ))}
       </nav>
+      <div className="sidebar-settings">{settings}</div>
     </aside>
   )
 }

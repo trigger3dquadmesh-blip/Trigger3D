@@ -3,9 +3,12 @@ import useAuth from '../../../auth/useAuth.js'
 import { supabase } from '../../../lib/supabase.js'
 import {
   accountMatchesSearch,
+  filterAccountsByRole,
   getAccountRelationship,
   isAccountDeleteConfirmed,
 } from './account-utils.js'
+import { getAccountDraft, saveAccountDraft } from './account-draft.js'
+import useAutoDismissNotice from '../../../components/useAutoDismissNotice.js'
 
 const emptyFacultyForm = { fullName: '', email: '', password: '' }
 
@@ -24,6 +27,7 @@ export default function AccountManagementPanel() {
   const [classes, setClasses] = useState([])
   const [enrollments, setEnrollments] = useState([])
   const [query, setQuery] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all')
   const [facultyForm, setFacultyForm] = useState(emptyFacultyForm)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({ fullName: '', role: 'student' })
@@ -33,6 +37,8 @@ export default function AccountManagementPanel() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [draftRestored, setDraftRestored] = useState(false)
+  const draftKey = user?.id ? `trigger3d.account-draft.${user.id}` : null
 
   const loadAccounts = useCallback(async () => {
     setLoading(true)
@@ -67,9 +73,64 @@ export default function AccountManagementPanel() {
     void loadAccounts()
   }, [loadAccounts])
 
+  useAutoDismissNotice(notice, () => setNotice(''))
+
+  useEffect(() => {
+    if (!draftKey || loading || draftRestored) return
+
+    const draft = getAccountDraft(sessionStorage, draftKey)
+    let isCurrent = true
+
+    queueMicrotask(() => {
+      if (!isCurrent) return
+      if (draft?.facultyForm) setFacultyForm({ ...emptyFacultyForm, ...draft.facultyForm })
+      if (typeof draft?.query === 'string') setQuery(draft.query)
+      if (['all', 'student', 'faculty', 'admin'].includes(draft?.roleFilter)) {
+        setRoleFilter(draft.roleFilter)
+      }
+
+      const editedAccount = accounts.find((account) => account.id === draft?.editingId)
+      if (editedAccount && draft?.editForm) {
+        setEditingId(editedAccount.id)
+        setEditForm({ fullName: editedAccount.full_name ?? '', role: editedAccount.role, ...draft.editForm })
+        setNotice('Your unfinished account edit was restored. Save it when you are ready.')
+      } else if (draft?.facultyForm && Object.values(draft.facultyForm).some((value) => value.trim())) {
+        setNotice('Your unfinished faculty form was restored. Submit it when you are ready.')
+      }
+
+      const deleteAccount = accounts.find((account) => account.id === draft?.deleteTargetId)
+      if (deleteAccount) {
+        setDeleteTargetId(deleteAccount.id)
+        setDeleteConfirmation(draft.deleteConfirmation || '')
+      }
+
+      setDraftRestored(true)
+    })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [accounts, draftKey, draftRestored, loading])
+
+  useEffect(() => {
+    if (!draftKey || !draftRestored) return
+    saveAccountDraft(sessionStorage, draftKey, {
+      deleteConfirmation,
+      deleteTargetId,
+      editingId,
+      editForm,
+      facultyForm,
+      query,
+      roleFilter,
+    })
+  }, [deleteConfirmation, deleteTargetId, draftKey, draftRestored, editForm, editingId, facultyForm, query, roleFilter])
+
   const visibleAccounts = useMemo(
-    () => accounts.filter((account) => accountMatchesSearch(account, query)),
-    [accounts, query],
+    () => filterAccountsByRole(
+      accounts.filter((account) => accountMatchesSearch(account, query)),
+      roleFilter,
+    ),
+    [accounts, query, roleFilter],
   )
 
   function startEditing(account) {
@@ -77,6 +138,11 @@ export default function AccountManagementPanel() {
     setEditForm({ fullName: account.full_name ?? '', role: account.role })
     setError('')
     setNotice('')
+  }
+
+  function cancelEditing() {
+    setEditingId(null)
+    setEditForm({ fullName: '', role: 'student' })
   }
 
   async function createFaculty(event) {
@@ -119,7 +185,7 @@ export default function AccountManagementPanel() {
       setError(updateError.message)
     } else {
       setNotice(`${account.email} was updated.`)
-      setEditingId(null)
+      cancelEditing()
       await loadAccounts()
     }
     setSaving(false)
@@ -148,7 +214,7 @@ export default function AccountManagementPanel() {
   function beginDelete(account) {
     setDeleteTargetId(account.id)
     setDeleteConfirmation('')
-    setEditingId(null)
+    cancelEditing()
     setError('')
     setNotice('')
   }
@@ -235,13 +301,32 @@ export default function AccountManagementPanel() {
         <button disabled={saving} type="submit">{saving ? 'Working...' : 'Create Faculty'}</button>
       </form>
 
+      <div aria-label="Filter accounts by role" className="account-role-filters" role="group">
+        {[
+          ['all', 'All accounts'],
+          ['student', 'Students'],
+          ['faculty', 'Faculty'],
+          ['admin', 'Administrators'],
+        ].map(([role, label]) => (
+          <button
+            aria-pressed={roleFilter === role}
+            className={roleFilter === role ? 'active' : ''}
+            key={role}
+            onClick={() => setRoleFilter(role)}
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {error && <div className="alert alert-error" role="alert">{error}</div>}
       {notice && <div className="alert alert-success" role="status">{notice}</div>}
 
       {loading ? (
         <p>Loading accounts...</p>
       ) : visibleAccounts.length === 0 ? (
-        <p>No matching accounts found.</p>
+        <p>{roleFilter === 'all' ? 'No matching accounts found.' : `No ${roleFilter} accounts found.`}</p>
       ) : (
         <div className="account-list">
           {visibleAccounts.map((account) => {
@@ -294,6 +379,7 @@ export default function AccountManagementPanel() {
                       <select
                         disabled={isSelf}
                         onChange={(event) => setEditForm({ ...editForm, role: event.target.value })}
+                        title={isSelf ? 'Your own Administrator role is protected.' : 'Choose an account role'}
                         value={editForm.role}
                       >
                         <option value="student">Student</option>
@@ -303,7 +389,7 @@ export default function AccountManagementPanel() {
                     </label>
                     <div className="account-editor-actions">
                       <button disabled={saving} onClick={() => saveAccount(account)} type="button">Save</button>
-                      <button disabled={saving} onClick={() => setEditingId(null)} type="button">Cancel</button>
+                      <button disabled={saving} onClick={cancelEditing} type="button">Cancel</button>
                     </div>
                   </div>
                 )}

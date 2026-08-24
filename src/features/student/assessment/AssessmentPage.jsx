@@ -32,6 +32,7 @@ export default function AssessmentPage() {
   const [questions, setQuestions] = useState([])
   const [attemptId, setAttemptId] = useState(null)
   const [attemptStartedAt, setAttemptStartedAt] = useState(null)
+  const [activityRecorded, setActivityRecorded] = useState(false)
   const [answers, setAnswers] = useState({})
   const [currentIndex, setCurrentIndex] = useState(0)
   const [result, setResult] = useState(null)
@@ -130,6 +131,7 @@ export default function AssessmentPage() {
       setAssessmentLock(firearmId, true)
       setAttemptId(data[0].attempt_id)
       setAttemptStartedAt(revision)
+      setActivityRecorded(false)
       setAnswers(draft.answers)
       setCurrentIndex(draft.currentIndex)
       if (!statusError) setStatus(refreshedStatus)
@@ -156,6 +158,16 @@ export default function AssessmentPage() {
     }
 
     setSubmitting(false)
+  }
+
+  async function recordAssessmentActivity() {
+    if (!attemptId || activityRecorded) return
+
+    const { error: activityError } = await supabase.rpc('record_assessment_activity', {
+      target_attempt_id: attemptId,
+    })
+
+    if (!activityError) setActivityRecorded(true)
   }
 
   if (loading) return <main className="page status-page">Loading assessment...</main>
@@ -247,10 +259,13 @@ export default function AssessmentPage() {
           Your answer
           <input
             value={currentAnswer}
-            onChange={(event) => setAnswers((current) => ({
-              ...current,
-              [currentQuestion.question_record_id]: event.target.value,
-            }))}
+            onChange={(event) => {
+              setAnswers((current) => ({
+                ...current,
+                [currentQuestion.question_record_id]: event.target.value,
+              }))
+              void recordAssessmentActivity()
+            }}
             autoFocus
             autoComplete="off"
             disabled={submitting}
@@ -265,7 +280,7 @@ export default function AssessmentPage() {
             onClick={() => setCurrentIndex((index) => index - 1)}
             disabled={currentIndex === 0 || submitting}
           >
-            Previous
+            ‹ Previous
           </button>
 
           {currentIndex < questions.length - 1 ? (
@@ -274,7 +289,7 @@ export default function AssessmentPage() {
               onClick={() => setCurrentIndex((index) => index + 1)}
               disabled={!isAnswered(currentAnswer) || submitting}
             >
-              Next question
+              Next question ›
             </button>
           ) : (
             <button

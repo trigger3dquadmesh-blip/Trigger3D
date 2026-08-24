@@ -51,6 +51,20 @@ test('groups per-question rows into a single assessment attempt', () => {
   assert.equal(attempts[0].percentage, 50)
 })
 
+test('lists submitted assessment attempts alphabetically by student surname', () => {
+  const attempts = groupAssessmentResults([
+    { ...rows[0], attempt_id: 'attempt-zoe', student_name: 'Zoe Maria Santos', student_email: 'zoe@parsu.edu.ph' },
+    { ...rows[0], attempt_id: 'attempt-arian', student_name: 'Arian Jane Agdoro', student_email: 'arian@parsu.edu.ph' },
+    { ...rows[0], attempt_id: 'attempt-no-name', student_name: 'no-name@parsu.edu.ph', student_email: 'no-name@parsu.edu.ph' },
+  ])
+
+  assert.deepEqual(attempts.map((attempt) => attempt.student_name), [
+    'Arian Jane Agdoro',
+    'Zoe Maria Santos',
+    'Name not provided',
+  ])
+})
+
 test('aggregates correct and incorrect responses per firearm question', () => {
   const repeatedRows = [
     ...rows,

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   accountMatchesSearch,
+  filterAccountsByRole,
   getAccountRelationship,
   isAccountDeleteConfirmed,
 } from '../src/features/admin/accounts/account-utils.js'
@@ -17,6 +18,17 @@ test('account search matches names, email addresses, and roles case-insensitivel
   assert.equal(accountMatchesSearch(account, 'FACULTY ONE'), true)
   assert.equal(accountMatchesSearch(account, '@parsu.edu.ph'), true)
   assert.equal(accountMatchesSearch(account, 'student'), false)
+})
+
+test('filters the account list by the selected role', () => {
+  const accounts = [
+    account,
+    { id: 'student-1', role: 'student' },
+    { id: 'admin-1', role: 'admin' },
+  ]
+
+  assert.deepEqual(filterAccountsByRole(accounts, 'faculty'), [account])
+  assert.deepEqual(filterAccountsByRole(accounts, 'all'), accounts)
 })
 
 test('delete confirmation requires the complete email but ignores case and spaces', () => {

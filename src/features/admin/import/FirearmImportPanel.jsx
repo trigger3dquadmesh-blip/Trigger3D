@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase.js'
 import { validateGunBundle } from './validation.js'
+import useAutoDismissNotice from '../../../components/useAutoDismissNotice.js'
 
 export default function FirearmImportPanel({ onImported }) {
   const [name, setName] = useState('Generic M1911 A2 Pattern')
@@ -14,6 +15,8 @@ export default function FirearmImportPanel({ onImported }) {
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+
+  useAutoDismissNotice(notice, () => setNotice(''))
 
   function clearValidation() {
     setValidation(null)
@@ -105,8 +108,15 @@ export default function FirearmImportPanel({ onImported }) {
           <h2>Import firearm bundle</h2>
           <p>Select one GLB, its component CSV, and its question CSV.</p>
         </div>
-        {validation?.data && <span className="status-badge active">validated</span>}
+        {validation?.data && <span className="import-validation-state">Validated</span>}
       </div>
+
+      <aside className="import-checklist" aria-label="Import checklist">
+        <div>
+          <strong>Quick check before you upload</strong>
+          <p>Use the GLB model, component CSV, and question CSV that belong to the same firearm. If you choose the wrong file, just select another one before validating.</p>
+        </div>
+      </aside>
 
       <form className="import-form" onSubmit={handleImport}>
         <div className="import-details">

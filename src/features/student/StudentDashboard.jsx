@@ -4,9 +4,25 @@ import { isValidFullName, normalizeFullName } from '../../auth/name.js'
 import useAuth from '../../auth/useAuth.js'
 import RoleDashboard from '../../components/RoleDashboard.jsx'
 import { supabase } from '../../lib/supabase.js'
+import { isDemoMode } from '../../lib/supabase.js'
+import AdminSettings from '../admin/AdminSettings.jsx'
+import DemoStudentDashboard from './DemoStudentDashboard.jsx'
 import { getStudentFirearmDestination } from './assessment/assessment-lock.js'
+import { getStudentGreeting } from './student-greeting.js'
+import StudentSidebar from './StudentSidebar.jsx'
+import { getSavedDashboardPage, saveDashboardPage } from '../../components/dashboard-location.js'
+import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
+
+const studentPages = ['overview', 'enrollment', 'models', 'results']
+const studentDashboardPageKey = 'trigger3d.student.active-page'
 
 export default function StudentDashboard() {
+  if (isDemoMode) return <DemoStudentDashboard />
+
+  return <LiveStudentDashboard />
+}
+
+function LiveStudentDashboard() {
   const { profile, refreshProfile } = useAuth()
   const [enrollments, setEnrollments] = useState([])
   const [firearms, setFirearms] = useState([])
@@ -19,6 +35,13 @@ export default function StudentDashboard() {
   const [savingName, setSavingName] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [activePage, setActivePage] = useState(() => (
+    getSavedDashboardPage(localStorage, studentDashboardPageKey, studentPages, 'overview')
+  ))
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [greeting] = useState(() => getStudentGreeting(profile, localStorage))
+
+  useAutoDismissNotice(notice, () => setNotice(''))
 
   const loadEnrollment = useCallback(async () => {
     const { data, error: enrollmentError } = await supabase
@@ -134,6 +157,12 @@ export default function StudentDashboard() {
   const activeEnrollment = enrollments.find((item) => item.status === 'active')
   const latestRemovedEnrollment = enrollments.find((item) => item.status === 'removed')
 
+  function navigateSection(section) {
+    setActivePage(section)
+    saveDashboardPage(localStorage, studentDashboardPageKey, section)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   if (!profile?.full_name) {
     return (
       <RoleDashboard
@@ -172,8 +201,18 @@ export default function StudentDashboard() {
     <RoleDashboard
       title="Student dashboard"
       description="Join your class before accessing Trigger3D learning materials."
+      hideUser
+      sidebar={<StudentSidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings roleName="Student" sidebar />} />}
     >
-      <article className="dashboard-card dashboard-card-wide">
+      {activePage === 'overview' && <section className="admin-dashboard-section">
+        <article className="dashboard-card dashboard-card-wide admin-welcome">
+          <p className="eyebrow">Student workspace</p>
+          <h2>{greeting}</h2>
+          <p>Join your class, explore available 3D models, and keep track of your assessment results here.</p>
+        </article>
+      </section>}
+
+      {activePage === 'enrollment' && <article className="dashboard-card dashboard-card-wide">
         <h2>Class enrollment</h2>
         {loading ? (
           <p>Loading enrollment...</p>
@@ -211,9 +250,9 @@ export default function StudentDashboard() {
             </form>
           </>
         )}
-      </article>
+      </article>}
 
-      <article className="dashboard-card">
+      {activePage === 'models' && <article className="dashboard-card">
         <h2>3D models</h2>
         {!activeEnrollment ? (
           <p>Enroll in an active class to unlock firearm models.</p>
@@ -242,9 +281,9 @@ export default function StudentDashboard() {
             ))}
           </div>
         )}
-      </article>
+      </article>}
 
-      <article className="dashboard-card">
+      {activePage === 'results' && <article className="dashboard-card">
         <h2>Your results</h2>
         {results.length === 0 ? (
           <p>No assessment results yet.</p>
@@ -264,7 +303,7 @@ export default function StudentDashboard() {
             ))}
           </div>
         )}
-      </article>
+      </article>}
 
       {(error || notice) && (
         <div

@@ -2,8 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js'
 import { AuthContext } from './auth-context.js'
 
-const demoProfile = Object.freeze({
+const demoProfiles = Object.freeze({
+  'admin@trigger3d.demo': Object.freeze({
   id: 'demo-admin', email: 'admin@trigger3d.demo', full_name: 'Demo Administrator', role: 'admin',
+  }),
+  'student@trigger3d.demo': Object.freeze({
+    id: 'demo-student', email: 'student@trigger3d.demo', full_name: 'Demo Student', role: 'student',
+  }),
+  'faculty@trigger3d.demo': Object.freeze({
+    id: 'demo-faculty', email: 'faculty@trigger3d.demo', full_name: 'Demo Faculty', role: 'faculty',
+  }),
 })
 
 export default function AuthProvider({ children }) {
@@ -109,8 +117,9 @@ export default function AuthProvider({ children }) {
   }, [profile, session])
 
   const demoSignIn = useCallback((email, password) => {
-    if (email.trim().toLowerCase() !== demoProfile.email || password !== 'demo12345') {
-      return { error: new Error('Use the demo administrator credentials shown below.') }
+    const demoProfile = demoProfiles[email.trim().toLowerCase()]
+    if (!demoProfile || password !== 'demo12345') {
+      return { error: new Error('Use one of the demo account credentials shown below.') }
     }
     setSession({ user: { id: demoProfile.id, email: demoProfile.email } })
     setProfile(demoProfile)

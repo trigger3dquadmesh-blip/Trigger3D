@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { supabase } from '../../../lib/supabase.js'
 import { validateComponentLayout } from './validation.js'
+import useAutoDismissNotice from '../../../components/useAutoDismissNotice.js'
 
 export default function FirearmLayoutPanel({ firearms }) {
   const [firearmId, setFirearmId] = useState('')
@@ -8,6 +9,8 @@ export default function FirearmLayoutPanel({ firearms }) {
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+
+  useAutoDismissNotice(notice, () => setNotice(''))
 
   const selectedFirearm = useMemo(
     () => firearms.find((firearm) => firearm.id === firearmId) ?? null,
@@ -74,6 +77,13 @@ export default function FirearmLayoutPanel({ firearms }) {
           <p>Apply a revised component CSV without uploading the GLB again.</p>
         </div>
       </div>
+
+      <aside className="import-checklist" aria-label="Layout update checklist">
+        <div>
+          <strong>Check the file before updating</strong>
+          <p>Select the firearm first, then choose the component CSV made for it. Saving the update replaces that firearm’s current exploded-view positions.</p>
+        </div>
+      </aside>
 
       <form className="import-form" onSubmit={handleSubmit}>
         <div className="file-grid">

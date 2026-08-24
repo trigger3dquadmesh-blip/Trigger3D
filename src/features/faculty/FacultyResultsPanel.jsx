@@ -1,60 +1,115 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import {
   aggregateQuestionResults,
   createAssessmentResultsCsv,
   groupAssessmentResults,
 } from './results-utils.js'
+import { getResultsPage } from './results-pagination.js'
+import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
+import ProgressGraphAnalytics from './ProgressGraphAnalytics.jsx'
+import { assessmentStatusDetails, buildAssessmentActivity } from './assessment-status.js'
+
+function formatAttemptCount(count) {
+  if (!count) return 'No attempts'
+  return `${count} ${count === 1 ? 'attempt' : 'attempts'}`
+}
 
 export default function FacultyResultsPanel({ selectedClass }) {
   const [rows, setRows] = useState([])
+  const [activity, setActivity] = useState([])
   const [loading, setLoading] = useState(false)
   const [resettingId, setResettingId] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [analyticsPages, setAnalyticsPages] = useState({})
+  const [attemptPages, setAttemptPages] = useState({})
+  const [selectedAttemptId, setSelectedAttemptId] = useState('')
+  const [resetTarget, setResetTarget] = useState(null)
+  const [resetError, setResetError] = useState('')
+
+  useAutoDismissNotice(notice, () => setNotice(''))
 
   const attempts = useMemo(() => groupAssessmentResults(rows), [rows])
+  const activityByAttemptId = useMemo(
+    () => new Map(activity.filter((item) => item.attempt_id).map((item) => [item.attempt_id, item])),
+    [activity],
+  )
   const questionAnalytics = useMemo(() => aggregateQuestionResults(rows), [rows])
+  const selectedAttempt = attempts.find((attempt) => attempt.attempt_id === selectedAttemptId)
+  const selectedQuestionAnalytics = useMemo(() => aggregateQuestionResults(
+    rows.filter((row) => row.attempt_id === selectedAttemptId),
+  ), [rows, selectedAttemptId])
 
   const loadResults = useCallback(async () => {
     if (!selectedClass) return
     setLoading(true)
     setError('')
 
-    const { data, error: resultError } = await supabase.rpc(
-      'get_class_assessment_results',
-      { target_class_id: selectedClass.id },
-    )
+    const [resultResponse, enrollmentResponse, releaseResponse, firearmResponse, attemptResponse] = await Promise.all([
+      supabase.rpc('get_class_assessment_results', { target_class_id: selectedClass.id }),
+      supabase
+        .from('enrollments')
+        .select('student_id, status, student:profiles!enrollments_student_id_fkey(email, full_name)')
+        .eq('class_id', selectedClass.id),
+      supabase
+        .from('assessment_releases')
+        .select('firearm_id, is_open')
+        .eq('class_id', selectedClass.id),
+      supabase.from('firearms').select('id, name, caliber').eq('status', 'ready'),
+      supabase
+        .from('assessment_attempts')
+        .select('id, student_id, firearm_id, status, percentage, has_activity, attempt_number')
+        .eq('class_id', selectedClass.id),
+    ])
 
-    if (resultError) setError(resultError.message)
-    else setRows(data)
+    const requestError = resultResponse.error
+      || enrollmentResponse.error
+      || releaseResponse.error
+      || firearmResponse.error
+      || attemptResponse.error
+
+    if (requestError) setError(requestError.message)
+    else {
+      setRows(resultResponse.data)
+      setActivity(buildAssessmentActivity(
+        enrollmentResponse.data,
+        releaseResponse.data,
+        firearmResponse.data,
+        attemptResponse.data,
+      ))
+    }
 
     setLoading(false)
   }, [selectedClass])
 
-  async function resetAttempt(attempt) {
-    const confirmed = window.confirm(
-      `Reset ${attempt.student_name}'s ${attempt.firearm_name} attempt? `
-      + 'Their saved score and answers will be removed so they can retake it.',
-    )
-    if (!confirmed) return
+  function requestReset(attempt) {
+    setResetError('')
+    setResetTarget(attempt)
+  }
+
+  async function resetAttempt() {
+    if (!resetTarget) return
+    const attempt = resetTarget
 
     setResettingId(attempt.attempt_id)
-    setError('')
+    setResetError('')
     setNotice('')
 
-    const { error: resetError } = await supabase.rpc(
+    const { error: requestError } = await supabase.rpc(
       'reset_student_assessment_attempt',
       { target_attempt_id: attempt.attempt_id },
     )
 
-    if (resetError) {
-      setError(resetError.message)
+    if (requestError) {
+      setResetError(requestError.message)
     } else {
       setNotice(
         `${attempt.student_name}'s ${attempt.firearm_name} attempt was reset. `
         + 'Keep the assessment open when they are ready to retake it.',
       )
+      setResetTarget(null)
+      setSelectedAttemptId('')
       await loadResults()
     }
 
@@ -99,12 +154,8 @@ export default function FacultyResultsPanel({ selectedClass }) {
         </div>
         {selectedClass && (
           <div className="results-actions">
-            <button type="button" onClick={loadResults} disabled={loading}>
-              Refresh
-            </button>
-            <button type="button" onClick={downloadCsv} disabled={rows.length === 0}>
-              Download CSV
-            </button>
+            <button type="button" onClick={loadResults} disabled={loading}>Refresh</button>
+            <button type="button" onClick={downloadCsv} disabled={rows.length === 0}>Download CSV</button>
           </div>
         )}
       </div>
@@ -115,93 +166,236 @@ export default function FacultyResultsPanel({ selectedClass }) {
         <p>Loading results...</p>
       ) : error ? (
         <div className="alert alert-error" role="alert">{error}</div>
-      ) : attempts.length === 0 ? (
-        <p>No submitted assessments for this class yet.</p>
+      ) : activity.length === 0 ? (
+        <p>No assessment activity for this class yet. Open an assessment to show each enrolled student's status.</p>
       ) : (
         <>
-          <section className="question-analytics" aria-label="Per-question analytics">
+          <section className="submitted-attempts" aria-label="Assessment activity">
+            <div className="submitted-attempts-heading">
+              <h3>Assessment activity</h3>
+              <p>Select a submitted student to review their answers.</p>
+            </div>
+            <div className="submitted-attempts-table" role="table" aria-label="Student assessment activity">
+              <div className="submitted-attempts-row submitted-attempts-labels" role="row">
+                <span role="columnheader">Student</span>
+                <span role="columnheader">Pattern</span>
+                <span role="columnheader">Progress</span>
+                <span role="columnheader">Score</span>
+                <span role="columnheader">Status</span>
+              </div>
+              {attempts.map((attempt) => (
+                <Fragment key={attempt.attempt_id}>
+                <button
+                  aria-expanded={selectedAttemptId === attempt.attempt_id}
+                  className={`submitted-attempts-row ${selectedAttemptId === attempt.attempt_id ? 'selected' : ''}`}
+                  onClick={() => setSelectedAttemptId((currentId) => (
+                    currentId === attempt.attempt_id ? '' : attempt.attempt_id
+                  ))}
+                  role="row"
+                  type="button"
+                >
+                  <span role="cell">
+                    <strong>{attempt.student_name}</strong>
+                    <small>{attempt.student_email}</small>
+                  </span>
+                  <span role="cell">{attempt.firearm_name}</span>
+                  <span role="cell">{formatAttemptCount(activityByAttemptId.get(attempt.attempt_id)?.attempt_count || 1)}</span>
+                  <strong className="submitted-attempt-score" role="cell">
+                    {Number(attempt.percentage).toFixed(1)}%
+                  </strong>
+                  <span aria-label="Submitted" className="submitted-attempt-status" role="cell">Submitted</span>
+                </button>
+                  {selectedAttemptId === attempt.attempt_id && (
+                    <div className="submitted-attempt-detail" role="row">
+                      <div>
+                        <div className="submitted-attempt-detail-heading">
+                          <h3>{attempt.student_name}'s record</h3>
+                          <button type="button" onClick={() => setSelectedAttemptId('')}>Close</button>
+                        </div>
+                        <ProgressGraphAnalytics
+                          attempts={[attempt]}
+                          questionAnalytics={selectedQuestionAnalytics}
+                        studentName={attempt.student_name}
+                      />
+                      <AttemptResult
+                        attempt={attempt}
+                        onChangePage={(nextPage) => setAttemptPages((pages) => ({
+                          ...pages,
+                          [attempt.attempt_id]: nextPage,
+                        }))}
+                        onReset={requestReset}
+                        page={attemptPages[attempt.attempt_id] || 0}
+                        resetting={resettingId === attempt.attempt_id}
+                      />
+                    </div>
+                  </div>
+                )}
+                </Fragment>
+              ))}
+              {activity.filter((item) => item.status !== 'submitted').map((item) => {
+                const status = assessmentStatusDetails(item.status)
+                return (
+                  <div className="submitted-attempts-row submitted-attempts-row-static" key={`${item.student_email}:${item.firearm_name}`} role="row">
+                    <span role="cell">
+                      <strong>{item.student_name}</strong>
+                      <small>{item.student_email}</small>
+                    </span>
+                    <span role="cell">{item.firearm_name}</span>
+                    <span role="cell">{formatAttemptCount(item.attempt_count)}</span>
+                    <strong className="submitted-attempt-score submitted-attempt-score-muted" role="cell">
+                      {item.percentage == null ? '—' : `${Number(item.percentage).toFixed(1)}%`}
+                    </strong>
+                    <span className={`submitted-attempt-status ${status.className}`} role="cell">
+                      {status.label}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+
+          {!selectedAttempt && <ProgressGraphAnalytics attempts={attempts} questionAnalytics={questionAnalytics} />}
+
+          {questionAnalytics.length > 0 && <section className="question-analytics" aria-label="Per-question analytics">
             <div className="question-analytics-heading">
               <h3>Per-question analytics</h3>
               <p>Correct and incorrect responses across submitted attempts.</p>
             </div>
-            {questionAnalytics.map((firearm) => (
-              <div className="question-analytics-firearm" key={firearm.firearm_id || firearm.firearm_name}>
-                <h4>{firearm.firearm_name} <span>{firearm.firearm_caliber}</span></h4>
-                <div className="question-analytics-list">
-                  {firearm.questions.map((question) => (
-                    <div className="question-analytics-row" key={question.question_id}>
-                      <div>
-                        <strong>{question.question_id}: {question.prompt}</strong>
-                        <span>{question.component_name.replaceAll('_', ' ')}</span>
-                      </div>
-                      <div className="question-accuracy">
-                        <div className="question-accuracy-label">
-                          <span>{question.correct_count} correct</span>
-                          <span>{question.incorrect_count} incorrect</span>
-                          <strong>{question.accuracy.toFixed(1)}%</strong>
-                        </div>
-                        <div
-                          aria-label={`${question.accuracy.toFixed(1)} percent correct`}
-                          className="question-accuracy-track"
-                          role="img"
-                        >
-                          <div style={{ width: `${question.accuracy}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </section>
+            {questionAnalytics.map((firearm) => {
+              const firearmKey = firearm.firearm_id || firearm.firearm_name
+              return (
+                <AnalyticsFirearm
+                  firearm={firearm}
+                  key={firearmKey}
+                  onChangePage={(nextPage) => setAnalyticsPages((pages) => ({
+                    ...pages,
+                    [firearmKey]: nextPage,
+                  }))}
+                  page={analyticsPages[firearmKey] || 0}
+                />
+              )
+            })}
+          </section>}
 
-          <div className="faculty-result-list">
-            {attempts.map((attempt) => (
-            <details className="faculty-result" key={attempt.attempt_id}>
-              <summary>
-                <div>
-                  <strong>{attempt.student_name}</strong>
-                  <span>{attempt.student_email}</span>
-                </div>
-                <div>
-                  <strong>{attempt.firearm_name}</strong>
-                  <span>{new Date(attempt.submitted_at).toLocaleString()}</span>
-                </div>
-                <strong className="faculty-result-score">
-                  {Number(attempt.percentage).toFixed(2)}%
-                </strong>
-              </summary>
-
-              <div className="result-question-list">
-                {attempt.questions.map((question) => (
-                  <div className="result-question" key={question.question_id}>
-                    <span className={`status-badge ${question.is_correct ? 'active' : 'removed'}`}>
-                      {question.is_correct ? 'correct' : 'incorrect'}
-                    </span>
-                    <div>
-                      <strong>{question.question_id}: {question.prompt}</strong>
-                      <span>
-                        Answer: {question.student_answer} · Component: {question.component_name.replaceAll('_', ' ')}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="result-reset-row">
-                <button
-                  type="button"
-                  onClick={() => resetAttempt(attempt)}
-                  disabled={resettingId === attempt.attempt_id}
-                >
-                  {resettingId === attempt.attempt_id
-                    ? 'Resetting...' : 'Reset attempt for retake'}
-                </button>
-              </div>
-            </details>
-            ))}
-          </div>
         </>
       )}
+
+      {resetTarget && (
+        <div className="confirmation-backdrop" role="presentation">
+          <section aria-labelledby="reset-attempt-title" aria-modal="true" className="confirmation-dialog" role="dialog">
+            <p className="eyebrow">Confirm action</p>
+            <h2 id="reset-attempt-title">Reset assessment attempt?</h2>
+            <p>
+              Reset <strong>{resetTarget.student_name}</strong>'s <strong>{resetTarget.firearm_name}</strong> attempt?
+              Their saved score and answers will be removed so they can retake it.
+            </p>
+            {resetError && <div className="alert alert-error" role="alert">{resetError}</div>}
+            <div className="confirmation-actions">
+              <button className="danger-action" disabled={Boolean(resettingId)} onClick={resetAttempt} type="button">
+                {resettingId ? 'Resetting...' : 'Reset attempt'}
+              </button>
+              <button disabled={Boolean(resettingId)} onClick={() => setResetTarget(null)} type="button">Cancel</button>
+            </div>
+          </section>
+        </div>
+      )}
     </article>
+  )
+}
+
+function ResultsPagination({ page, pageCount, onChangePage, label }) {
+  if (pageCount <= 1) return null
+
+  return (
+    <div className="results-pagination" aria-label={label}>
+      <button type="button" disabled={page === 0} onClick={() => onChangePage(page - 1)}>Previous</button>
+      <span>Page {page + 1} of {pageCount}</span>
+      <button type="button" disabled={page === pageCount - 1} onClick={() => onChangePage(page + 1)}>Next</button>
+    </div>
+  )
+}
+
+function AnalyticsFirearm({ firearm, page, onChangePage }) {
+  const currentPage = getResultsPage(firearm.questions, page)
+
+  return (
+    <div className="question-analytics-firearm">
+      <h4>{firearm.firearm_name} <span>{firearm.firearm_caliber}</span></h4>
+      <div className="question-analytics-list">
+        {currentPage.items.map((question) => (
+          <div className="question-analytics-row" key={question.question_id}>
+            <div>
+              <strong>{question.question_id}: {question.prompt}</strong>
+              <span>{question.component_name.replaceAll('_', ' ')}</span>
+            </div>
+            <div className="question-accuracy">
+              <div className="question-accuracy-label">
+                <span>{question.correct_count} correct</span>
+                <span>{question.incorrect_count} incorrect</span>
+                <strong>{question.accuracy.toFixed(1)}%</strong>
+              </div>
+              <div
+                aria-label={`${question.accuracy.toFixed(1)} percent correct`}
+                className="question-accuracy-track"
+                role="img"
+              >
+                <div style={{ width: `${question.accuracy}%` }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <ResultsPagination
+        label={`${firearm.firearm_name} analytics pages`}
+        onChangePage={onChangePage}
+        page={currentPage.page}
+        pageCount={currentPage.pageCount}
+      />
+    </div>
+  )
+}
+
+function AttemptResult({ attempt, page, onChangePage, onReset, resetting }) {
+  const currentPage = getResultsPage(attempt.questions, page)
+
+  return (
+    <div className="faculty-result">
+      <div className="faculty-result-summary">
+        <div>
+          <strong>{attempt.student_name}</strong>
+          <span>{attempt.student_email}</span>
+        </div>
+        <div>
+          <strong>{attempt.firearm_name}</strong>
+          <span>{new Date(attempt.submitted_at).toLocaleString()}</span>
+        </div>
+        <strong className="faculty-result-score">{Number(attempt.percentage).toFixed(2)}%</strong>
+      </div>
+
+      <div className="result-question-list">
+        {currentPage.items.map((question) => (
+          <div className="result-question" key={question.question_id}>
+            <span className={`status-badge ${question.is_correct ? 'active' : 'removed'}`}>
+              {question.is_correct ? 'correct' : 'incorrect'}
+            </span>
+            <div>
+              <strong>{question.question_id}: {question.prompt}</strong>
+              <span>Answer: {question.student_answer} · Component: {question.component_name.replaceAll('_', ' ')}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <ResultsPagination
+        label={`${attempt.student_name} answer pages`}
+        onChangePage={onChangePage}
+        page={currentPage.page}
+        pageCount={currentPage.pageCount}
+      />
+      <div className="result-reset-row">
+        <button type="button" onClick={() => onReset(attempt)} disabled={resetting}>
+          {resetting ? 'Resetting...' : 'Reset attempt for retake'}
+        </button>
+      </div>
+    </div>
   )
 }
