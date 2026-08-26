@@ -717,10 +717,24 @@ h1 { margin: 0; font-size: clamp(3rem, 9vw, 7rem); line-height: 0.95; }
 .results-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .results-heading h2 { margin-bottom: 0.35rem; }
 .results-heading p { margin: 0; }
-.results-actions { display: flex; gap: 0.5rem; }
+.results-actions { display: flex; align-items: end; justify-content: end; gap: 0.5rem; }
 .results-actions button { padding: 0.65rem 0.8rem; border: 1px solid var(--border-strong); border-radius: 0.5rem; color: var(--text); background: var(--surface-strong); font-weight: 700; cursor: pointer; }
-.results-actions button:last-child { border-color: var(--accent); color: var(--accent-text); background: var(--accent); }
+.results-actions .detailed-export-button { border-color: var(--accent); color: var(--accent-text); background: var(--accent); }
 .results-actions button:disabled { cursor: not-allowed; opacity: 0.45; }
+.results-actions .results-refresh-button { display: inline-grid; width: 2.3rem; height: 2.3rem; min-height: 0; padding: 0; place-items: center; border-radius: 999px; font-size: 1.3rem; line-height: 1; }
+.results-actions .results-refresh-button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.results-actions .results-refresh-button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 2px; }
+.results-actions .results-refresh-button.is-refreshing span { animation: results-refresh-spin 0.8s linear infinite; }
+@keyframes results-refresh-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .results-actions .results-refresh-button.is-refreshing span { animation: none; }
+}
+.gradebook-export { display: grid; gap: 0.2rem; min-width: 10.75rem; }
+.gradebook-export-label { color: var(--text-muted); font-size: 0.76rem; font-weight: 800; }
+.gradebook-export-select { min-height: 2.65rem; width: 100%; padding: 0.5rem 2rem 0.5rem 0.7rem; border: 1px solid var(--border-strong); border-radius: 0.5rem; color: var(--text); background: var(--surface-strong); font: inherit; font-size: 0.86rem; font-weight: 700; cursor: pointer; }
+.gradebook-export-select:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 2px; }
+.gradebook-export-select:disabled { cursor: not-allowed; opacity: 0.45; }
 .progress-graph-analytics { display: grid; gap: 1rem; margin-top: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 0.65rem; background: var(--surface-strong); }
 .progress-graph-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
 .progress-graph-heading h3, .progress-graph-heading p { margin: 0; }
@@ -855,6 +869,9 @@ button.submitted-attempts-row:focus-visible { outline: 2px solid var(--accent); 
   .assessment-navigation { grid-template-columns: 1fr; display: grid; }
   .results-heading,
   .results-actions { display: grid; }
+  .results-actions { justify-items: stretch; }
+  .results-actions .results-refresh-button { justify-self: end; }
+  .gradebook-export { width: 100%; }
   .progress-graph-heading,
   .progress-donut-chart { display: grid; grid-template-columns: 1fr; }
   .progress-graph-controls,

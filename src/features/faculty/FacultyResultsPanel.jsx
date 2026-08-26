@@ -1,10 +1,16 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import useAuth from '../../auth/useAuth.js'
 import { supabase } from '../../lib/supabase.js'
 import {
   aggregateQuestionResults,
   createAssessmentResultsCsv,
   groupAssessmentResults,
 } from './results-utils.js'
+import {
+  buildGradebookData,
+  createGradebookWorkbook,
+  gradebookFilename,
+} from './gradebook-utils.js'
 import { getResultsPage } from './results-pagination.js'
 import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
 import ProgressGraphAnalytics from './ProgressGraphAnalytics.jsx'
@@ -16,6 +22,7 @@ function formatAttemptCount(count) {
 }
 
 export default function FacultyResultsPanel({ selectedClass }) {
+  const { profile } = useAuth()
   const [rows, setRows] = useState([])
   const [activity, setActivity] = useState([])
   const [loading, setLoading] = useState(false)
@@ -27,6 +34,10 @@ export default function FacultyResultsPanel({ selectedClass }) {
   const [selectedAttemptId, setSelectedAttemptId] = useState('')
   const [resetTarget, setResetTarget] = useState(null)
   const [resetError, setResetError] = useState('')
+  const [gradebookSource, setGradebookSource] = useState(null)
+  const [exportFormat, setExportFormat] = useState('')
+  const [selectedExportFormat, setSelectedExportFormat] = useState('')
+  const [exportError, setExportError] = useState('')
 
   useAutoDismissNotice(notice, () => setNotice(''))
 
@@ -45,6 +56,8 @@ export default function FacultyResultsPanel({ selectedClass }) {
     if (!selectedClass) return
     setLoading(true)
     setError('')
+    setExportError('')
+    setGradebookSource(null)
 
     const [resultResponse, enrollmentResponse, releaseResponse, firearmResponse, attemptResponse] = await Promise.all([
       supabase.rpc('get_class_assessment_results', { target_class_id: selectedClass.id }),
@@ -71,7 +84,29 @@ export default function FacultyResultsPanel({ selectedClass }) {
 
     if (requestError) setError(requestError.message)
     else {
+      const scoreByStudentAndFirearm = new Map()
+      ;(resultResponse.data ?? []).forEach((result) => {
+        const key = `${result.student_id}:${result.firearm_id}`
+        if (!scoreByStudentAndFirearm.has(key)) {
+          scoreByStudentAndFirearm.set(key, {
+            correctCount: result.correct_count,
+            totalQuestions: result.total_questions,
+          })
+        }
+      })
+
+      const gradebookAttempts = (attemptResponse.data ?? []).map((attempt) => ({
+        ...attempt,
+        ...scoreByStudentAndFirearm.get(`${attempt.student_id}:${attempt.firearm_id}`),
+      }))
+
       setRows(resultResponse.data)
+      setGradebookSource({
+        attempts: gradebookAttempts,
+        enrollments: enrollmentResponse.data,
+        firearms: firearmResponse.data,
+        releases: releaseResponse.data,
+      })
       setActivity(buildAssessmentActivity(
         enrollmentResponse.data,
         releaseResponse.data,
@@ -124,23 +159,73 @@ export default function FacultyResultsPanel({ selectedClass }) {
     }
   }, [loadResults, selectedClass])
 
-  function downloadCsv() {
-    const blob = new Blob([createAssessmentResultsCsv(rows)], {
-      type: 'text/csv;charset=utf-8',
-    })
+  function downloadFile(blob, filename) {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    const classIdentifier = (selectedClass.code || selectedClass.name)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_|_$/g, '')
-
     link.href = url
-    link.download = `${classIdentifier}_assessment_results.csv`
+    link.download = filename
     document.body.appendChild(link)
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
+  }
+
+  async function exportGradebook() {
+    if (!gradebookSource || !selectedClass) return
+    setExportFormat('xlsx')
+    setExportError('')
+
+    try {
+      const gradebook = buildGradebookData({
+        ...gradebookSource,
+        facultyName: profile?.full_name || profile?.email || '',
+        selectedClass,
+      })
+      if (gradebook.students.length === 0) {
+        throw new Error('There are no active students enrolled in this class to export.')
+      }
+
+      const buffer = await createGradebookWorkbook(gradebook)
+      downloadFile(new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }), gradebookFilename(selectedClass, 'xlsx'))
+      setNotice('Gradebook downloaded as Excel (.xlsx).')
+    } catch (requestError) {
+      setExportError(requestError.message || 'The gradebook could not be exported.')
+    } finally {
+      setExportFormat('')
+      setSelectedExportFormat('')
+    }
+  }
+
+  function handleGradebookExportChange(event) {
+    const format = event.target.value
+    setSelectedExportFormat(format)
+    if (format === 'xlsx') void exportGradebook()
+    if (format === 'detailed-csv') void downloadDetailedCsv()
+  }
+
+  function downloadDetailedCsv() {
+    try {
+      if (rows.length === 0) {
+        throw new Error('There are no submitted answers in this class to export.')
+      }
+
+      const blob = new Blob([createAssessmentResultsCsv(rows)], {
+        type: 'text/csv;charset=utf-8',
+      })
+      const classIdentifier = (selectedClass.code || selectedClass.name)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+
+      downloadFile(blob, `${classIdentifier}_detailed_assessment_results.csv`)
+      setNotice('Detailed results downloaded as CSV.')
+    } catch (requestError) {
+      setExportError(requestError.message || 'The detailed results could not be exported.')
+    } finally {
+      setSelectedExportFormat('')
+    }
   }
 
   return (
@@ -154,13 +239,37 @@ export default function FacultyResultsPanel({ selectedClass }) {
         </div>
         {selectedClass && (
           <div className="results-actions">
-            <button type="button" onClick={loadResults} disabled={loading}>Refresh</button>
-            <button type="button" onClick={downloadCsv} disabled={rows.length === 0}>Download CSV</button>
+            <div className="gradebook-export">
+              <label className="gradebook-export-label" htmlFor="gradebook-export-format">Download results</label>
+              <select
+                aria-label="Gradebook download format"
+                className="gradebook-export-select"
+                disabled={loading || Boolean(exportFormat) || !gradebookSource}
+                id="gradebook-export-format"
+                onChange={handleGradebookExportChange}
+                value={selectedExportFormat}
+              >
+                <option value="">Choose file format</option>
+                <option value="xlsx">Excel (.xlsx)</option>
+                <option value="detailed-csv">Detailed answers (.csv)</option>
+              </select>
+            </div>
+            <button
+              aria-label="Refresh assessment results"
+              className={`results-refresh-button${loading ? ' is-refreshing' : ''}`}
+              disabled={loading}
+              onClick={loadResults}
+              title="Refresh results"
+              type="button"
+            >
+              <span aria-hidden="true">↻</span>
+            </button>
           </div>
         )}
       </div>
 
       {notice && <div className="alert alert-success" role="status">{notice}</div>}
+      {exportError && <div className="alert alert-error" role="alert">{exportError}</div>}
 
       {!selectedClass ? null : loading ? (
         <p>Loading results...</p>
