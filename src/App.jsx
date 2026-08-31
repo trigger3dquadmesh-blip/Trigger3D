@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import RoleProtectedRoute from './components/RoleProtectedRoute.jsx'
 import { ROLES } from './config/roles.js'
@@ -22,9 +22,11 @@ const AssessmentPage = lazy(
 )
 
 export default function App() {
+  const location = useLocation()
+
   return (
     <>
-      <ThemeToggle />
+      {location.pathname !== '/' && location.pathname !== '/login' && <ThemeToggle />}
       <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
