@@ -9,7 +9,7 @@ function getInitialTheme() {
   return 'dark'
 }
 
-export default function ThemeToggle() {
+export default function ThemeToggle({ compact = false }) {
   const [theme, setTheme] = useState(getInitialTheme)
   const isDark = theme === 'dark'
 
@@ -21,7 +21,7 @@ export default function ThemeToggle() {
 
   return (
     <button
-      className="theme-toggle"
+      className={`theme-toggle${compact ? ' theme-toggle--nav' : ''}`}
       type="button"
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
       title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
@@ -32,7 +32,7 @@ export default function ThemeToggle() {
       ) : (
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20.4 15.1A8.25 8.25 0 0 1 8.9 3.6 8.25 8.25 0 1 0 20.4 15.1Z" /></svg>
       )}
-      <span>{isDark ? 'Light mode' : 'Dark mode'}</span>
+      {!compact && <span>{isDark ? 'Light mode' : 'Dark mode'}</span>}
     </button>
   )
 }
