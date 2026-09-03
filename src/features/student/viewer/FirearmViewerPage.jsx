@@ -15,6 +15,9 @@ export default function FirearmViewerPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [locked, setLocked] = useState(false)
+  const [componentsOpen, setComponentsOpen] = useState(true)
+  const [componentQuery, setComponentQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
 
   useEffect(() => {
     let active = true
@@ -103,6 +106,13 @@ export default function FirearmViewerPage() {
     () => components.find((component) => component.mesh_name === selectedName) ?? null,
     [components, selectedName],
   )
+  const filteredComponents = useMemo(() => {
+    const normalizedQuery = componentQuery.trim().toLowerCase()
+    return components.filter((component) => (
+      (categoryFilter === 'all' || component.category === categoryFilter)
+      && (!normalizedQuery || component.mesh_name.replaceAll('_', ' ').toLowerCase().includes(normalizedQuery))
+    ))
+  }, [categoryFilter, componentQuery, components])
 
   if (loading) return <main className="page status-page">Loading 3D viewer...</main>
 
@@ -141,29 +151,38 @@ export default function FirearmViewerPage() {
   return (
     <main className="model-viewer-page">
       <header className="viewer-header">
-        <div>
+        <div className="viewer-title-group">
           <Link to="/student">← Student dashboard</Link>
-          <h1>{firearm.name}</h1>
-          <span>{firearm.caliber} · {components.length} components</span>
+          <div>
+            <h1>{firearm.name}</h1>
+            <span>{firearm.caliber} · {components.length} components</span>
+          </div>
         </div>
         <div className="viewer-controls">
-          <button type="button" onClick={() => setExploded((current) => !current)}>
-            {exploded ? 'Reassemble' : 'Exploded view'}
+          <button aria-expanded={componentsOpen} type="button" onClick={() => setComponentsOpen((current) => !current)}>
+            Components
           </button>
-          <button type="button" onClick={() => setResetKey((current) => current + 1)}>
-            Reset camera
-          </button>
+          <Link className="assessment-button viewer-assessment-button" to={`/student/models/${firearmId}/assessment`}>Open assessment</Link>
         </div>
       </header>
 
-      <section className="viewer-layout">
-        <aside className="viewer-sidebar component-browser">
-          <h2>Components</h2>
-          <p>Select a name or click the model.</p>
+      <section className="viewer-layout" data-components-open={componentsOpen} data-details-open={Boolean(selectedComponent)}>
+        {componentsOpen && <aside className="viewer-sidebar component-browser">
+          <div className="viewer-panel-heading">
+            <div><h2>Components</h2><p>Select a name or click the model.</p></div>
+            <button aria-label="Close components panel" className="viewer-panel-close" onClick={() => setComponentsOpen(false)} type="button">×</button>
+          </div>
+          <label className="component-search">
+            <span>Search components</span>
+            <input value={componentQuery} onChange={(event) => setComponentQuery(event.target.value)} placeholder="Search by name" />
+          </label>
+          <div className="component-filters" aria-label="Filter components">
+            {['all', 'external', 'internal'].map((category) => <button aria-pressed={categoryFilter === category} className={categoryFilter === category ? 'selected' : ''} key={category} onClick={() => setCategoryFilter(category)} type="button">{category}</button>)}
+          </div>
           {['external', 'internal'].map((category) => (
             <div className="component-group" key={category}>
               <h3>{category}</h3>
-              {components
+              {filteredComponents
                 .filter((component) => component.category === category)
                 .map((component) => (
                   <button
@@ -177,45 +196,32 @@ export default function FirearmViewerPage() {
                 ))}
             </div>
           ))}
-        </aside>
+          {filteredComponents.length === 0 && <p className="component-empty">No matching components.</p>}
+        </aside>}
 
-        <FirearmCanvas
-          modelUrl={modelUrl}
-          components={components}
-          selectedName={selectedName}
-          exploded={exploded}
-          resetKey={resetKey}
-          onSelect={setSelectedName}
-        />
-
-        <aside className="viewer-sidebar information-panel">
-          <p className="eyebrow">Model information</p>
-          <h2>{firearm.name}</h2>
-          <p>{firearm.description || 'No model description provided.'}</p>
-
-          <div className="component-information">
-            <h3>{selectedComponent
-              ? selectedComponent.mesh_name.replaceAll('_', ' ')
-              : 'Select a component'}</h3>
-            {selectedComponent ? (
-              <>
-                <span className={`status-badge ${selectedComponent.category === 'internal' ? 'removed' : 'active'}`}>
-                  {selectedComponent.category}
-                </span>
-                <h4>Purpose</h4>
-                <p>{selectedComponent.purpose}</p>
-                <h4>Description</h4>
-                <p>{selectedComponent.description}</p>
-              </>
-            ) : (
-              <p>Choose a component from the list or directly from the 3D model.</p>
-            )}
+        <div className="viewer-stage">
+          <FirearmCanvas modelUrl={modelUrl} components={components} selectedName={selectedName} exploded={exploded} resetKey={resetKey} onSelect={setSelectedName} />
+          <div className="viewer-canvas-toolbar" aria-label="3D viewer controls">
+            <button aria-pressed={exploded} type="button" onClick={() => setExploded((current) => !current)}>{exploded ? 'Reassemble' : 'Exploded view'}</button>
+            <button type="button" onClick={() => setResetKey((current) => current + 1)}>Reset camera</button>
           </div>
+          <p className="viewer-canvas-hint">Drag to rotate · Scroll to zoom · Select a component for details</p>
+        </div>
 
-          <Link className="assessment-button" to={`/student/models/${firearmId}/assessment`}>
-            Open assessment
-          </Link>
-        </aside>
+        {selectedComponent && <aside className="viewer-sidebar information-panel">
+          <div className="viewer-panel-heading">
+            <div><p className="eyebrow">Component details</p><h2>{selectedComponent.mesh_name.replaceAll('_', ' ')}</h2></div>
+            <button aria-label="Close component details" className="viewer-panel-close" onClick={() => setSelectedName(null)} type="button">×</button>
+          </div>
+          <div className="component-information">
+            <span className={`status-badge ${selectedComponent.category === 'internal' ? 'removed' : 'active'}`}>{selectedComponent.category}</span>
+            <h3>Purpose</h3>
+            <p>{selectedComponent.purpose}</p>
+            <h3>Description</h3>
+            <p>{selectedComponent.description}</p>
+          </div>
+          <div className="model-summary"><h3>About this model</h3><p>{firearm.description || 'No model description provided.'}</p></div>
+        </aside>}
       </section>
     </main>
   )

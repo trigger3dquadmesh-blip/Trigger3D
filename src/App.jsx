@@ -23,10 +23,13 @@ const AssessmentPage = lazy(
 
 export default function App() {
   const location = useLocation()
+  const dashboardOwnsThemeToggle = ['/admin', '/faculty', '/student', '/settings'].includes(location.pathname)
 
   return (
     <>
-      {location.pathname !== '/' && location.pathname !== '/login' && <ThemeToggle />}
+      {location.pathname !== '/' && location.pathname !== '/login' && !dashboardOwnsThemeToggle && (
+        <ThemeToggle compact={location.pathname.startsWith('/admin') || location.pathname === '/settings'} />
+      )}
       <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />

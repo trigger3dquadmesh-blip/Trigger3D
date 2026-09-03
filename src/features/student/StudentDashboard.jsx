@@ -4,9 +4,7 @@ import { isValidFullName, normalizeFullName } from '../../auth/name.js'
 import useAuth from '../../auth/useAuth.js'
 import RoleDashboard from '../../components/RoleDashboard.jsx'
 import { supabase } from '../../lib/supabase.js'
-import { isDemoMode } from '../../lib/supabase.js'
 import AdminSettings from '../admin/AdminSettings.jsx'
-import DemoStudentDashboard from './DemoStudentDashboard.jsx'
 import { getStudentFirearmDestination } from './assessment/assessment-lock.js'
 import { getStudentGreeting } from './student-greeting.js'
 import StudentSidebar from './StudentSidebar.jsx'
@@ -17,8 +15,6 @@ const studentPages = ['overview', 'enrollment', 'models', 'results']
 const studentDashboardPageKey = 'trigger3d.student.active-page'
 
 export default function StudentDashboard() {
-  if (isDemoMode) return <DemoStudentDashboard />
-
   return <LiveStudentDashboard />
 }
 
@@ -202,14 +198,20 @@ function LiveStudentDashboard() {
       title="Student dashboard"
       description="Join your class before accessing Trigger3D learning materials."
       hideUser
+      hideHeader
+      variant="role-dashboard-redesign"
       sidebar={<StudentSidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings roleName="Student" sidebar />} />}
     >
       {activePage === 'overview' && <section className="admin-dashboard-section">
-        <article className="dashboard-card dashboard-card-wide admin-welcome">
-          <p className="eyebrow">Student workspace</p>
-          <h2>{greeting}</h2>
-          <p>Join your class, explore available 3D models, and keep track of your assessment results here.</p>
-        </article>
+        <section className="role-overview-metrics" aria-label="Student overview">
+          {[
+            ['Active Class', activeEnrollment ? '1 Class' : 'None', activeEnrollment?.class.name || 'Join a class to begin'],
+            ['3D Models', `${firearms.length} Available`, 'Ready for learning'],
+            ['Completed', `${results.length} Results`, 'Submitted assessments'],
+            ['In Progress', attempts.filter((attempt) => attempt.status === 'in_progress').length, 'Assessment attempts'],
+          ].map(([label, value, detail]) => <article key={label}><span>{label}</span><strong>{loading ? '—' : value}</strong><small>{detail}</small></article>)}
+        </section>
+        <article className="dashboard-card dashboard-card-wide admin-welcome"><p className="eyebrow">Student workspace</p><h2>{greeting}</h2><p>Join your class, explore available 3D models, and keep track of your assessment results here.</p></article>
       </section>}
 
       {activePage === 'enrollment' && <article className="dashboard-card dashboard-card-wide">

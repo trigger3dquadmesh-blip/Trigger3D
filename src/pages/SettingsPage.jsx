@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../auth/useAuth.js'
 import RoleDashboard from '../components/RoleDashboard.jsx'
@@ -17,19 +18,20 @@ const roleDetails = {
 export default function SettingsPage() {
   const { role } = useAuth()
   const navigate = useNavigate()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const details = roleDetails[role]
 
   if (!details) return null
 
   const sidebarProps = {
     activePage: '',
-    collapsed: false,
+    collapsed: sidebarCollapsed,
     onNavigate: (page) => {
       saveDashboardPage(localStorage, details.pageKey, page)
       navigate(getRoleHomePath(role))
     },
-    onToggle: () => {},
-    settings: <AdminSettings active roleName={details.roleName} sidebar />,
+    onToggle: () => setSidebarCollapsed((value) => !value),
+    settings: <AdminSettings active profileMenu={role === ROLES.ADMIN} roleName={details.roleName} sidebar />,
   }
 
   const sidebar = role === ROLES.ADMIN
@@ -41,9 +43,11 @@ export default function SettingsPage() {
   return (
     <RoleDashboard
       description="Manage your name, email address, password, and sign-in preferences."
+      hideHeader={role === ROLES.ADMIN}
       hideUser
       sidebar={sidebar}
       title={details.title}
+      variant={role === ROLES.ADMIN ? 'role-dashboard-redesign admin-reference-shell admin-settings-shell' : ''}
     >
       <AdminSettings page roleName={details.roleName} />
     </RoleDashboard>

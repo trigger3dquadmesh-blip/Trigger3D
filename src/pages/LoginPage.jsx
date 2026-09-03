@@ -10,8 +10,8 @@ const allowedDomain = (
   import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || 'parsu.edu.ph'
 ).replace(/^@/, '')
 
-const inputClass = 'peer h-11 w-full rounded-lg border border-[var(--auth-border)] bg-[var(--auth-input)] px-4 pb-1 pt-4 text-[var(--auth-text)] outline-none transition placeholder:text-transparent focus:border-[#109d1a] focus:ring-2 focus:ring-[#109d1a]/20 disabled:cursor-not-allowed disabled:opacity-60'
-const labelClass = 'pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[var(--auth-muted)] transition-all peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-[0.68rem] peer-focus:font-bold peer-focus:text-[#109d1a] peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.68rem] peer-[:not(:placeholder-shown)]:font-bold'
+const inputClass = 'peer h-[52px] w-full rounded-lg border border-[var(--auth-border)] bg-[var(--auth-input)] px-4 pb-1.5 pt-5 text-[var(--auth-text)] outline-none transition placeholder:text-transparent focus:border-[#109d1a] focus:ring-2 focus:ring-[#109d1a]/20 disabled:cursor-not-allowed disabled:opacity-60'
+const labelClass = 'pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[var(--auth-muted)] transition-all peer-focus:top-1.5 peer-focus:translate-y-0 peer-focus:text-[0.65rem] peer-focus:font-bold peer-focus:text-[#109d1a] peer-[:not(:placeholder-shown)]:top-1.5 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.65rem] peer-[:not(:placeholder-shown)]:font-bold'
 
 export default function LoginPage() {
   const { demoSignIn, isConfigured, loading: sessionLoading, user } = useAuth()
@@ -212,7 +212,7 @@ export default function LoginPage() {
           {notice && <div className="alert alert-success" role="status">{notice}</div>}
 
           <button
-            className="mt-1 w-full rounded-lg border-0 bg-[#109d1a] px-5 py-3 font-black text-white transition hover:bg-[#0c7d15] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#109d1a] disabled:cursor-not-allowed disabled:opacity-50"
+            className="auth-primary-action mt-1 w-full rounded-lg border-0 bg-[#109d1a] px-5 py-3 font-black text-white transition hover:bg-[#0c7d15] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#109d1a] disabled:cursor-not-allowed disabled:opacity-50"
             type="submit"
             disabled={!isConfigured || submitting || sessionLoading}
           >
