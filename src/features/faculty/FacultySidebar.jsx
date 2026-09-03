@@ -1,5 +1,6 @@
 import SidebarIcon from '../../components/SidebarIcon.jsx'
 import AdminProfileCard from '../admin/AdminProfileCard.jsx'
+import brandLogo from '../../assets/landing/brand-logo.png'
 
 const items = [
   ['overview', 'dashboard', 'Overview'],
@@ -11,9 +12,9 @@ const items = [
 
 export default function FacultySidebar({ activePage, collapsed, onNavigate, onToggle, settings }) {
   return (
-    <aside className="admin-sidebar">
+    <aside className="admin-sidebar role-sidebar">
       <div className="admin-sidebar-brand">
-        <span>Trigger3D</span><small>FACULTY</small>
+        <span className="role-sidebar-logo"><img alt="Trigger3D - QuadMeshIT" src={brandLogo} /></span>
         <button aria-label={collapsed ? 'Open sidebar' : 'Close sidebar'} className="sidebar-toggle" onClick={onToggle} type="button">☰</button>
       </div>
       {!collapsed && <AdminProfileCard roleLabel="Faculty" />}

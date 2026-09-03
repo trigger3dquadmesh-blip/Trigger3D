@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import useAuth from '../auth/useAuth.js'
 import LandingFirearm from '../components/LandingFirearm.jsx'
@@ -63,12 +63,12 @@ function Brand({ large = false }) {
 }
 
 function SectionTitle({ id, children }) {
-  return <h2 id={id} className="mb-12 text-center text-xl font-black uppercase tracking-[0.34em] sm:text-2xl">{children}</h2>
+  return <h2 id={id} className="mb-12 text-center text-xl font-black uppercase tracking-[0.34em] md:text-2xl">{children}</h2>
 }
 
-const primaryButton = 'rounded bg-[#109d1a] px-8 py-3 text-sm font-black text-white transition hover:bg-[#0c7d15] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]'
+const primaryButton = 'landing-primary-action rounded bg-[#109d1a] px-8 py-3 text-sm font-black text-white transition hover:bg-[#0c7d15] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]'
 const secondaryButton = 'rounded border border-[var(--landing-border)] px-8 py-3 text-sm font-black transition hover:border-[#109d1a] hover:text-[#109d1a] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]'
-const navPrimaryButton = 'rounded bg-[#109d1a] px-6 py-2 text-sm font-black text-white transition hover:bg-[#0c7d15] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]'
+const navPrimaryButton = 'landing-primary-action rounded bg-[#109d1a] px-6 py-2 text-sm font-black text-white transition hover:bg-[#0c7d15] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]'
 const navSecondaryButton = 'rounded border border-[var(--landing-border)] px-6 py-2 text-sm font-black transition hover:border-[#109d1a] hover:text-[#109d1a] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]'
 const fieldClass = 'rounded-lg border border-[var(--landing-border)] bg-[var(--landing-input)] px-4 py-3 text-[#172019] outline-none placeholder:text-[#6b756e] focus:border-[#109d1a] focus:ring-2 focus:ring-[#109d1a]/30'
 
@@ -76,7 +76,15 @@ export default function HomePage() {
   const { loading, user } = useAuth()
   const [contactStatus, setContactStatus] = useState('')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [showHeroModel, setShowHeroModel] = useState(() => window.matchMedia('(min-width: 1024px)').matches)
   const accountPath = user ? '/account' : '/login'
+
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1024px)')
+    const update = () => setShowHeroModel(query.matches)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
 
   function handleContact(event) {
     event.preventDefault()
@@ -96,9 +104,9 @@ export default function HomePage() {
           <div className="hidden items-center gap-6 lg:flex">
             {navigationLinks.map(([label, href]) => <a key={href} className="text-sm font-bold text-[var(--landing-muted)] transition hover:text-[#109d1a] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]" href={href}>{label}</a>)}
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
             <ThemeToggle compact />
-            <div className="hidden items-center gap-3 sm:flex">
+            <div className="hidden items-center gap-3 md:flex">
               {!loading && <Link className={navPrimaryButton} to={accountPath}>{user ? 'Open Account' : 'Login'}</Link>}
               {!loading && !user && <Link className={navSecondaryButton} to="/login?mode=signup">Sign Up</Link>}
             </div>
@@ -110,7 +118,7 @@ export default function HomePage() {
         {mobileMenuOpen && <div id="landing-mobile-menu" className="absolute left-0 right-0 top-full border-t border-[var(--landing-border)] bg-[var(--landing-bg)] px-6 py-4 shadow-md lg:hidden">
           <div className="mx-auto grid max-w-7xl gap-2">
             {navigationLinks.map(([label, href]) => <a key={href} className="rounded px-3 py-2 font-bold text-[var(--landing-muted)] hover:bg-[var(--landing-card)] hover:text-[#109d1a]" href={href} onClick={() => setMobileMenuOpen(false)}>{label}</a>)}
-            <div className="mt-2 flex gap-3 border-t border-[var(--landing-border)] pt-4 sm:hidden">
+            <div className="mt-2 flex gap-3 border-t border-[var(--landing-border)] pt-4 md:hidden">
               {!loading && <Link className={`${primaryButton} flex-1 text-center`} to={accountPath}>{user ? 'Open Account' : 'Login'}</Link>}
               {!loading && !user && <Link className={`${secondaryButton} flex-1 text-center`} to="/login?mode=signup">Sign Up</Link>}
             </div>
@@ -130,10 +138,10 @@ export default function HomePage() {
             <a className={secondaryButton} href="#contact">Contact Us</a>
           </div>
         </div>
-        <div className="relative -translate-y-[clamp(2.5rem,6vh,3.125rem)] h-[clamp(24rem,68vh,42rem)] min-w-0">
-          <span className="pointer-events-none absolute -right-3 top-1/2 -translate-y-1/2 text-[clamp(4rem,9vw,9rem)] font-black leading-none tracking-[-0.08em] text-transparent opacity-70 [writing-mode:vertical-rl] [-webkit-text-stroke:2px_#109d1a]" aria-hidden="true">TRIGGER3D</span>
+        {showHeroModel && <div className="relative -translate-y-[clamp(2.5rem,6vh,3.125rem)] h-[clamp(24rem,68vh,42rem)] min-w-0">
+          <span className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-[clamp(4rem,9vw,9rem)] font-black leading-none tracking-[-0.08em] text-transparent opacity-70 [writing-mode:vertical-rl] [-webkit-text-stroke:2px_#109d1a]" aria-hidden="true">TRIGGER3D</span>
           <LandingFirearm />
-        </div>
+        </div>}
       </section>
 
       <section id="about" className="landing-snap flex scroll-mt-16 flex-col justify-center py-[clamp(2.5rem,6vh,5rem)] md:min-h-[calc(100vh-4rem)]" aria-labelledby="sdg-heading">
@@ -157,7 +165,7 @@ export default function HomePage() {
       <div className="mx-auto w-[90%] max-w-[1280px]">
         <SectionTitle id="stakeholder-heading">Stakeholders</SectionTitle>
         <p className="mx-auto -mt-7 mb-[clamp(2rem,5vh,3.5rem)] max-w-3xl text-center text-[clamp(1rem,1.2vw,1.125rem)] leading-7 text-[var(--landing-muted)]">Trigger3D is developed for the Partido State University community in collaboration with Criminology educators and learners.</p>
-        <div className="grid gap-16 pt-10 sm:grid-cols-2 sm:gap-10">
+        <div className="grid gap-16 pt-10 md:grid-cols-2 md:gap-10">
           {[[stakeholderPsu, 'Partido State University', 'Camarines Sur', 'h-55 w-55'], [stakeholderCriminology, 'BS in Criminology', 'College stakeholder', 'h-52 w-52']].map(([image, title, detail, logoSize]) => (
             <article key={title} className="relative flex min-h-65 flex-col justify-end rounded-2xl bg-[var(--landing-card)] px-6 pb-10 pt-40 text-center shadow-md">
               <div className={`absolute -top-15 left-1/2 grid ${logoSize} -translate-x-1/2 place-items-center`}><img className="h-full w-full object-contain drop-shadow-[0_10px_10px_rgb(0_0_0/0.18)]" src={image} alt="" /></div>
@@ -173,7 +181,7 @@ export default function HomePage() {
         <p className="mx-auto -mt-7 mb-[clamp(1.5rem,4vh,3rem)] max-w-3xl text-center text-[clamp(1rem,1.2vw,1.125rem)] leading-7 text-[var(--landing-muted)]">Explore the core tools that help students study firearm components, practice identification, and monitor their learning progress.</p>
         <div className="grid gap-7 lg:grid-cols-2">
           {features.map(([title, description, icon]) => (
-            <article key={title} className="flex min-h-[clamp(9.5rem,23vh,13rem)] flex-col items-center gap-6 rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-card)] p-[clamp(1.25rem,2.5vw,2rem)] text-center shadow-md transition duration-200 hover:-translate-y-0.3 hover:border-[#109d1a] hover:shadow-[0_12px_24px_rgb(0_0_0/0.28)] sm:flex-row sm:text-left">
+            <article key={title} className="flex min-h-[clamp(9.5rem,23vh,13rem)] flex-col items-center gap-6 rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-card)] p-[clamp(1.25rem,2.5vw,2rem)] text-center shadow-md transition duration-200 hover:-translate-y-0.3 hover:border-[#109d1a] hover:shadow-[0_12px_24px_rgb(0_0_0/0.28)] md:flex-row md:text-left">
               <div className="grid h-24 w-24 shrink-0 place-items-center rounded-2xl border border-[#109d1a]/40 bg-[#109d1a]/10">
                 <FeatureIcon name={icon} />
               </div>
@@ -191,12 +199,14 @@ export default function HomePage() {
         <p className="mx-auto -mt-5 mb-12 max-w-4xl text-center text-lg leading-7 text-[var(--landing-muted)]"><strong className="text-[var(--landing-text)]">Trigger3D</strong> is developed by <strong className="text-[var(--landing-text)]">Team QuadMeshIT</strong>, a group of student developers creating an interactive learning tool for Criminology education.</p>
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
           {teamMembers.map(([image, name, role]) => 
-          <article key={name} className="text-center">
+          <article key={name} className="min-w-0 text-center">
             <div className="h-[clamp(18rem,50vh,34rem)] overflow-hidden rounded-2xl bg-[var(--landing-card)] shadow-md">
-              <img className="h-full w-full object-cover" src={image} alt={name} />
+              <img className="h-full w-full object-cover object-center" src={image} alt={name} />
             </div>
-            <h3 className="mt-5 text-sm font-black">{name}</h3>
-            <p className="mt-1 text-xs text-[var(--landing-muted)]">{role}</p>
+            <div className="flex min-h-20 flex-col items-center px-1 pt-5">
+              <h3 className="max-w-full break-words text-sm font-black leading-5">{name}</h3>
+              <p className="mt-1 max-w-full break-words text-xs leading-5 text-[var(--landing-muted)]">{role}</p>
+            </div>
           </article>)}
         </div>
       </section>
@@ -208,7 +218,7 @@ export default function HomePage() {
           <div><Brand large /><h3 className="mt-10 text-sm font-black">Contact Information</h3><a className="mt-6 block text-sm text-[var(--landing-muted)] hover:text-[#109d1a]" href="mailto:trigger3d.quadmeshit@gmail.com">✉ &nbsp; trigger3d.quadmeshit@gmail.com</a><p className="mt-5 text-sm text-[var(--landing-muted)]">● &nbsp; Trigger3D</p></div>
           <form className="grid gap-5" onSubmit={handleContact}>
             <h3 className="text-sm font-black">Send Us a Message</h3>
-            <div className="grid gap-5 sm:grid-cols-2"><label className="sr-only" htmlFor="contact-name">Name</label><input className={fieldClass} id="contact-name" name="name" placeholder="Enter name here..." required /><label className="sr-only" htmlFor="contact-email">Email address</label><input className={fieldClass} id="contact-email" name="email" type="email" placeholder="Email Address" required /></div>
+            <div className="grid gap-5 md:grid-cols-2"><label className="sr-only" htmlFor="contact-name">Name</label><input className={fieldClass} id="contact-name" name="name" placeholder="Enter name here..." required /><label className="sr-only" htmlFor="contact-email">Email address</label><input className={fieldClass} id="contact-email" name="email" type="email" placeholder="Email Address" required /></div>
             <label className="sr-only" htmlFor="contact-subject">Subject</label><input className={fieldClass} id="contact-subject" name="subject" placeholder="Subject" required />
             <label className="sr-only" htmlFor="contact-message">Message</label><textarea className={`${fieldClass} min-h-44 resize-y`} id="contact-message" name="message" placeholder="Message" required />
             <button className={`${primaryButton} justify-self-center px-14`} type="submit">Submit</button>

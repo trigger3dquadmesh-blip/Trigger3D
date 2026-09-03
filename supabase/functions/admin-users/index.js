@@ -54,15 +54,18 @@ Deno.serve(async (request) => {
     }
 
     const body = await request.json()
-    if (body.action === 'create_faculty') {
+    if (body.action === 'create_faculty' || body.action === 'create_account') {
       const email = normalizeEmail(body.email)
       const fullName = normalizeName(body.full_name)
       const password = typeof body.password === 'string' ? body.password : ''
+      const requestedRole = body.action === 'create_faculty' ? 'faculty' : body.role
+      const role = ['faculty', 'admin'].includes(requestedRole) ? requestedRole : null
       const allowedDomain = (Deno.env.get('ALLOWED_EMAIL_DOMAIN') || 'parsu.edu.ph').toLowerCase()
 
       if (!isAllowedEmail(email, allowedDomain)) {
-        return jsonResponse({ error: `Faculty email must use the @${allowedDomain} domain.` }, 400)
+        return jsonResponse({ error: `Account email must use the @${allowedDomain} domain.` }, 400)
       }
+      if (!role) return jsonResponse({ error: 'Role must be Faculty or Administrator.' }, 400)
       if (fullName.length < 2 || fullName.length > 100) {
         return jsonResponse({ error: 'Full name must contain between 2 and 100 characters.' }, 400)
       }
@@ -80,14 +83,14 @@ Deno.serve(async (request) => {
 
       const { data: profile, error: roleError } = await adminClient
         .from('profiles')
-        .update({ full_name: fullName, role: 'faculty', disabled_at: null })
+        .update({ full_name: fullName, role, disabled_at: null })
         .eq('id', createdData.user.id)
         .select('id, email, full_name, role')
         .single()
 
       if (roleError) {
         await adminClient.auth.admin.deleteUser(createdData.user.id)
-        return jsonResponse({ error: `The Auth user was rolled back because its Faculty profile could not be created: ${roleError.message}` }, 500)
+        return jsonResponse({ error: `The Auth user was rolled back because its profile could not be created: ${roleError.message}` }, 500)
       }
 
       return jsonResponse({ user: profile }, 201)

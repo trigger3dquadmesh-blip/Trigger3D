@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import RoleDashboard from '../../components/RoleDashboard.jsx'
 import { supabase } from '../../lib/supabase.js'
-import { isDemoMode } from '../../lib/supabase.js'
 import AdminSettings from '../admin/AdminSettings.jsx'
 import AssessmentReleasePanel from './AssessmentReleasePanel.jsx'
-import DemoFacultyDashboard from './DemoFacultyDashboard.jsx'
 import FacultyResultsPanel from './FacultyResultsPanel.jsx'
 import FacultySidebar from './FacultySidebar.jsx'
 import { isClassDeleteConfirmed, sortClassesByName } from './class-utils.js'
@@ -16,8 +14,6 @@ const facultyPages = ['overview', 'classes', 'students', 'assessments', 'results
 const facultyDashboardPageKey = 'trigger3d.faculty.active-page'
 
 export default function FacultyDashboard() {
-  if (isDemoMode) return <DemoFacultyDashboard />
-
   return <LiveFacultyDashboard />
 }
 
@@ -39,6 +35,11 @@ function LiveFacultyDashboard() {
     getSavedDashboardPage(localStorage, facultyDashboardPageKey, facultyPages, 'overview')
   ))
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [overviewStats, setOverviewStats] = useState({
+    students: 0,
+    firearms: 0,
+    openAssessments: 0,
+  })
 
   useAutoDismissNotice(notice, () => setNotice(''))
 
@@ -59,6 +60,22 @@ function LiveFacultyDashboard() {
     setSelectedClassId((current) => (
       sortedClasses.some((item) => item.id === current) ? current : sortedClasses[0]?.id || ''
     ))
+
+    const classIds = sortedClasses.map((item) => item.id)
+    const [studentResult, firearmResult, releaseResult] = await Promise.all([
+      classIds.length
+        ? supabase.from('enrollments').select('id', { count: 'exact', head: true }).in('class_id', classIds).eq('status', 'active')
+        : Promise.resolve({ count: 0 }),
+      supabase.from('firearms').select('id', { count: 'exact', head: true }).eq('status', 'ready'),
+      classIds.length
+        ? supabase.from('assessment_releases').select('firearm_id', { count: 'exact', head: true }).in('class_id', classIds).eq('is_open', true)
+        : Promise.resolve({ count: 0 }),
+    ])
+    setOverviewStats({
+      students: studentResult.count || 0,
+      firearms: firearmResult.count || 0,
+      openAssessments: releaseResult.count || 0,
+    })
     setLoading(false)
   }, [])
 
@@ -238,9 +255,32 @@ function LiveFacultyDashboard() {
       title="Faculty dashboard"
       description="Create classes and manage student enrollment."
       hideUser
+      hideHeader
+      variant="role-dashboard-redesign"
       sidebar={<FacultySidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings roleName="Faculty" sidebar />} />}
     >
-      {activePage === 'overview' && <article className="dashboard-card dashboard-card-wide admin-welcome"><p className="eyebrow">Faculty workspace</p><h2>Your teaching space, organized.</h2><p>Create classes, guide student access, and review assessment activity from the sidebar.</p></article>}
+      {activePage === 'overview' && <>
+        <section className="role-overview-metrics" aria-label="Faculty overview">
+          {[
+            ['All Classes', `${classes.length} ${classes.length === 1 ? 'Class' : 'Classes'}`, 'Currently handled'],
+            ['All Students', `${overviewStats.students} Students`, 'Currently enrolled'],
+            ['Firearm Models', `${overviewStats.firearms} Firearms`, 'Available for learning'],
+            ['Assessments', `${overviewStats.openAssessments} Open`, 'Currently available'],
+          ].map(([label, value, detail]) => <article key={label}><span>{label}</span><strong>{loading ? '—' : value}</strong><small>{detail}</small></article>)}
+        </section>
+        <section className="faculty-live-classes" aria-labelledby="faculty-classes-title">
+          <div className="faculty-live-section-heading">
+            <h2 id="faculty-classes-title">Classes</h2>
+            <button type="button" onClick={() => navigateSection('classes')}><span aria-hidden="true">+</span> Add Class</button>
+          </div>
+          {loading ? <p>Loading classes...</p> : classes.length === 0 ? <p>No classes created yet.</p> : <div className="faculty-live-class-grid">
+            {classes.filter((item) => !item.archived_at).map((item) => <button type="button" key={item.id} onClick={() => { setSelectedClassId(item.id); navigateSection('students') }}>
+              <span><strong>{item.name}</strong><small>{item.code}</small></span>
+              <span className="faculty-class-settings" aria-hidden="true">☷</span>
+            </button>)}
+          </div>}
+        </section>
+      </>}
 
       {activePage === 'classes' && <>
       <article className="dashboard-card dashboard-card-wide">

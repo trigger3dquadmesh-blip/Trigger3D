@@ -14,3 +14,15 @@ AGENTS.md
 LANDING_PAGE_DESIGN_STANDARDS.md
 TRIGGER3D_REVISION_ROADMAP.md
 content/
+/Design-Trigger3D-UI/
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+coverage/
+.vite/
+*.tsbuildinfo
+*.tmp
+tmp/
+temp/
+ADMIN_DATA_INTEGRATION_BACKLOG.md

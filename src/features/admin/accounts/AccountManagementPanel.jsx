@@ -28,6 +28,8 @@ export default function AccountManagementPanel() {
   const [enrollments, setEnrollments] = useState([])
   const [query, setQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('active')
+  const [createOpen, setCreateOpen] = useState(false)
   const [facultyForm, setFacultyForm] = useState(emptyFacultyForm)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({ fullName: '', role: 'student' })
@@ -95,6 +97,7 @@ export default function AccountManagementPanel() {
         setEditForm({ fullName: editedAccount.full_name ?? '', role: editedAccount.role, ...draft.editForm })
         setNotice('Your unfinished account edit was restored. Save it when you are ready.')
       } else if (draft?.facultyForm && Object.values(draft.facultyForm).some((value) => value.trim())) {
+        setCreateOpen(true)
         setNotice('Your unfinished faculty form was restored. Submit it when you are ready.')
       }
 
@@ -129,8 +132,8 @@ export default function AccountManagementPanel() {
     () => filterAccountsByRole(
       accounts.filter((account) => accountMatchesSearch(account, query)),
       roleFilter,
-    ),
-    [accounts, query, roleFilter],
+    ).filter((account) => statusFilter === 'archived' ? Boolean(account.disabled_at) : !account.disabled_at),
+    [accounts, query, roleFilter, statusFilter],
   )
 
   function startEditing(account) {
@@ -165,6 +168,7 @@ export default function AccountManagementPanel() {
     } else {
       setNotice(`Faculty account created for ${data.user.email}.`)
       setFacultyForm(emptyFacultyForm)
+      setCreateOpen(false)
       await loadAccounts()
     }
     setSaving(false)
@@ -252,22 +256,16 @@ export default function AccountManagementPanel() {
   }
 
   return (
-    <article className="dashboard-card account-management-panel">
+    <article className="account-management-panel admin-reference-page">
       <div className="account-panel-heading">
         <div>
-          <h2>Accounts</h2>
-          <p>Create Faculty accounts and manage names, roles, access, and records.</p>
+          <p>Admin <span>›</span> Accounts</p>
+          <h1>Account Management</h1>
         </div>
-        <input
-          aria-label="Search accounts"
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search name, email, or role"
-          type="search"
-          value={query}
-        />
+        <button className="admin-primary-action" onClick={() => setCreateOpen((value) => !value)} type="button">{createOpen ? 'Close form' : 'Create Account'}</button>
       </div>
 
-      <form className="faculty-account-form" onSubmit={createFaculty}>
+      {createOpen && <form className="faculty-account-form" onSubmit={createFaculty}>
         <h3>Create Faculty account</h3>
         <label>
           Full name
@@ -299,25 +297,19 @@ export default function AccountManagementPanel() {
           />
         </label>
         <button disabled={saving} type="submit">{saving ? 'Working...' : 'Create Faculty'}</button>
-      </form>
+      </form>}
 
-      <div aria-label="Filter accounts by role" className="account-role-filters" role="group">
-        {[
-          ['all', 'All accounts'],
-          ['student', 'Students'],
-          ['faculty', 'Faculty'],
-          ['admin', 'Administrators'],
-        ].map(([role, label]) => (
-          <button
-            aria-pressed={roleFilter === role}
-            className={roleFilter === role ? 'active' : ''}
-            key={role}
-            onClick={() => setRoleFilter(role)}
-            type="button"
-          >
-            {label}
-          </button>
-        ))}
+      <div className="account-table-tools">
+        <div aria-label="Filter accounts by status" className="account-status-tabs" role="group">
+          <button aria-pressed={statusFilter === 'active'} className={statusFilter === 'active' ? 'active' : ''} onClick={() => setStatusFilter('active')} type="button">Active <span>{accounts.filter((item) => !item.disabled_at).length}</span></button>
+          <button aria-pressed={statusFilter === 'archived'} className={statusFilter === 'archived' ? 'active' : ''} onClick={() => setStatusFilter('archived')} type="button">Archived <span>{accounts.filter((item) => item.disabled_at).length}</span></button>
+        </div>
+        <div className="account-search-tools">
+          <select aria-label="Filter accounts by role" onChange={(event) => setRoleFilter(event.target.value)} value={roleFilter}>
+            <option value="all">All roles</option><option value="student">Students</option><option value="faculty">Faculty</option><option value="admin">Administrators</option>
+          </select>
+          <input aria-label="Search accounts" onChange={(event) => setQuery(event.target.value)} placeholder="Search name or email..." type="search" value={query} />
+        </div>
       </div>
 
       {error && <div className="alert alert-error" role="alert">{error}</div>}
@@ -329,6 +321,7 @@ export default function AccountManagementPanel() {
         <p>{roleFilter === 'all' ? 'No matching accounts found.' : `No ${roleFilter} accounts found.`}</p>
       ) : (
         <div className="account-list">
+          <div className="account-table-header" aria-hidden="true"><span>Account</span><span>Role / status</span><span>Actions</span></div>
           {visibleAccounts.map((account) => {
             const isSelf = account.id === user?.id
             const isEditing = editingId === account.id

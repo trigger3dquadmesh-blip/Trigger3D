@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../auth/useAuth.js'
 
-export default function RoleDashboard({ title, description, children, sidebar = null, hideUser = false }) {
+export default function RoleDashboard({ title, description, children, sidebar = null, hideUser = false, hideHeader = false, variant = '' }) {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
@@ -25,7 +25,7 @@ export default function RoleDashboard({ title, description, children, sidebar = 
 
   const dashboard = (
     <main className="dashboard-page">
-      <header className="dashboard-header">
+      {!hideHeader && <header className="dashboard-header">
         <div>
           <p className="eyebrow">Trigger3D</p>
           <h1>{title}</h1>
@@ -41,7 +41,7 @@ export default function RoleDashboard({ title, description, children, sidebar = 
             </button>
           </div>
         </div>}
-      </header>
+      </header>}
 
       {error && <div className="alert alert-error" role="alert">{error}</div>}
       <section className="dashboard-grid">{children}</section>
@@ -51,7 +51,7 @@ export default function RoleDashboard({ title, description, children, sidebar = 
   if (!sidebar) return dashboard
 
   return (
-    <div className={`admin-shell${sidebar.props.collapsed ? ' sidebar-collapsed' : ''}`}>
+    <div className={`admin-shell${sidebar.props.collapsed ? ' sidebar-collapsed' : ''}${variant ? ` ${variant}` : ''}`}>
       {sidebar}
       {dashboard}
     </div>

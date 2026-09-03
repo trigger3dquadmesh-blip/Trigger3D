@@ -8,6 +8,7 @@ const paths = {
   checklist: <><path d="M7 3h7l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h1Z" /><path d="M13 3v5h5M8 13l1.5 1.5L17 9M8 17h6" /></>,
   results: <><path d="M5 20V10m7 10V4m7 16v-7" /><path d="M3 21h18" /></>,
   upload: <><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5" /><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" /></>,
+  audit: <><path d="M4 13h3l2-7 4 13 2-6h5" /><path d="M3 21h18" /></>,
 }
 
 export default function SidebarIcon({ name }) {
