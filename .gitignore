@@ -9,7 +9,7 @@ dist/
 .DS_Store
 .vercel
 supabase/.temp
-supabase/migrations/*
+supabase/migrations/
 AGENTS.md
 LANDING_PAGE_DESIGN_STANDARDS.md
 TRIGGER3D_REVISION_ROADMAP.md
