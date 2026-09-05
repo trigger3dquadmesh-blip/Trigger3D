@@ -1694,10 +1694,13 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   color: var(--admin-muted) !important;
 }
 .admin-reference-shell .confirmation-backdrop {
+  left: 220px;
   background: rgb(0 0 0 / 62%);
   backdrop-filter: blur(3px);
 }
+.admin-reference-shell.sidebar-collapsed .confirmation-backdrop { left: 76px; }
 .admin-reference-shell .confirmation-dialog {
+  width: min(100%, 28rem);
   border-color: var(--admin-border);
   color: var(--admin-text);
   background: var(--admin-card);
@@ -1821,6 +1824,10 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .settings-photo-actions .settings-remove-photo:hover { border-color: #dc2626; background: color-mix(in srgb, #dc2626 12%, transparent); }
 .settings-photo-actions .settings-remove-photo svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 .settings-photo-actions button:disabled { cursor: wait; opacity: 0.55; }
+
+@media (hover: none) {
+  .admin-account-action { opacity: 1 !important; }
+}
 .settings-save-row { display: flex; justify-content: flex-end; gap: 8px; }
 .settings-cancel-button {
   min-height: 36px;
@@ -2016,6 +2023,8 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 
 @media (max-width: 760px) {
   .admin-reference-shell, .admin-reference-shell.sidebar-collapsed { padding-left: 0; }
+  .admin-reference-shell .confirmation-backdrop,
+  .admin-reference-shell.sidebar-collapsed .confirmation-backdrop { left: 0; }
   .role-dashboard-redesign .admin-reference-sidebar,
   .role-dashboard-redesign.sidebar-collapsed .admin-reference-sidebar {
     position: sticky;

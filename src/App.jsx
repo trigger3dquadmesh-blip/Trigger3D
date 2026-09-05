@@ -24,7 +24,7 @@ const AssessmentPage = lazy(
 
 export default function App() {
   const location = useLocation()
-  const dashboardOwnsThemeToggle = ['/admin', '/faculty', '/settings'].includes(location.pathname) || location.pathname.startsWith('/student')
+  const dashboardOwnsThemeToggle = ['/account', '/admin', '/faculty', '/settings'].includes(location.pathname) || location.pathname.startsWith('/student')
 
   return (
     <>

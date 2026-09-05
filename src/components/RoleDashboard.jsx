@@ -23,8 +23,15 @@ export default function RoleDashboard({ title, description, children, sidebar = 
     navigate('/login', { replace: true })
   }
 
+  function closeNavigationOnBackground(event) {
+    const interactiveElement = event.target.closest('button, a, input, select, textarea, summary, label, [role="button"], [role="link"], [contenteditable="true"], [tabindex]:not([tabindex="-1"])')
+    if (!interactiveElement && sidebar && !sidebar.props.collapsed && typeof sidebar.props.onToggle === 'function') {
+      sidebar.props.onToggle()
+    }
+  }
+
   const dashboard = (
-    <main className="dashboard-page">
+    <main className="dashboard-page" onPointerDown={closeNavigationOnBackground}>
       {!hideHeader && <header className="dashboard-header">
         <div>
           <p className="eyebrow">Trigger3D</p>
