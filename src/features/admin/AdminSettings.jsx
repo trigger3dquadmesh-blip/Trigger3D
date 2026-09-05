@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../../auth/useAuth.js'
 import { isDemoMode, supabase } from '../../lib/supabase.js'
@@ -16,7 +16,7 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
   const [signingOut, setSigningOut] = useState(false)
   const [confirmSignOut, setConfirmSignOut] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
-  const [theme, setTheme] = useState(() => localStorage.getItem('trigger3d-theme') || 'dark')
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || localStorage.getItem('trigger3d-theme') || 'dark')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -24,12 +24,39 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
   const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const photoInputRef = useRef(null)
+  const profileMenuButtonRef = useRef(null)
+  const profileMenuRef = useRef(null)
   const photoStorageKey = `trigger3d-avatar-${user?.id}`
-  const [photo, setPhoto] = useState(() => localStorage.getItem(photoStorageKey) || '')
+  const [photo, setPhoto] = useState(() => profile?.avatar_url || localStorage.getItem(photoStorageKey) || '')
+  const [photoRemoving, setPhotoRemoving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
   useAutoDismissNotice(message, () => setMessage(''))
+
+  useEffect(() => {
+    if (!profileMenuOpen) return undefined
+
+    function closeProfileMenu(event) {
+      if (
+        !profileMenuButtonRef.current?.contains(event.target)
+        && !profileMenuRef.current?.contains(event.target)
+      ) {
+        setProfileMenuOpen(false)
+      }
+    }
+
+    function closeProfileMenuWithKeyboard(event) {
+      if (event.key === 'Escape') setProfileMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', closeProfileMenu)
+    document.addEventListener('keydown', closeProfileMenuWithKeyboard)
+    return () => {
+      document.removeEventListener('pointerdown', closeProfileMenu)
+      document.removeEventListener('keydown', closeProfileMenuWithKeyboard)
+    }
+  }, [profileMenuOpen])
 
   async function saveProfile(event) {
     event.preventDefault()
@@ -92,7 +119,8 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
   }
 
   function toggleTheme() {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark'
+    const displayedTheme = document.documentElement.dataset.theme || localStorage.getItem('trigger3d-theme') || theme
+    const nextTheme = displayedTheme === 'dark' ? 'light' : 'dark'
     document.documentElement.dataset.theme = nextTheme
     document.documentElement.style.colorScheme = nextTheme
     localStorage.setItem('trigger3d-theme', nextTheme)
@@ -126,32 +154,95 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
     setPasswordSaving(false)
   }
 
-  function updatePhoto(event) {
+  async function updatePhoto(event) {
     const file = event.target.files?.[0]
     if (!file) return
     if (!file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) {
       setError('Choose a PNG, JPG, or WebP image up to 2 MB.')
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => {
-      const nextPhoto = String(reader.result)
-      localStorage.setItem(photoStorageKey, nextPhoto)
-      setPhoto(nextPhoto)
+    setError('')
+    if (isDemoMode) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const nextPhoto = String(reader.result)
+        localStorage.setItem(photoStorageKey, nextPhoto)
+        setPhoto(nextPhoto)
+      }
+      reader.readAsDataURL(file)
+      return
     }
-    reader.readAsDataURL(file)
+    const extension = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]
+    const storagePath = `${user.id}/avatar-${Date.now()}.${extension}`
+    const { error: uploadError } = await supabase.storage.from('profile-photos').upload(storagePath, file, { contentType: file.type, upsert: false })
+    if (uploadError) {
+      setError(uploadError.message)
+      return
+    }
+    const { data: publicUrlData } = supabase.storage.from('profile-photos').getPublicUrl(storagePath)
+    const nextPhoto = `${publicUrlData.publicUrl}?v=${Date.now()}`
+    const { error: profilePhotoError } = await supabase.rpc('set_own_avatar_url', { new_avatar_url: nextPhoto })
+    if (profilePhotoError) {
+      setError(profilePhotoError.message)
+      return
+    }
+    localStorage.setItem(photoStorageKey, nextPhoto)
+    setPhoto(nextPhoto)
+    setMessage('Profile photo updated.')
+    await refreshProfile()
+  }
+
+  async function removePhoto() {
+    setPhotoRemoving(true)
+    setError('')
+    setMessage('')
+
+    if (isDemoMode) {
+      localStorage.removeItem(photoStorageKey)
+      setPhoto('')
+      setMessage('Profile photo removed.')
+      setPhotoRemoving(false)
+      return
+    }
+
+    const storedUrl = profile?.avatar_url || photo
+    const publicPathMarker = '/storage/v1/object/public/profile-photos/'
+    const markerIndex = storedUrl.indexOf(publicPathMarker)
+    if (markerIndex >= 0) {
+      const encodedPath = storedUrl.slice(markerIndex + publicPathMarker.length).split('?')[0]
+      const storagePath = decodeURIComponent(encodedPath)
+      const { error: removalError } = await supabase.storage.from('profile-photos').remove([storagePath])
+      if (removalError) {
+        setError(removalError.message)
+        setPhotoRemoving(false)
+        return
+      }
+    }
+
+    const { error: profilePhotoError } = await supabase.rpc('set_own_avatar_url', { new_avatar_url: null })
+    if (profilePhotoError) {
+      setError(profilePhotoError.message)
+      setPhotoRemoving(false)
+      return
+    }
+
+    localStorage.removeItem(photoStorageKey)
+    setPhoto('')
+    await refreshProfile()
+    setMessage('Profile photo removed.')
+    setPhotoRemoving(false)
   }
 
   if (sidebar) {
     return (
       <>
-        <button aria-current={active ? 'page' : undefined} aria-expanded={profileMenu ? profileMenuOpen : undefined} aria-haspopup={profileMenu ? 'menu' : undefined} aria-label={`Open ${roleName.toLowerCase()} settings`} className={`admin-settings-toggle sidebar-settings-toggle${profileMenu ? ' profile-menu-toggle' : ''}${active ? ' active' : ''}`} onClick={() => profileMenu ? setProfileMenuOpen((value) => !value) : navigate('/settings')} title={`${roleName} settings`} type="button">
+        <button aria-current={active ? 'page' : undefined} aria-expanded={profileMenu ? profileMenuOpen : undefined} aria-haspopup={profileMenu ? 'menu' : undefined} aria-label={`Open ${roleName.toLowerCase()} settings`} className={`admin-settings-toggle sidebar-settings-toggle${profileMenu ? ' profile-menu-toggle' : ''}${active ? ' active' : ''}`} onClick={() => profileMenu ? setProfileMenuOpen((value) => !value) : navigate('/settings')} ref={profileMenuButtonRef} title={`${roleName} settings`} type="button">
           {profileMenu ? <AdminIcon name="more" /> : <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7.2-3.5a7.4 7.4 0 0 0-.1-1.1l2-1.5-2-3.4-2.4 1a8.2 8.2 0 0 0-1.9-1.1L14.5 3h-4l-.3 2.4a8.2 8.2 0 0 0-1.9 1.1l-2.4-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.2l-2 1.5 2 3.4 2.4-1a8.2 8.2 0 0 0 1.9 1.1l.3 2.4h4l.3-2.4a8.2 8.2 0 0 0 1.9-1.1l2.4 1 2-3.4-2-1.5c.1-.4.1-.7.1-1.1Z" /></svg>}
           <span>Account settings</span>
         </button>
         {profileMenu && profileMenuOpen && (
-          <div className="admin-profile-options" role="menu">
-            <button onClick={() => navigate('/settings')} role="menuitem" type="button">Account settings</button>
+          <div className="admin-profile-options" ref={profileMenuRef} role="menu">
+            <button onClick={() => { setProfileMenuOpen(false); navigate('/settings') }} role="menuitem" type="button">Account settings</button>
             <button onClick={toggleTheme} role="menuitem" type="button">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</button>
             <button className="danger" onClick={() => { setProfileMenuOpen(false); setConfirmSignOut(true) }} role="menuitem" type="button">Sign out</button>
           </div>
@@ -180,7 +271,7 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
       <header className="account-settings-title"><p>Settings</p><h1>Account Settings</h1></header>
       <section className="account-settings-page settings-profile-photo">
         <h2>Profile Photo</h2>
-        <div className="settings-photo-row"><div className="settings-photo-avatar">{photo ? <img alt="" src={photo} /> : <span>{fullName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'A'}</span>}</div><div><strong>Upload a profile photo</strong><p>JPG, PNG, or WebP. Max 2 MB.</p><button onClick={() => photoInputRef.current?.click()} type="button">Choose file</button><input accept="image/png,image/jpeg,image/webp" hidden onChange={updatePhoto} ref={photoInputRef} type="file" /></div></div>
+        <div className="settings-photo-row"><div className="settings-photo-avatar-wrap"><div className="settings-photo-avatar">{photo ? <img alt="" src={photo} /> : <span>{fullName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'A'}</span>}</div><button aria-label="Choose profile photo" className="settings-camera-button" onClick={() => photoInputRef.current?.click()} title="Choose profile photo" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8.5h3l1.5-2h7l1.5 2h3v10H4z" /><circle cx="12" cy="13" r="3.2" /></svg></button></div><div><strong>Upload a profile photo</strong><p>JPG, PNG, or WebP. Max 2 MB.</p><div className="settings-photo-actions"><button disabled={photoRemoving} onClick={() => photoInputRef.current?.click()} type="button">Choose file</button>{photo && <button className="settings-remove-photo" disabled={photoRemoving} onClick={removePhoto} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>{photoRemoving ? 'Removing…' : 'Remove photo'}</button>}<input accept="image/png,image/jpeg,image/webp" hidden onChange={updatePhoto} ref={photoInputRef} type="file" /></div></div></div>
       </section>
       <article className={`${standalone ? 'card auth-card' : 'dashboard-card dashboard-card-wide'} account-settings-page`}>
         <div className="settings-heading">

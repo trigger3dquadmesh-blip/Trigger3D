@@ -70,7 +70,7 @@ const primaryButton = 'landing-primary-action rounded bg-[#109d1a] px-8 py-3 tex
 const secondaryButton = 'rounded border border-[var(--landing-border)] px-8 py-3 text-sm font-black transition hover:border-[#109d1a] hover:text-[#109d1a] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]'
 const navPrimaryButton = 'landing-primary-action rounded bg-[#109d1a] px-6 py-2 text-sm font-black text-white transition hover:bg-[#0c7d15] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]'
 const navSecondaryButton = 'rounded border border-[var(--landing-border)] px-6 py-2 text-sm font-black transition hover:border-[#109d1a] hover:text-[#109d1a] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]'
-const fieldClass = 'rounded-lg border border-[var(--landing-border)] bg-[var(--landing-input)] px-4 py-3 text-[#172019] outline-none placeholder:text-[#6b756e] focus:border-[#109d1a] focus:ring-2 focus:ring-[#109d1a]/30'
+const fieldClass = 'rounded-lg border border-[var(--landing-border)] bg-[var(--landing-input)] px-4 py-3 text-[var(--landing-input-text)] outline-none placeholder:text-[var(--landing-placeholder)] focus:border-[#109d1a] focus:ring-2 focus:ring-[#109d1a]/30'
 
 export default function HomePage() {
   const { loading, user } = useAuth()

@@ -31,7 +31,7 @@ export default function SettingsPage() {
       navigate(getRoleHomePath(role))
     },
     onToggle: () => setSidebarCollapsed((value) => !value),
-    settings: <AdminSettings active profileMenu={role === ROLES.ADMIN} roleName={details.roleName} sidebar />,
+    settings: <AdminSettings active profileMenu roleName={details.roleName} sidebar />,
   }
 
   const sidebar = role === ROLES.ADMIN
@@ -43,11 +43,11 @@ export default function SettingsPage() {
   return (
     <RoleDashboard
       description="Manage your name, email address, password, and sign-in preferences."
-      hideHeader={role === ROLES.ADMIN}
+      hideHeader
       hideUser
       sidebar={sidebar}
       title={details.title}
-      variant={role === ROLES.ADMIN ? 'role-dashboard-redesign admin-reference-shell admin-settings-shell' : ''}
+      variant="role-dashboard-redesign admin-reference-shell admin-settings-shell"
     >
       <AdminSettings page roleName={details.roleName} />
     </RoleDashboard>

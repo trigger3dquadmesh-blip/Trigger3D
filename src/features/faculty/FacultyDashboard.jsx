@@ -2,15 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import RoleDashboard from '../../components/RoleDashboard.jsx'
 import { supabase } from '../../lib/supabase.js'
 import AdminSettings from '../admin/AdminSettings.jsx'
-import AssessmentReleasePanel from './AssessmentReleasePanel.jsx'
-import FacultyResultsPanel from './FacultyResultsPanel.jsx'
+import AdminModelViewerPanel from '../admin/AdminModelViewerPanel.jsx'
+import FacultyAnalyticsPanel from './FacultyAnalyticsPanel.jsx'
+import FacultyClassWorkspace from './FacultyClassWorkspace.jsx'
+import FacultyClassesPanel from './FacultyClassesPanel.jsx'
+import FacultyOverviewPanel from './FacultyOverviewPanel.jsx'
 import FacultySidebar from './FacultySidebar.jsx'
-import { isClassDeleteConfirmed, sortClassesByName } from './class-utils.js'
+import { sortClassesByName } from './class-utils.js'
 import { filterEnrollmentsByStudentQuery } from './enrollment-search.js'
 import { getSavedDashboardPage, saveDashboardPage } from '../../components/dashboard-location.js'
 import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
 
-const facultyPages = ['overview', 'classes', 'students', 'assessments', 'results']
+const facultyPages = ['overview', 'classes', 'class', 'students', 'assessments', 'results']
 const facultyDashboardPageKey = 'trigger3d.faculty.active-page'
 
 export default function FacultyDashboard() {
@@ -22,24 +25,18 @@ function LiveFacultyDashboard() {
   const [selectedClassId, setSelectedClassId] = useState('')
   const [enrollments, setEnrollments] = useState([])
   const [studentSearch, setStudentSearch] = useState('')
-  const [confirmationAction, setConfirmationAction] = useState('')
-  const [classDeleteConfirmation, setClassDeleteConfirmation] = useState('')
   const [className, setClassName] = useState('')
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
-  const [classAction, setClassAction] = useState('')
   const [updatingId, setUpdatingId] = useState('')
+  const [resettingId, setResettingId] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [activePage, setActivePage] = useState(() => (
     getSavedDashboardPage(localStorage, facultyDashboardPageKey, facultyPages, 'overview')
   ))
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [overviewStats, setOverviewStats] = useState({
-    students: 0,
-    firearms: 0,
-    openAssessments: 0,
-  })
+  const [overviewData, setOverviewData] = useState({ attempts: [], enrollments: [], firearms: [], releases: [], resultRows: [] })
 
   useAutoDismissNotice(notice, () => setNotice(''))
 
@@ -62,19 +59,27 @@ function LiveFacultyDashboard() {
     ))
 
     const classIds = sortedClasses.map((item) => item.id)
-    const [studentResult, firearmResult, releaseResult] = await Promise.all([
+    const [studentResult, firearmResult, releaseResult, attemptResult, ...classResultResponses] = await Promise.all([
       classIds.length
-        ? supabase.from('enrollments').select('id', { count: 'exact', head: true }).in('class_id', classIds).eq('status', 'active')
-        : Promise.resolve({ count: 0 }),
-      supabase.from('firearms').select('id', { count: 'exact', head: true }).eq('status', 'ready'),
+        ? supabase.from('enrollments').select('id, class_id, student_id, status, enrolled_at, student:profiles!enrollments_student_id_fkey(id, email, full_name)').in('class_id', classIds)
+        : Promise.resolve({ data: [] }),
+      supabase.from('firearms').select('id, identifier, name, caliber, description, status, created_at, glb_storage_path').order('created_at'),
       classIds.length
-        ? supabase.from('assessment_releases').select('firearm_id', { count: 'exact', head: true }).in('class_id', classIds).eq('is_open', true)
-        : Promise.resolve({ count: 0 }),
+        ? supabase.from('assessment_releases').select('class_id, firearm_id, is_open, updated_at').in('class_id', classIds)
+        : Promise.resolve({ data: [] }),
+      classIds.length
+        ? supabase.from('assessment_attempts').select('id, class_id, student_id, firearm_id, status, percentage, started_at, submitted_at, has_activity').in('class_id', classIds)
+        : Promise.resolve({ data: [] }),
+      ...classIds.map((classId) => supabase.rpc('get_class_assessment_results', { target_class_id: classId })),
     ])
-    setOverviewStats({
-      students: studentResult.count || 0,
-      firearms: firearmResult.count || 0,
-      openAssessments: releaseResult.count || 0,
+    const overviewError = studentResult.error || firearmResult.error || releaseResult.error || attemptResult.error || classResultResponses.find((result) => result.error)?.error
+    if (overviewError) setError(overviewError.message)
+    setOverviewData({
+      attempts: attemptResult.data ?? [],
+      enrollments: studentResult.data ?? [],
+      firearms: firearmResult.data ?? [],
+      releases: releaseResult.data ?? [],
+      resultRows: classResultResponses.flatMap((result, index) => (result.data ?? []).map((row) => ({ ...row, class_id: classIds[index] }))),
     })
     setLoading(false)
   }, [])
@@ -120,7 +125,7 @@ function LiveFacultyDashboard() {
 
     if (className.trim().length < 2) {
       setError('Enter a class name containing at least 2 characters.')
-      return
+      return false
     }
 
     setCreating(true)
@@ -130,7 +135,7 @@ function LiveFacultyDashboard() {
     if (createError) {
       setError(createError.message)
       setCreating(false)
-      return
+      return false
     }
 
     setClassName('')
@@ -138,6 +143,7 @@ function LiveFacultyDashboard() {
     setCreating(false)
     await loadClasses()
     setSelectedClassId(data.id)
+    return true
   }
 
   async function handleStatusChange(enrollment) {
@@ -160,80 +166,44 @@ function LiveFacultyDashboard() {
           ? `${studentName} was re-admitted.`
           : `${studentName} was removed.`,
       )
-      await loadEnrollments(selectedClassId)
+      await Promise.all([
+        loadEnrollments(selectedClassId),
+        loadClasses(),
+      ])
     }
 
     setUpdatingId('')
   }
 
-  async function saveArchiveState(archiveState) {
+  async function handleArchiveClass(archiveState) {
     if (!selectedClass) return
-
-    setClassAction('archive')
     setError('')
     setNotice('')
-
     const { error: archiveError } = await supabase.rpc('set_class_archived', {
       target_class_id: selectedClass.id,
       archive_state: archiveState,
     })
-
     if (archiveError) {
       setError(archiveError.message)
-    } else {
-      setNotice(
-        archiveState
-          ? `${selectedClass.name} was archived. Its records and results were kept.`
-          : `${selectedClass.name} was restored. Students can now be re-admitted.`,
-      )
-      await loadClasses()
-      await loadEnrollments(selectedClass.id)
-    }
-
-    setClassAction('')
-  }
-
-  function handleArchiveToggle() {
-    if (!selectedClass) return
-
-    if (!selectedClass.archived_at) {
-      setConfirmationAction('archive')
       return
     }
-
-    void saveArchiveState(false)
+    setNotice(archiveState ? `${selectedClass.name} was archived.` : `${selectedClass.name} was restored.`)
+    await loadClasses()
   }
 
-  async function deleteClass() {
-    if (!selectedClass) return
-
-    setClassAction('delete')
+  async function handleResetAttempt(attempt) {
+    setResettingId(attempt.id)
     setError('')
     setNotice('')
-
-    const { data, error: deleteError } = await supabase.rpc('delete_class_permanently', {
-      target_class_id: selectedClass.id,
+    const { error: resetError } = await supabase.rpc('reset_student_assessment_attempt', {
+      target_attempt_id: attempt.id,
     })
-
-    if (deleteError) {
-      setError(deleteError.message)
-    } else {
-      setNotice(
-        `${data.class_name} was permanently deleted with `
-        + `${data.deleted_enrollments} enrollment records and `
-        + `${data.deleted_attempts} assessment attempts.`,
-      )
-      setEnrollments([])
+    if (resetError) setError(resetError.message)
+    else {
+      setNotice('The latest assessment attempt was reset for a retake.')
       await loadClasses()
     }
-
-    setClassAction('')
-  }
-
-  function handleDeleteClass() {
-    if (!selectedClass) return
-    setClassDeleteConfirmation('')
-    setConfirmationAction('delete')
+    setResettingId('')
   }
 
   const selectedClass = classes.find((item) => item.id === selectedClassId)
@@ -256,102 +226,14 @@ function LiveFacultyDashboard() {
       description="Create classes and manage student enrollment."
       hideUser
       hideHeader
-      variant="role-dashboard-redesign"
-      sidebar={<FacultySidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings roleName="Faculty" sidebar />} />}
+      variant="role-dashboard-redesign admin-reference-shell faculty-reference-shell"
+      sidebar={<FacultySidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings profileMenu roleName="Faculty" sidebar />} />}
     >
-      {activePage === 'overview' && <>
-        <section className="role-overview-metrics" aria-label="Faculty overview">
-          {[
-            ['All Classes', `${classes.length} ${classes.length === 1 ? 'Class' : 'Classes'}`, 'Currently handled'],
-            ['All Students', `${overviewStats.students} Students`, 'Currently enrolled'],
-            ['Firearm Models', `${overviewStats.firearms} Firearms`, 'Available for learning'],
-            ['Assessments', `${overviewStats.openAssessments} Open`, 'Currently available'],
-          ].map(([label, value, detail]) => <article key={label}><span>{label}</span><strong>{loading ? '—' : value}</strong><small>{detail}</small></article>)}
-        </section>
-        <section className="faculty-live-classes" aria-labelledby="faculty-classes-title">
-          <div className="faculty-live-section-heading">
-            <h2 id="faculty-classes-title">Classes</h2>
-            <button type="button" onClick={() => navigateSection('classes')}><span aria-hidden="true">+</span> Add Class</button>
-          </div>
-          {loading ? <p>Loading classes...</p> : classes.length === 0 ? <p>No classes created yet.</p> : <div className="faculty-live-class-grid">
-            {classes.filter((item) => !item.archived_at).map((item) => <button type="button" key={item.id} onClick={() => { setSelectedClassId(item.id); navigateSection('students') }}>
-              <span><strong>{item.name}</strong><small>{item.code}</small></span>
-              <span className="faculty-class-settings" aria-hidden="true">☷</span>
-            </button>)}
-          </div>}
-        </section>
-      </>}
+      {activePage === 'overview' && <FacultyOverviewPanel attempts={overviewData.attempts} classes={classes} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} onNavigate={navigateSection} releases={overviewData.releases} />}
 
-      {activePage === 'classes' && <>
-      <article className="dashboard-card dashboard-card-wide">
-        <h2>Create a class</h2>
-        <form className="inline-form" onSubmit={handleCreateClass}>
-          <label htmlFor="class-name">Class name</label>
-          <div className="inline-form-row">
-            <input
-              id="class-name"
-              value={className}
-              onChange={(event) => setClassName(event.target.value)}
-              placeholder="Example: CRIM 101 - Section A"
-              maxLength="100"
-              disabled={creating}
-              required
-            />
-            <button type="submit" disabled={creating}>
-              {creating ? 'Creating...' : 'Create class'}
-            </button>
-          </div>
-        </form>
-      </article>
+      {activePage === 'classes' && <FacultyClassesPanel attempts={overviewData.attempts} className={className} classes={classes} creating={creating} enrollments={overviewData.enrollments} loading={loading} onClassNameChange={setClassName} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} releases={overviewData.releases} />}
 
-      <article className="dashboard-card">
-        <h2>Your classes</h2>
-        {loading ? (
-          <p>Loading classes...</p>
-        ) : classes.length === 0 ? (
-          <p>No classes created yet.</p>
-        ) : (
-          <div className="class-list">
-            {classes.map((item) => (
-              <button
-                type="button"
-                className={item.id === selectedClassId ? 'class-item active' : 'class-item'}
-                key={item.id}
-                onClick={() => {
-                  setSelectedClassId(item.id)
-                  setStudentSearch('')
-                }}
-              >
-                <strong>{item.name}</strong>
-                <span>{item.code}{item.archived_at ? ' · archived' : ''}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {selectedClass && (
-          <div className="class-lifecycle-actions">
-            <button
-              type="button"
-              onClick={handleArchiveToggle}
-              disabled={Boolean(classAction)}
-            >
-              {classAction === 'archive'
-                ? 'Saving...'
-                : selectedClass.archived_at ? 'Restore class' : 'Archive class'}
-            </button>
-            <button
-              className="danger-action"
-              type="button"
-              onClick={handleDeleteClass}
-              disabled={Boolean(classAction)}
-            >
-              {classAction === 'delete' ? 'Deleting...' : 'Delete permanently'}
-            </button>
-          </div>
-        )}
-      </article>
-      </>}
+      {activePage === 'class' && selectedClass && <FacultyClassWorkspace attempts={overviewData.attempts} classItem={selectedClass} enrollments={enrollments} firearms={overviewData.firearms} loading={loading} onArchive={handleArchiveClass} onResetAttempt={handleResetAttempt} onStatusChange={handleStatusChange} releases={overviewData.releases} resettingId={resettingId} resultRows={overviewData.resultRows} updatingId={updatingId} />}
 
       {activePage === 'students' &&
       <article className="dashboard-card dashboard-card-wide">
@@ -406,39 +288,8 @@ function LiveFacultyDashboard() {
         )}
       </article>}
 
-      {activePage === 'assessments' && <AssessmentReleasePanel selectedClass={selectedClass} />}
-      {activePage === 'results' && <FacultyResultsPanel selectedClass={selectedClass} />}
-
-      {confirmationAction === 'archive' && selectedClass && (
-        <div className="confirmation-backdrop" role="presentation">
-          <section aria-labelledby="archive-class-title" aria-modal="true" className="confirmation-dialog" role="dialog">
-            <p className="eyebrow">Confirm action</p>
-            <h2 id="archive-class-title">Archive this class?</h2>
-            <p>Students will lose access and open assessments will close. Enrollments and results will be kept.</p>
-            <div className="confirmation-actions">
-              <button onClick={() => setConfirmationAction('')} type="button">Cancel</button>
-              <button className="danger-action" onClick={() => { setConfirmationAction(''); void saveArchiveState(true) }} type="button">Archive class</button>
-            </div>
-          </section>
-        </div>
-      )}
-
-      {confirmationAction === 'delete' && selectedClass && (
-        <div className="confirmation-backdrop" role="presentation">
-          <section aria-labelledby="delete-class-title" aria-modal="true" className="confirmation-dialog" role="dialog">
-            <p className="eyebrow">Permanent deletion</p>
-            <h2 id="delete-class-title">Delete {selectedClass.name}?</h2>
-            <p>This removes every enrollment, assessment attempt, answer, and score. Type <strong>{selectedClass.code}</strong> to confirm.</p>
-            <label htmlFor="delete-class-confirmation">Class code
-              <input autoComplete="off" id="delete-class-confirmation" onChange={(event) => setClassDeleteConfirmation(event.target.value)} placeholder={selectedClass.code} value={classDeleteConfirmation} />
-            </label>
-            <div className="confirmation-actions">
-              <button onClick={() => setConfirmationAction('')} type="button">Cancel</button>
-              <button className="danger-action" disabled={!isClassDeleteConfirmed(selectedClass.code, classDeleteConfirmation) || classAction === 'delete'} onClick={() => { setConfirmationAction(''); void deleteClass() }} type="button">{classAction === 'delete' ? 'Deleting...' : 'Delete permanently'}</button>
-            </div>
-          </section>
-        </div>
-      )}
+      {activePage === 'assessments' && <AdminModelViewerPanel firearms={overviewData.firearms.filter((item) => item.status === 'ready')} />}
+      {activePage === 'results' && <FacultyAnalyticsPanel attempts={overviewData.attempts} classes={classes} enrollments={overviewData.enrollments} loading={loading} releases={overviewData.releases} resultRows={overviewData.resultRows} />}
 
       {(error || notice) && (
         <div

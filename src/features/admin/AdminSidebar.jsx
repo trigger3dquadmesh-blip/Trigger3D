@@ -3,9 +3,9 @@ import useAuth from '../../auth/useAuth.js'
 
 const items = [
   ['overview', 'dashboard', 'Dashboard'],
-  ['accounts', 'classroom', 'Accounts'],
   ['firearms', 'cube', 'Firearms'],
   ['viewer', 'layers', 'Model Viewer'],
+  ['accounts', 'classroom', 'Accounts'],
   ['audit', 'audit', 'Audit Log'],
 ]
 
@@ -20,7 +20,7 @@ export default function AdminSidebar({ activePage, collapsed, onNavigate, onTogg
         <button aria-label={collapsed ? 'Open sidebar' : 'Close sidebar'} className="sidebar-toggle" onClick={onToggle} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1" /><path d="M9 5v14m5-9-2 2 2 2" /></svg></button>
       </div>
       {collapsed ? null : <p className="role-sidebar-label">System Administrator</p>}
-      {!collapsed && <section className="admin-profile-card" aria-label="Administrator profile"><div className="admin-avatar-stack"><div className="admin-avatar"><span>{initials}</span></div></div><strong>{displayName}</strong><span>{profile?.email}</span></section>}
+      {!collapsed && <section className="admin-profile-card" aria-label="Administrator profile"><div className="admin-avatar-stack"><div className="admin-avatar">{profile?.avatar_url ? <img alt="" src={profile.avatar_url} /> : <span>{initials}</span>}</div></div><strong>{displayName}</strong><span>{profile?.email}</span></section>}
       <nav aria-label="Admin dashboard sections" className="admin-navigation">
         {items.map(([id, icon, label]) => (
           <button className={activePage === id ? 'active' : ''} key={id} onClick={() => onNavigate(id)} type="button">

@@ -24,11 +24,13 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
   const archivedProfiles = data.profiles.filter((profile) => profile.disabled_at)
   const readyFirearms = data.firearms.filter((firearm) => firearm.status === 'ready')
   const activeClasses = data.classes.filter((item) => !item.archived_at)
+  const recentAccountEvents = data.auditEvents.filter((item) => item.entity_type === 'profile').slice(0, 4)
+  const recentFirearmEvents = data.auditEvents.filter((item) => item.entity_type === 'firearm').slice(0, 3)
   const stats = [
     { label: 'Total Accounts', value: data.profiles.length, detail: archivedProfiles.length + ' archived', icon: 'accounts' },
     { label: 'Active Firearms', value: readyFirearms.length, detail: data.firearms.length + ' total', icon: 'firearms' },
     { label: 'Active Classes', value: activeClasses.length, detail: data.classes.length + ' total', icon: 'classes' },
-    { label: 'Assessments', value: data.assessmentCount, detail: 'attempts recorded', icon: 'assessments' },
+    { label: 'Assessment Attempts', value: data.assessmentCount, detail: 'Recorded submissions', icon: 'assessments' },
   ]
 
   return (
@@ -62,17 +64,17 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
             <button className="flex items-center gap-1 border-0 bg-transparent text-xs text-[#109d1a]" onClick={() => onNavigate('accounts')} type="button">Manage <span aria-hidden="true">›</span></button>
           </header>
           <div className="divide-y divide-[#b8c1bb]">
-            {data.profiles.slice(0, 4).map((item) => (
+            {recentAccountEvents.map((item) => (
               <div className="flex min-h-[59px] items-start gap-3 px-5 py-3" key={item.id}>
                 <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#edf0ee] text-[#5f6b63]"><DashboardIcon className="h-[13px] w-[13px]" name="account" /></span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs leading-4"><span className="font-medium">{item.full_name || item.email}</span>{' '}<span className="text-[#5f6b63]">{item.disabled_at ? 'is archived' : 'account created'}</span></p>
+                  <p className="text-xs leading-4"><span className="font-medium">{item.record_label}</span>{' '}<span className="text-[#5f6b63]">{item.event_type}</span></p>
                   <p className="mt-0.5 text-[11px] leading-4 text-[#5f6b63]">{formatDate(item.created_at)}</p>
                 </div>
-                <RoleBadge>{item.role}</RoleBadge>
+                <RoleBadge>Account</RoleBadge>
               </div>
             ))}
-            {!loading && data.profiles.length === 0 && <p className="m-0 p-5 text-xs text-[#5f6b63]">No account records found.</p>}
+            {!loading && recentAccountEvents.length === 0 && <p className="m-0 p-5 text-xs text-[#5f6b63]">No account records found.</p>}
           </div>
         </section>
 
@@ -82,17 +84,17 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
             <button className="flex items-center gap-1 border-0 bg-transparent text-xs text-[#109d1a]" onClick={() => onNavigate('firearms')} type="button">Manage <span aria-hidden="true">›</span></button>
           </header>
           <div className="divide-y divide-[#b8c1bb]">
-            {data.firearms.slice(0, 3).map((item) => (
+            {recentFirearmEvents.map((item) => (
               <div className="flex min-h-[74px] items-start gap-3 px-5 py-3" key={item.id}>
                 <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#edf0ee] text-[#5f6b63]"><DashboardIcon className="h-[13px] w-[13px]" name="firearms" /></span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium leading-4">{item.name}</p>
-                  <p className={item.status === 'ready' ? 'text-[11px] leading-4 text-[#109d1a]' : 'text-[11px] leading-4 text-[#5f6b63]'}>{item.status === 'ready' ? 'Available' : item.status}</p>
+                  <p className="truncate text-xs font-medium leading-4">{item.record_label}</p>
+                  <p className="text-[11px] leading-4 text-[#109d1a]">{item.event_type}</p>
                   <p className="text-[11px] leading-4 text-[#5f6b63]">{formatDate(item.created_at)}</p>
                 </div>
               </div>
             ))}
-            {!loading && data.firearms.length === 0 && <p className="m-0 p-5 text-xs text-[#5f6b63]">No firearm records found.</p>}
+            {!loading && recentFirearmEvents.length === 0 && <p className="m-0 p-5 text-xs text-[#5f6b63]">No firearm records found.</p>}
           </div>
         </section>
       </div>

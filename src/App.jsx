@@ -6,6 +6,7 @@ import { ROLES } from './config/roles.js'
 import AdminDashboard from './features/admin/AdminDashboard.jsx'
 import FacultyDashboard from './features/faculty/FacultyDashboard.jsx'
 import StudentDashboard from './features/student/StudentDashboard.jsx'
+import StudentRouteShell from './features/student/StudentRouteShell.jsx'
 import ThemeToggle from './components/ThemeToggle.jsx'
 import AccountPage from './pages/AccountPage.jsx'
 import ChangePasswordPage from './pages/ChangePasswordPage.jsx'
@@ -23,7 +24,7 @@ const AssessmentPage = lazy(
 
 export default function App() {
   const location = useLocation()
-  const dashboardOwnsThemeToggle = ['/admin', '/faculty', '/student', '/settings'].includes(location.pathname)
+  const dashboardOwnsThemeToggle = ['/admin', '/faculty', '/settings'].includes(location.pathname) || location.pathname.startsWith('/student')
 
   return (
     <>
@@ -93,7 +94,7 @@ export default function App() {
           <ProtectedRoute>
             <RoleProtectedRoute allowedRole={ROLES.STUDENT}>
               <Suspense fallback={<main className="page status-page">Loading viewer...</main>}>
-                <FirearmViewerPage />
+                <StudentRouteShell><FirearmViewerPage /></StudentRouteShell>
               </Suspense>
             </RoleProtectedRoute>
           </ProtectedRoute>
@@ -105,7 +106,7 @@ export default function App() {
           <ProtectedRoute>
             <RoleProtectedRoute allowedRole={ROLES.STUDENT}>
               <Suspense fallback={<main className="page status-page">Loading assessment...</main>}>
-                <AssessmentPage />
+                <StudentRouteShell><AssessmentPage /></StudentRouteShell>
               </Suspense>
             </RoleProtectedRoute>
           </ProtectedRoute>

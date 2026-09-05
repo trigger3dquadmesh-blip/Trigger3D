@@ -7,15 +7,12 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
-export default function AdminAuditLogPanel({ dataError, firearms, profiles }) {
+export default function AdminAuditLogPanel({ auditEvents = [], dataError }) {
   const [query, setQuery] = useState('')
   const [type, setType] = useState('all')
   const [page, setPage] = useState(1)
   const perPage = 8
-  const events = useMemo(() => [
-    ...profiles.map((profile) => ({ id: 'profile-' + profile.id, event: profile.disabled_at ? 'Account archived' : 'Account created', actor: 'System record', record: profile.full_name || profile.email, type: profile.role, reason: '—', date: formatDate(profile.disabled_at || profile.created_at), category: 'account', timestamp: profile.disabled_at || profile.created_at })),
-    ...firearms.map((firearm) => ({ id: 'firearm-' + firearm.id, event: 'Firearm uploaded', actor: 'System record', record: firearm.name, type: 'Firearm', reason: '—', date: formatDate(firearm.created_at), category: 'firearm', timestamp: firearm.created_at })),
-  ].sort((first, second) => new Date(second.timestamp) - new Date(first.timestamp)), [firearms, profiles])
+  const events = useMemo(() => auditEvents.map((item) => ({ id: item.id, event: item.event_type, actor: item.actor?.full_name || item.actor?.email || 'System', record: item.record_label || 'Unknown record', type: item.entity_type === 'profile' ? 'Account' : item.entity_type, reason: item.reason || '—', date: formatDate(item.created_at), category: item.entity_type === 'profile' ? 'account' : item.entity_type, timestamp: item.created_at })), [auditEvents])
   const filtered = useMemo(() => events.filter((event) => (type === 'all' || event.category === type) && (!query || (event.actor + event.record).toLowerCase().includes(query.toLowerCase()))), [events, query, type])
   const pages = Math.max(1, Math.ceil(filtered.length / perPage))
   const rows = filtered.slice((page - 1) * perPage, page * perPage)
@@ -27,7 +24,7 @@ export default function AdminAuditLogPanel({ dataError, firearms, profiles }) {
       {dataError && <div className="mb-4 rounded-[7px] border border-red-300 bg-red-50 px-4 py-3 text-xs text-red-700" role="alert">{dataError}</div>}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
         <label className="admin-search-field"><AdminIcon name="search" /><span className="sr-only">Search audit log</span><input className="h-9 w-64 rounded-[7px] border border-[#b8c1bb] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#109d1a]" onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder="Search actor or record..." type="search" value={query} /></label>
-        <select className="h-9 w-44 rounded-[7px] border border-[#b8c1bb] bg-white px-3 text-sm" onChange={(event) => { setType(event.target.value); setPage(1) }} value={type}><option value="all">All events</option><option value="account">Account events</option><option value="firearm">Firearm events</option></select>
+        <label className="admin-audit-filter"><span className="sr-only">Filter audit events</span><select className="h-9 w-44 rounded-[7px] border border-[#b8c1bb] bg-white px-3 pr-9 text-sm" onChange={(event) => { setType(event.target.value); setPage(1) }} value={type}><option value="all">All events</option><option value="account">Account events</option><option value="firearm">Firearm events</option><option value="class">Class events</option></select><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" /></svg></label>
         <span className="flex items-center text-xs text-[#5f6b63] sm:ml-auto">▽ &nbsp;{filtered.length} events</span>
       </div>
       <div className="overflow-x-auto rounded-[10px] border border-[#b8c1bb] bg-white">

@@ -44,7 +44,7 @@ export default function AuthProvider({ children }) {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, role, created_at, disabled_at')
+        .select('id, email, full_name, role, created_at, disabled_at, avatar_url')
         .eq('id', nextSession.user.id)
         .maybeSingle()
 
@@ -95,7 +95,7 @@ export default function AuthProvider({ children }) {
     setLoading(true)
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, full_name, role, created_at, disabled_at')
+      .select('id, email, full_name, role, created_at, disabled_at, avatar_url')
       .eq('id', session.user.id)
       .maybeSingle()
 

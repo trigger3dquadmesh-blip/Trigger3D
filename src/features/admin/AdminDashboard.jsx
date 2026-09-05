@@ -53,7 +53,7 @@ export default function AdminDashboard() {
       {activePage === 'accounts' && <AdminAccountsPanel accounts={data.profiles} dataError={error} loading={loading} onChanged={reload} />}
       {activePage === 'firearms' && <AdminFirearmsPanel dataError={error} firearms={data.firearms} loading={loading} onChanged={reload} onPreview={previewFirearm} />}
       {activePage === 'viewer' && <AdminModelViewerPanel firearms={data.firearms} initialFirearmId={viewerFirearmId} />}
-      {activePage === 'audit' && <AdminAuditLogPanel dataError={error} firearms={data.firearms} profiles={data.profiles} />}
+      {activePage === 'audit' && <AdminAuditLogPanel auditEvents={data.auditEvents} dataError={error} />}
     </RoleDashboard>
   )
 }

@@ -1,0 +1,64 @@
+import { useState } from 'react'
+import { copyText } from '../../lib/clipboard.js'
+import AssessmentReleasePanel from './AssessmentReleasePanel.jsx'
+import FacultyClassAnalytics from './FacultyClassAnalytics.jsx'
+
+function percentage(value) {
+  const number = Number(value || 0)
+  return Number.isInteger(number) ? `${number}%` : `${number.toFixed(1)}%`
+}
+
+function csvCell(value) {
+  const safe = String(value ?? '').replace(/"/g, '""')
+  return `"${safe}"`
+}
+
+export default function FacultyClassWorkspace({ attempts, classItem, enrollments, firearms, loading, onArchive, onResetAttempt, onStatusChange, releases, resettingId, resultRows, updatingId }) {
+  const [tab, setTab] = useState('overview')
+  const [archiveConfirmationOpen, setArchiveConfirmationOpen] = useState(false)
+  const [codeCopied, setCodeCopied] = useState(false)
+  const [studentQuery, setStudentQuery] = useState('')
+  const activeEnrollments = enrollments.filter((item) => item.status === 'active')
+  const classAttempts = attempts.filter((item) => item.class_id === classItem.id && item.status === 'submitted')
+  const classReleases = releases.filter((item) => item.class_id === classItem.id)
+  const availableAssessments = firearms.filter((item) => item.status === 'ready')
+  const expected = activeEnrollments.length * classReleases.length
+  const completion = expected ? Math.min(100, (classAttempts.length / expected) * 100) : 0
+  const average = classAttempts.length ? classAttempts.reduce((sum, item) => sum + Number(item.percentage || 0), 0) / classAttempts.length : 0
+  const passing = classAttempts.length ? classAttempts.filter((item) => Number(item.percentage) >= 75).length / classAttempts.length * 100 : 0
+  const lastActivity = [...classAttempts].sort((a, b) => new Date(b.submitted_at || 0) - new Date(a.submitted_at || 0))[0]?.submitted_at
+  const tabs = [['overview', 'Overview'], ['students', 'Students'], ['assessments', 'Assessments'], ['analytics', 'Analytics'], ['settings', 'Settings']]
+  const studentRows = enrollments.filter((enrollment) => enrollment.status === 'active').map((enrollment) => {
+    const studentId = enrollment.student?.id || enrollment.student_id
+    const studentAttempts = classAttempts.filter((item) => item.student_id === studentId).sort((a, b) => new Date(b.submitted_at || 0) - new Date(a.submitted_at || 0))
+    const averageScore = studentAttempts.length ? studentAttempts.reduce((sum, item) => sum + Number(item.percentage || 0), 0) / studentAttempts.length : null
+    return { enrollment, studentId, attempts: studentAttempts, averageScore, latest: studentAttempts[0] }
+  }).filter(({ enrollment, studentId }) => `${enrollment.student?.full_name || ''} ${enrollment.student?.email || ''} ${studentId || ''}`.toLowerCase().includes(studentQuery.trim().toLowerCase()))
+
+  function exportStudents() {
+    const headers = ['Student', 'Email', 'Student ID', 'Completed', 'Average Score', 'Last Score', 'Joined', 'Status']
+    const rows = studentRows.map(({ enrollment, studentId, attempts: completed, averageScore: score, latest }) => [enrollment.student?.full_name || '', enrollment.student?.email || '', studentId || '', `${completed.length}/${classReleases.length}`, score === null ? '' : score.toFixed(1), latest?.percentage ?? '', enrollment.enrolled_at || '', enrollment.status])
+    const blob = new Blob([[headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${classItem.code || classItem.name}-students.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  return <section className="faculty-class-workspace">
+    <div className="faculty-class-heading"><div><nav><span>Faculty</span><span>›</span><span>Classes</span><span>›</span><span>{classItem.name}</span></nav><h1>{classItem.name}</h1></div><button className="faculty-outline-action faculty-archive-outline" onClick={() => setTab('settings')} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M6 7l1 13h10l1-13M9 11h6M5 4h14v3H5z" /></svg>{classItem.archived_at ? 'Restore' : 'Archive'}</button></div>
+    <nav aria-label="Class sections" className="faculty-class-tabs-nav">{tabs.map(([id, label]) => <button aria-current={tab === id ? 'page' : undefined} className={tab === id ? 'active' : ''} key={id} onClick={() => setTab(id)} type="button">{label}{id === 'students' && <span>{activeEnrollments.length}</span>}{id === 'assessments' && <span>{availableAssessments.length}</span>}</button>)}</nav>
+
+    {tab === 'overview' && <><div className="faculty-class-metrics">{[['Enrolled Students', activeEnrollments.length], ['Completion Rate', percentage(completion)], ['Average Score', percentage(average)], ['Passing Rate', percentage(passing)]].map(([label, value]) => <article key={label}><span>{label}</span><strong>{loading ? '—' : value}</strong></article>)}</div><div className="faculty-class-overview-grid"><section className="faculty-reference-card"><header><h2>Class Information</h2></header><dl><div><dt>Class Code</dt><dd>{classItem.code}</dd></div><div><dt>Status</dt><dd><span className="faculty-active-pill">{classItem.archived_at ? 'Archived' : 'Active'}</span></dd></div><div><dt>Created</dt><dd>{new Date(classItem.created_at).toLocaleDateString('en', { dateStyle: 'medium' })}</dd></div><div><dt>Last Activity</dt><dd>{lastActivity ? new Date(lastActivity).toLocaleDateString('en', { dateStyle: 'medium' }) : 'No activity yet'}</dd></div></dl></section><section className="faculty-reference-card"><header><h2>Assessments</h2></header><div className="faculty-class-assessment-list">{classReleases.map((release) => { const firearm = firearms.find((item) => item.id === release.firearm_id); const completed = classAttempts.filter((item) => item.firearm_id === release.firearm_id).length; return <article key={release.firearm_id}><div><strong>{firearm?.name || 'Firearm assessment'}</strong><small>{firearm?.caliber || 'Interactive assessment'}</small></div><div><span className={release.is_open ? 'faculty-active-pill' : 'faculty-closed-pill'}>{release.is_open ? 'Open' : 'Closed'}</span><small>{activeEnrollments.length ? Math.round(completed / activeEnrollments.length * 100) : 0}% done</small></div></article> })}{classReleases.length === 0 && <p className="faculty-empty-state">No assessments have been configured.</p>}</div></section></div></>}
+
+    {tab === 'students' && <div className="faculty-students-tab"><div className="faculty-student-tools"><label><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg><input aria-label="Search students" onChange={(event) => setStudentQuery(event.target.value)} placeholder="Search by name or student ID" type="search" value={studentQuery} /></label><button disabled={studentRows.length === 0} onClick={exportStudents} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 19h14" /></svg>Export CSV</button></div><section className="faculty-reference-card faculty-student-table-wrap"><table className="faculty-student-table"><thead><tr><th>Student</th><th>Student ID</th><th>Completed</th><th>Avg Score</th><th>Last Score</th><th>Joined</th><th aria-label="Actions" /></tr></thead><tbody>{studentRows.map(({ enrollment, studentId, attempts: completed, averageScore: score, latest }) => <tr key={enrollment.id}><td><div className="faculty-student-identity"><span>{(enrollment.student?.full_name || enrollment.student?.email || 'S').charAt(0).toUpperCase()}</span><div><strong>{enrollment.student?.full_name || 'Name not provided'}</strong><small>{enrollment.student?.email}</small></div></div></td><td>{studentId ? studentId.slice(0, 8).toUpperCase() : '—'}</td><td>{completed.length} / {classReleases.length}</td><td className={score !== null && score < 75 ? 'score-low' : 'score-good'}>{score === null ? '—' : percentage(score)}</td><td className={latest && Number(latest.percentage) < 75 ? 'score-low' : 'score-good'}>{latest ? percentage(latest.percentage) : '—'}</td><td>{enrollment.enrolled_at ? new Date(enrollment.enrolled_at).toLocaleDateString('en', { dateStyle: 'medium' }) : '—'}</td><td><div className="faculty-student-actions">{latest && <button disabled={resettingId === latest.id} onClick={() => onResetAttempt(latest)} type="button">{resettingId === latest.id ? 'Resetting…' : '↻ Reset'}</button>}<button disabled={updatingId === enrollment.id || Boolean(classItem.archived_at)} onClick={() => onStatusChange(enrollment)} type="button">{updatingId === enrollment.id ? 'Saving…' : '♙ Remove'}</button></div></td></tr>)}</tbody></table>{studentRows.length === 0 && <p className="faculty-empty-state">{activeEnrollments.length ? 'No students match your search.' : 'No active students are enrolled yet.'}</p>}</section></div>}
+    {tab === 'assessments' && <AssessmentReleasePanel attempts={attempts} onViewAnalytics={() => setTab('analytics')} selectedClass={classItem} />}
+    {tab === 'analytics' && <FacultyClassAnalytics attempts={attempts} classItem={classItem} enrollments={enrollments} firearms={firearms} releases={releases} resultRows={resultRows} />}
+    {tab === 'settings' && <div className="faculty-class-settings-grid"><section className="faculty-reference-card"><h2>Class Status</h2><p>{classItem.archived_at ? 'Restoring this class will allow student access and assessment activity again.' : 'Archiving this class will prevent new student enrollment and new assessment submissions. Existing student records and scores are preserved. The class can be restored at any time.'}</p><button className={classItem.archived_at ? 'faculty-primary-action' : 'danger-action'} onClick={() => classItem.archived_at ? onArchive(false) : setArchiveConfirmationOpen(true)} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M6 7l1 13h10l1-13M9 11h6M5 4h14v3H5z" /></svg>{classItem.archived_at ? 'Restore Class' : 'Archive Class'}</button></section><section className="faculty-reference-card"><h2>Class Code</h2><p>Share this code with students so they can join this class.</p><button aria-label={`Copy class code ${classItem.code}`} className={`faculty-code-large${codeCopied ? ' copied' : ''}`} onClick={async () => { if (await copyText(classItem.code)) { setCodeCopied(true); window.setTimeout(() => setCodeCopied(false), 1800) } }} title={codeCopied ? 'Copied!' : 'Copy class code'} type="button">{codeCopied ? 'Copied!' : classItem.code}</button></section></div>}
+    {archiveConfirmationOpen && <div className="confirmation-backdrop" role="presentation"><section aria-labelledby="archive-class-title" aria-modal="true" className="confirmation-dialog faculty-archive-dialog" role="dialog"><div className="faculty-archive-dialog-copy"><span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 9v4m0 3h.01M10.2 4.8 3.4 17a2 2 0 0 0 1.8 3h13.6a2 2 0 0 0 1.8-3L13.8 4.8a2 2 0 0 0-3.6 0Z" /></svg></span><div><h2 id="archive-class-title">Archive &quot;{classItem.name}&quot;?</h2><p>New enrollments and assessment submissions will be disabled. All existing records are preserved. The class can be restored at any time.</p></div></div><div className="confirmation-actions"><button onClick={() => setArchiveConfirmationOpen(false)} type="button">Cancel</button><button className="danger-action" onClick={() => { setArchiveConfirmationOpen(false); onArchive(true) }} type="button">Archive Class</button></div></section></div>}
+  </section>
+}

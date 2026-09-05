@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { isValidFullName, normalizeFullName } from '../../auth/name.js'
 import useAuth from '../../auth/useAuth.js'
 import RoleDashboard from '../../components/RoleDashboard.jsx'
 import { supabase } from '../../lib/supabase.js'
 import AdminSettings from '../admin/AdminSettings.jsx'
-import { getStudentFirearmDestination } from './assessment/assessment-lock.js'
-import { getStudentGreeting } from './student-greeting.js'
 import StudentSidebar from './StudentSidebar.jsx'
+import { StudentClassDetail, StudentClasses, StudentJoinDialog, StudentOverview } from './StudentDashboardPanels.jsx'
 import { getSavedDashboardPage, saveDashboardPage } from '../../components/dashboard-location.js'
 import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
 
-const studentPages = ['overview', 'enrollment', 'models', 'results']
+const studentPages = ['overview', 'classes', 'class']
 const studentDashboardPageKey = 'trigger3d.student.active-page'
 
 export default function StudentDashboard() {
@@ -22,8 +20,9 @@ function LiveStudentDashboard() {
   const { profile, refreshProfile } = useAuth()
   const [enrollments, setEnrollments] = useState([])
   const [firearms, setFirearms] = useState([])
-  const [results, setResults] = useState([])
   const [attempts, setAttempts] = useState([])
+  const [releases, setReleases] = useState([])
+  const [components, setComponents] = useState([])
   const [classCode, setClassCode] = useState('')
   const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(true)
@@ -35,7 +34,8 @@ function LiveStudentDashboard() {
     getSavedDashboardPage(localStorage, studentDashboardPageKey, studentPages, 'overview')
   ))
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [greeting] = useState(() => getStudentGreeting(profile, localStorage))
+  const [selectedClassId, setSelectedClassId] = useState('')
+  const [joinOpen, setJoinOpen] = useState(false)
 
   useAutoDismissNotice(notice, () => setNotice(''))
 
@@ -46,7 +46,7 @@ function LiveStudentDashboard() {
         id,
         status,
         enrolled_at,
-        class:classes!enrollments_class_id_fkey(id, name, code)
+        class:classes!enrollments_class_id_fkey(id, name, code, created_at, archived_at, faculty:profiles!classes_faculty_id_fkey(full_name, email))
       `)
       .order('enrolled_at', { ascending: false })
 
@@ -57,11 +57,13 @@ function LiveStudentDashboard() {
     }
 
     setEnrollments(data)
+    setSelectedClassId((current) => data.some((item) => item.class?.id === current) ? current : data.find((item) => item.status === 'active')?.class?.id || '')
 
     const hasActiveEnrollment = data.some((item) => item.status === 'active')
 
     if (hasActiveEnrollment) {
-      const [firearmResult, resultQuery] = await Promise.all([
+      const classIds = data.filter((item) => item.status === 'active').map((item) => item.class.id)
+      const [firearmResult, resultQuery, releaseResult, componentResult] = await Promise.all([
         supabase
           .from('firearms')
           .select('id, identifier, name, caliber, description, status')
@@ -71,6 +73,7 @@ function LiveStudentDashboard() {
           .from('assessment_attempts')
           .select(`
             id,
+            class_id,
             firearm_id,
             status,
             correct_count,
@@ -80,19 +83,23 @@ function LiveStudentDashboard() {
             firearm:firearms!assessment_attempts_firearm_id_fkey(name, caliber)
           `)
           .order('submitted_at', { ascending: false }),
+        supabase.from('assessment_releases').select('class_id, firearm_id, is_open, updated_at').in('class_id', classIds),
+        supabase.from('firearm_components').select('id, firearm_id'),
       ])
 
-      if (firearmResult.error || resultQuery.error) {
-        setError(firearmResult.error?.message || resultQuery.error.message)
+      if (firearmResult.error || resultQuery.error || releaseResult.error || componentResult.error) {
+        setError(firearmResult.error?.message || resultQuery.error?.message || releaseResult.error?.message || componentResult.error?.message)
       } else {
         setFirearms(firearmResult.data)
         setAttempts(resultQuery.data)
-        setResults(resultQuery.data.filter((attempt) => attempt.status === 'submitted'))
+        setReleases(releaseResult.data ?? [])
+        setComponents(componentResult.data ?? [])
       }
     } else {
       setFirearms([])
-      setResults([])
       setAttempts([])
+      setReleases([])
+      setComponents([])
     }
 
     setLoading(false)
@@ -124,6 +131,7 @@ function LiveStudentDashboard() {
     } else {
       setClassCode('')
       setNotice('You are now enrolled in the class.')
+      setJoinOpen(false)
       await loadEnrollment()
     }
 
@@ -150,13 +158,31 @@ function LiveStudentDashboard() {
     setSavingName(false)
   }
 
-  const activeEnrollment = enrollments.find((item) => item.status === 'active')
-  const latestRemovedEnrollment = enrollments.find((item) => item.status === 'removed')
+  const selectedEnrollment = enrollments.find((item) => item.class?.id === selectedClassId)
 
   function navigateSection(section) {
     setActivePage(section)
     saveDashboardPage(localStorage, studentDashboardPageKey, section)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function handleLeaveClass(classId) {
+    setError('')
+    setNotice('')
+    const { error: leaveError } = await supabase.rpc('leave_class', { target_class_id: classId })
+    if (leaveError) {
+      setError(leaveError.message)
+      return false
+    }
+    setNotice('You have left the class. Your existing assessment results were preserved.')
+    await loadEnrollment()
+    navigateSection('classes')
+    return true
+  }
+
+  function openClass(classId) {
+    setSelectedClassId(classId)
+    navigateSection('class')
   }
 
   if (!profile?.full_name) {
@@ -199,113 +225,13 @@ function LiveStudentDashboard() {
       description="Join your class before accessing Trigger3D learning materials."
       hideUser
       hideHeader
-      variant="role-dashboard-redesign"
-      sidebar={<StudentSidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings roleName="Student" sidebar />} />}
+      variant="role-dashboard-redesign admin-reference-shell student-reference-shell"
+      sidebar={<StudentSidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings profileMenu roleName="Student" sidebar />} />}
     >
-      {activePage === 'overview' && <section className="admin-dashboard-section">
-        <section className="role-overview-metrics" aria-label="Student overview">
-          {[
-            ['Active Class', activeEnrollment ? '1 Class' : 'None', activeEnrollment?.class.name || 'Join a class to begin'],
-            ['3D Models', `${firearms.length} Available`, 'Ready for learning'],
-            ['Completed', `${results.length} Results`, 'Submitted assessments'],
-            ['In Progress', attempts.filter((attempt) => attempt.status === 'in_progress').length, 'Assessment attempts'],
-          ].map(([label, value, detail]) => <article key={label}><span>{label}</span><strong>{loading ? '—' : value}</strong><small>{detail}</small></article>)}
-        </section>
-        <article className="dashboard-card dashboard-card-wide admin-welcome"><p className="eyebrow">Student workspace</p><h2>{greeting}</h2><p>Join your class, explore available 3D models, and keep track of your assessment results here.</p></article>
-      </section>}
-
-      {activePage === 'enrollment' && <article className="dashboard-card dashboard-card-wide">
-        <h2>Class enrollment</h2>
-        {loading ? (
-          <p>Loading enrollment...</p>
-        ) : activeEnrollment ? (
-          <div className="enrollment-summary">
-            <span className="status-badge active">active</span>
-            <h3>{activeEnrollment.class.name}</h3>
-            <p>Class code: <strong>{activeEnrollment.class.code}</strong></p>
-          </div>
-        ) : (
-          <>
-            <p>Enter the class code provided by your instructor.</p>
-            {latestRemovedEnrollment && (
-              <p className="removed-note">
-                You were removed from {latestRemovedEnrollment.class?.name || 'a class'}.
-                That class requires Faculty re-admission.
-              </p>
-            )}
-            <form className="inline-form" onSubmit={handleJoinClass}>
-              <label htmlFor="class-code">Class code</label>
-              <div className="inline-form-row">
-                <input
-                  id="class-code"
-                  value={classCode}
-                  onChange={(event) => setClassCode(event.target.value.toUpperCase())}
-                  placeholder="Enter code"
-                  maxLength="16"
-                  disabled={joining}
-                  required
-                />
-                <button type="submit" disabled={joining}>
-                  {joining ? 'Joining...' : 'Join class'}
-                </button>
-              </div>
-            </form>
-          </>
-        )}
-      </article>}
-
-      {activePage === 'models' && <article className="dashboard-card">
-        <h2>3D models</h2>
-        {!activeEnrollment ? (
-          <p>Enroll in an active class to unlock firearm models.</p>
-        ) : firearms.length === 0 ? (
-          <p>No firearm models are currently available.</p>
-        ) : (
-          <div className="available-models">
-            {firearms.map((firearm) => (
-              <Link
-                className={attempts.some(
-                  (attempt) => attempt.firearm_id === firearm.id && attempt.status === 'in_progress',
-                ) ? 'model-locked' : ''}
-                to={getStudentFirearmDestination(
-                  firearm.id,
-                  attempts.some(
-                    (attempt) => attempt.firearm_id === firearm.id && attempt.status === 'in_progress',
-                  ),
-                )}
-                key={firearm.id}
-              >
-                <strong>{firearm.name}</strong>
-                <span>{attempts.some(
-                  (attempt) => attempt.firearm_id === firearm.id && attempt.status === 'in_progress',
-                ) ? 'Resume assessment · model locked' : firearm.caliber}</span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </article>}
-
-      {activePage === 'results' && <article className="dashboard-card">
-        <h2>Your results</h2>
-        {results.length === 0 ? (
-          <p>No assessment results yet.</p>
-        ) : (
-          <div className="result-list">
-            {results.map((result) => (
-              <Link
-                to={`/student/models/${result.firearm_id}/assessment`}
-                key={result.id}
-              >
-                <div>
-                  <strong>{result.firearm.name}</strong>
-                  <span>{result.correct_count}/{result.total_questions} correct</span>
-                </div>
-                <strong>{Number(result.percentage).toFixed(2)}%</strong>
-              </Link>
-            ))}
-          </div>
-        )}
-      </article>}
+      {activePage === 'overview' && <StudentOverview attempts={attempts} enrollments={enrollments} firearms={firearms} loading={loading} onJoin={() => { setError(''); setJoinOpen(true) }} onNavigate={navigateSection} onOpenClass={openClass} releases={releases} />}
+      {activePage === 'classes' && <StudentClasses attempts={attempts} enrollments={enrollments} onJoin={() => { setError(''); setJoinOpen(true) }} onOpenClass={openClass} releases={releases} />}
+      {activePage === 'class' && selectedEnrollment && <StudentClassDetail attempts={attempts} components={components} enrollment={selectedEnrollment} firearms={firearms} onLeave={handleLeaveClass} releases={releases} />}
+      {joinOpen && <StudentJoinDialog classCode={classCode} error={error} joining={joining} onChange={setClassCode} onClose={() => { setJoinOpen(false); setError('') }} onSubmit={handleJoinClass} />}
 
       {(error || notice) && (
         <div
