@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 
-export default function AssessmentReleasePanel({ attempts = [], onViewAnalytics, selectedClass }) {
+export default function AssessmentReleasePanel({ attempts = [], onChanged, onViewAnalytics, selectedClass }) {
   const [firearms, setFirearms] = useState([])
   const [releases, setReleases] = useState([])
   const [loading, setLoading] = useState(false)
   const [updatingId, setUpdatingId] = useState('')
   const [error, setError] = useState('')
+  const [pendingClose, setPendingClose] = useState(null)
 
   const releaseByFirearm = useMemo(
     () => new Map(releases.map((release) => [release.firearm_id, release])),
@@ -60,7 +61,10 @@ export default function AssessmentReleasePanel({ attempts = [], onViewAnalytics,
     })
 
     if (updateError) setError(updateError.message)
-    else await loadReleases()
+    else {
+      await Promise.all([loadReleases(), onChanged?.()])
+      setPendingClose(null)
+    }
 
     setUpdatingId('')
   }
@@ -89,13 +93,14 @@ export default function AssessmentReleasePanel({ attempts = [], onViewAnalytics,
             const passing = firearmAttempts.length ? firearmAttempts.filter((item) => Number(item.percentage) >= 75).length / firearmAttempts.length * 100 : 0
             return (
               <section className="faculty-release-card" key={firearm.id}>
-                <header><div><h3>{firearm.name} <span className={isOpen ? 'faculty-active-pill' : 'faculty-closed-pill'}>{isOpen ? 'Open' : 'Closed'}</span></h3><p>{firearm.caliber}</p></div><div><button disabled={updatingId === firearm.id} onClick={() => toggleRelease(firearm)} type="button">{updatingId === firearm.id ? 'Saving…' : isOpen ? 'Close Assessment' : 'Open Assessment'}</button>{onViewAnalytics && <button onClick={onViewAnalytics} type="button">View Results</button>}</div></header>
+                <header><div><h3>{firearm.name} <span className={isOpen ? 'faculty-active-pill' : 'faculty-closed-pill'}>{isOpen ? 'Open' : 'Closed'}</span></h3><p>{firearm.caliber}</p></div><div><button disabled={updatingId === firearm.id} onClick={() => isOpen ? setPendingClose(firearm) : toggleRelease(firearm)} type="button">{updatingId === firearm.id ? 'Saving…' : isOpen ? 'Close Assessment' : 'Open Assessment'}</button>{onViewAnalytics && <button onClick={onViewAnalytics} type="button">View Results</button>}</div></header>
                 <dl><div><dt>Attempts</dt><dd>{firearmAttempts.length}</dd></div><div><dt>Avg Score</dt><dd>{average.toFixed(1)}%</dd></div><div><dt>Pass Rate</dt><dd>{Math.round(passing)}%</dd></div><div><dt>Status</dt><dd>{isOpen ? 'Accepting submissions' : 'Not accepting submissions'}</dd></div></dl>
               </section>
             )
           })}
         </div>
       )}
+      {pendingClose && <div className="confirmation-backdrop" role="presentation"><section aria-labelledby="close-assessment-title" aria-modal="true" className="confirmation-dialog faculty-archive-dialog" role="dialog"><div className="faculty-archive-dialog-copy"><span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 9v4m0 3h.01M10.2 4.8 3.4 17a2 2 0 0 0 1.8 3h13.6a2 2 0 0 0 1.8-3L13.8 4.8a2 2 0 0 0-3.6 0Z" /></svg></span><div><h2 id="close-assessment-title">Close {pendingClose.name} assessment?</h2><p>Every in-progress attempt will be submitted automatically. Saved answers will be graded, unanswered questions will be marked incorrect, and students cannot continue after you confirm.</p></div></div><div className="confirmation-actions"><button disabled={updatingId === pendingClose.id} onClick={() => setPendingClose(null)} type="button">Cancel</button><button className="danger-action" disabled={updatingId === pendingClose.id} onClick={() => void toggleRelease(pendingClose)} type="button">{updatingId === pendingClose.id ? 'Closing…' : 'Close & Submit'}</button></div></section></div>}
     </article>
   )
 }

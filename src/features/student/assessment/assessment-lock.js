@@ -1,12 +1,14 @@
 const lockPrefix = 'trigger3d:assessment-lock:'
 
-export function getAssessmentLockKey(firearmId) {
-  return `${lockPrefix}${firearmId}`
+export function getAssessmentLockKey(firearmId, classId = '') {
+  return classId
+    ? `${lockPrefix}${classId}:${firearmId}`
+    : `${lockPrefix}${firearmId}`
 }
 
-export function setAssessmentLock(firearmId, locked) {
+export function setAssessmentLock(firearmId, locked, classId = '') {
   try {
-    const key = getAssessmentLockKey(firearmId)
+    const key = getAssessmentLockKey(firearmId, classId)
     if (locked) localStorage.setItem(key, new Date().toISOString())
     else localStorage.removeItem(key)
   } catch {
@@ -14,8 +16,9 @@ export function setAssessmentLock(firearmId, locked) {
   }
 }
 
-export function getStudentFirearmDestination(firearmId, assessmentInProgress) {
+export function getStudentFirearmDestination(firearmId, assessmentInProgress, classId = '') {
+  const classQuery = classId ? `?classId=${encodeURIComponent(classId)}` : ''
   return assessmentInProgress
-    ? `/student/models/${firearmId}/assessment`
-    : `/student/models/${firearmId}`
+    ? `/student/models/${firearmId}/assessment${classQuery}`
+    : `/student/models/${firearmId}${classQuery}`
 }

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../../lib/supabase.js'
 import FirearmCanvas from './FirearmCanvas.jsx'
 import { getAssessmentLockKey } from '../assessment/assessment-lock.js'
 
 export default function FirearmViewerPage() {
   const { firearmId } = useParams()
+  const [searchParams] = useSearchParams()
+  const classId = searchParams.get('classId') || ''
+  const classQuery = classId ? `?classId=${encodeURIComponent(classId)}` : ''
   const [firearm, setFirearm] = useState(null)
   const [components, setComponents] = useState([])
   const [modelUrl, setModelUrl] = useState('')
@@ -29,7 +32,7 @@ export default function FirearmViewerPage() {
           .select('id, identifier, name, caliber, description, glb_storage_path, status')
           .eq('id', firearmId)
           .single(),
-        supabase.rpc('get_assessment_status', { target_firearm_id: firearmId }),
+        supabase.rpc('get_assessment_status', { target_class_id: classId, target_firearm_id: firearmId }),
       ])
 
       if (!active) return
@@ -90,17 +93,17 @@ export default function FirearmViewerPage() {
 
     void loadViewer()
     return () => { active = false }
-  }, [firearmId])
+  }, [classId, firearmId])
 
   useEffect(() => {
-    const lockKey = getAssessmentLockKey(firearmId)
+    const lockKey = getAssessmentLockKey(firearmId, classId)
     function handleStorage(event) {
       if (event.key === lockKey && event.newValue) setLocked(true)
     }
 
     window.addEventListener('storage', handleStorage)
     return () => window.removeEventListener('storage', handleStorage)
-  }, [firearmId])
+  }, [classId, firearmId])
 
   const selectedComponent = useMemo(
     () => components.find((component) => component.mesh_name === selectedName) ?? null,
@@ -139,7 +142,7 @@ export default function FirearmViewerPage() {
             The {firearm?.name || 'firearm'} model cannot be inspected while its assessment
             is in progress.
           </p>
-          <Link className="assessment-button" to={`/student/models/${firearmId}/assessment`}>
+          <Link className="assessment-button" to={`/student/models/${firearmId}/assessment${classQuery}`}>
             Resume assessment
           </Link>
           <Link className="text-link" to="/student">Back to dashboard</Link>
@@ -162,7 +165,7 @@ export default function FirearmViewerPage() {
           <button aria-expanded={componentsOpen} type="button" onClick={() => setComponentsOpen((current) => !current)}>
             Components
           </button>
-          <Link className="assessment-button viewer-assessment-button" to={`/student/models/${firearmId}/assessment`}>Open assessment</Link>
+          <Link className="assessment-button viewer-assessment-button" to={`/student/models/${firearmId}/assessment${classQuery}`}>Open assessment</Link>
         </div>
       </header>
 

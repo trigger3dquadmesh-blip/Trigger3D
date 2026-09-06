@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../../auth/useAuth.js'
-import { isDemoMode, supabase } from '../../lib/supabase.js'
+import { supabase } from '../../lib/supabase.js'
 import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
 import AdminIcon from './AdminIcon.jsx'
 import { validatePasswordChange } from '../../auth/password.js'
@@ -67,12 +67,6 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
     const trimmedName = fullName.trim()
     if (trimmedName.length < 2) {
       setError('Enter a username with at least 2 characters.')
-      setSaving(false)
-      return
-    }
-
-    if (isDemoMode) {
-      setMessage('Settings changes require a Supabase connection.')
       setSaving(false)
       return
     }
@@ -162,16 +156,6 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
       return
     }
     setError('')
-    if (isDemoMode) {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const nextPhoto = String(reader.result)
-        localStorage.setItem(photoStorageKey, nextPhoto)
-        setPhoto(nextPhoto)
-      }
-      reader.readAsDataURL(file)
-      return
-    }
     const extension = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]
     const storagePath = `${user.id}/avatar-${Date.now()}.${extension}`
     const { error: uploadError } = await supabase.storage.from('profile-photos').upload(storagePath, file, { contentType: file.type, upsert: false })
@@ -196,14 +180,6 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
     setPhotoRemoving(true)
     setError('')
     setMessage('')
-
-    if (isDemoMode) {
-      localStorage.removeItem(photoStorageKey)
-      setPhoto('')
-      setMessage('Profile photo removed.')
-      setPhotoRemoving(false)
-      return
-    }
 
     const storedUrl = profile?.avatar_url || photo
     const publicPathMarker = '/storage/v1/object/public/profile-photos/'

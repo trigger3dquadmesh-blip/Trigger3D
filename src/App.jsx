@@ -13,6 +13,7 @@ import ChangePasswordPage from './pages/ChangePasswordPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import HomePage from './pages/HomePage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
 
 const FirearmViewerPage = lazy(
@@ -28,12 +29,13 @@ export default function App() {
 
   return (
     <>
-      {location.pathname !== '/' && location.pathname !== '/login' && !dashboardOwnsThemeToggle && (
+      {!['/', '/login', '/reset-password'].includes(location.pathname) && !dashboardOwnsThemeToggle && (
         <ThemeToggle compact={location.pathname.startsWith('/admin') || location.pathname === '/settings'} />
       )}
       <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route
         path="/account"
         element={

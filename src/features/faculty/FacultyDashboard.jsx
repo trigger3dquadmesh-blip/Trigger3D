@@ -160,6 +160,8 @@ function LiveFacultyDashboard() {
 
     if (updateError) {
       setError(updateError.message)
+      setUpdatingId('')
+      return false
     } else {
       setNotice(
         nextStatus === 'active'
@@ -173,6 +175,7 @@ function LiveFacultyDashboard() {
     }
 
     setUpdatingId('')
+    return true
   }
 
   async function handleArchiveClass(archiveState) {
@@ -233,7 +236,7 @@ function LiveFacultyDashboard() {
 
       {activePage === 'classes' && <FacultyClassesPanel attempts={overviewData.attempts} className={className} classes={classes} creating={creating} enrollments={overviewData.enrollments} loading={loading} onClassNameChange={setClassName} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} releases={overviewData.releases} />}
 
-      {activePage === 'class' && selectedClass && <FacultyClassWorkspace attempts={overviewData.attempts} classItem={selectedClass} enrollments={enrollments} firearms={overviewData.firearms} loading={loading} onArchive={handleArchiveClass} onResetAttempt={handleResetAttempt} onStatusChange={handleStatusChange} releases={overviewData.releases} resettingId={resettingId} resultRows={overviewData.resultRows} updatingId={updatingId} />}
+      {activePage === 'class' && selectedClass && <FacultyClassWorkspace attempts={overviewData.attempts} classItem={selectedClass} enrollments={enrollments} firearms={overviewData.firearms} loading={loading} onArchive={handleArchiveClass} onAssessmentChange={loadClasses} onBack={() => navigateSection('classes')} onResetAttempt={handleResetAttempt} onStatusChange={handleStatusChange} releases={overviewData.releases} resettingId={resettingId} resultRows={overviewData.resultRows} updatingId={updatingId} />}
 
       {activePage === 'students' &&
       <article className="dashboard-card dashboard-card-wide">

@@ -1,3 +1,5 @@
+import { getActiveFacultyDashboardData } from './faculty-dashboard-data.js'
+
 function OverviewIcon({ name }) {
   const paths = {
     classes: <><path d="M3 21V7l9-4 9 4v14" /><path d="M9 21v-6h6v6M7 9h2m6 0h2M7 12h2m6 0h2" /></>,
@@ -15,15 +17,10 @@ function studentName(studentId, enrollments) {
 }
 
 export default function FacultyOverviewPanel({ attempts, classes, enrollments, firearms, loading, onManageClass, onNavigate, releases }) {
-  const activeClasses = classes.filter((item) => !item.archived_at)
-  const activeClassIds = new Set(activeClasses.map((item) => item.id))
-  const activeEnrollments = enrollments.filter((item) => item.status === 'active' && activeClassIds.has(item.class_id))
+  const { activeClasses, activeClassIds, activeEnrollments, submittedAttempts } = getActiveFacultyDashboardData({ attempts, classes, enrollments })
   const readyFirearms = firearms.filter((item) => item.status === 'ready')
   const assignedReleases = releases.filter((item) => activeClassIds.has(item.class_id))
   const openReleases = releases.filter((item) => item.is_open && activeClassIds.has(item.class_id))
-  const submittedAttempts = attempts
-    .filter((item) => item.status === 'submitted')
-    .sort((a, b) => new Date(b.submitted_at || b.started_at || 0) - new Date(a.submitted_at || a.started_at || 0))
 
   const expectedCompletions = assignedReleases.reduce((total, release) => (
     total + activeEnrollments.filter((item) => item.class_id === release.class_id).length
@@ -68,7 +65,6 @@ export default function FacultyOverviewPanel({ attempts, classes, enrollments, f
     <section className="faculty-overview-page" aria-labelledby="faculty-overview-title">
       <div className="faculty-overview-heading">
         <div><nav aria-label="Breadcrumb"><span>Faculty</span><span>›</span><span>Dashboard</span></nav><h1 id="faculty-overview-title">Dashboard</h1></div>
-        <button className="faculty-outline-action" onClick={() => onNavigate('classes')} type="button"><OverviewIcon name="classes" /> Manage Classes</button>
       </div>
 
       <div className="faculty-overview-metrics">

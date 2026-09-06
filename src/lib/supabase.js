@@ -12,12 +12,7 @@ const hasPlaceholderCredentials =
   || supabasePublishableKey.includes('your-key')
 
 const hasSupabaseCredentials = !hasPlaceholderCredentials
-// Demo mode is used only when no real Supabase connection is available.
-export const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true' && !hasSupabaseCredentials
-
-export const isSupabaseConfigured = Boolean(
-  hasSupabaseCredentials || isDemoMode,
-)
+export const isSupabaseConfigured = hasSupabaseCredentials
 
 export const supabase = hasSupabaseCredentials
   ? createClient(supabaseUrl, supabasePublishableKey)

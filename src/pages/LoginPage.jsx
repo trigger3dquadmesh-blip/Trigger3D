@@ -4,21 +4,29 @@ import { isAllowedStudentEmail, normalizeEmail } from '../auth/email.js'
 import { isValidFullName, normalizeFullName } from '../auth/name.js'
 import useAuth from '../auth/useAuth.js'
 import ThemeToggle from '../components/ThemeToggle.jsx'
-import { isDemoMode, supabase } from '../lib/supabase.js'
+import useAutoDismissNotice from '../components/useAutoDismissNotice.js'
+import { supabase } from '../lib/supabase.js'
 
 const allowedDomain = (
   import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || 'parsu.edu.ph'
 ).replace(/^@/, '')
 
+function getPublicSiteUrl() {
+  const configuredUrl = import.meta.env.VITE_PUBLIC_SITE_URL?.trim().replace(/\/$/, '')
+  if (configuredUrl) return configuredUrl
+  if (['localhost', '127.0.0.1'].includes(window.location.hostname)) return 'https://trigger3d.vercel.app'
+  return window.location.origin
+}
+
 const inputClass = 'peer h-[52px] w-full rounded-lg border border-[var(--auth-border)] bg-[var(--auth-input)] px-4 pb-1.5 pt-5 text-[var(--auth-text)] outline-none transition placeholder:text-transparent focus:border-[#109d1a] focus:ring-2 focus:ring-[#109d1a]/20 disabled:cursor-not-allowed disabled:opacity-60'
 const labelClass = 'pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[var(--auth-muted)] transition-all peer-focus:top-1.5 peer-focus:translate-y-0 peer-focus:text-[0.65rem] peer-focus:font-bold peer-focus:text-[#109d1a] peer-[:not(:placeholder-shown)]:top-1.5 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.65rem] peer-[:not(:placeholder-shown)]:font-bold'
 
 export default function LoginPage() {
-  const { demoSignIn, isConfigured, loading: sessionLoading, user } = useAuth()
+  const { isConfigured, loading: sessionLoading, user } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [mode, setMode] = useState(
-    searchParams.get('mode') === 'signup' ? 'signup' : 'login',
+    ['signup', 'forgot'].includes(searchParams.get('mode')) ? searchParams.get('mode') : 'login',
   )
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -29,6 +37,8 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+
+  useAutoDismissNotice(notice, () => setNotice(''), 5000)
 
   if (!sessionLoading && user) {
     return <Navigate to="/account" replace />
@@ -51,12 +61,12 @@ export default function LoginPage() {
 
     const normalizedEmail = normalizeEmail(email)
 
-    if (!normalizedEmail || !password) {
-      setError('Enter both your email address and password.')
+    if (!normalizedEmail || (mode !== 'forgot' && !password)) {
+      setError(mode === 'forgot' ? 'Enter your email address.' : 'Enter both your email address and password.')
       return
     }
 
-    if (password.length < 8) {
+    if (mode !== 'forgot' && password.length < 8) {
       setError('Your password must contain at least 8 characters.')
       return
     }
@@ -81,17 +91,13 @@ export default function LoginPage() {
     setSubmitting(true)
 
     try {
-      if (isDemoMode) {
-        if (mode === 'signup') {
-          throw new Error('Student registration requires a Supabase connection. Use the demo student account to preview the dashboard.')
-        }
-        const { error: demoError } = demoSignIn(email, password)
-        if (demoError) throw demoError
-        navigate('/account', { replace: true })
-        return
-      }
-
-      if (mode === 'signup') {
+      if (mode === 'forgot') {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+          redirectTo: `${getPublicSiteUrl()}/reset-password`,
+        })
+        if (resetError) throw resetError
+        setNotice('Password-reset instructions have been sent. Please check your email.')
+      } else if (mode === 'signup') {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
@@ -140,22 +146,14 @@ export default function LoginPage() {
           <ThemeToggle compact />
         </div>
         <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-[#109d1a]">Trigger3D</p>
-        <h1 className="m-0 text-3xl font-black leading-none tracking-tight text-[var(--auth-text)]">{mode === 'login' ? 'Welcome back' : 'Create account'}</h1>
+        <h1 className="m-0 text-3xl font-black leading-none tracking-tight text-[var(--auth-text)]">{mode === 'login' ? 'Welcome back' : mode === 'forgot' ? 'Reset password' : 'Create account'}</h1>
         <p className="mb-0 mt-3 text-sm leading-6 text-[var(--auth-muted)]">
           {mode === 'login'
             ? 'Students, faculty, and administrators can sign in here.'
-            : `Registration is available only to students with an @${allowedDomain} email.`}
+            : mode === 'forgot'
+              ? 'Enter your account email and we will send you a secure reset link.'
+              : `Registration is available only to students with an @${allowedDomain} email.`}
         </p>
-
-        {isDemoMode && (
-          <div className="alert alert-success" role="status">
-            <strong>Demo accounts</strong><br />
-            Administrator: <strong>admin@trigger3d.demo</strong><br />
-            Student: <strong>student@trigger3d.demo</strong><br />
-            Faculty: <strong>faculty@trigger3d.demo</strong><br />
-            Password for all: <strong>demo12345</strong>
-          </div>
-        )}
 
         {!isConfigured && (
           <div className="alert alert-error" role="alert">
@@ -190,13 +188,15 @@ export default function LoginPage() {
             <label className={labelClass} htmlFor="email">Email address</label>
           </div>
 
-          <div className="relative">
+          {mode !== 'forgot' && <div className="relative">
             <input className={`${inputClass} pr-12`} id="password" name="password" placeholder=" " type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength="8" value={password} onChange={(event) => setPassword(event.target.value)} disabled={submitting} required />
             <label className={labelClass} htmlFor="password">Password</label>
             <button className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-md border-0 bg-transparent text-[var(--auth-muted)] hover:bg-[#109d1a]/10 hover:text-[#109d1a] focus-visible:outline-2 focus-visible:outline-[#109d1a]" type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>
               <svg className="h-5 w-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d={showPassword ? 'M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 4.2A10.8 10.8 0 0 1 12 4c5.2 0 9 5.2 9 8s-3.8 8-9 8a9.7 9.7 0 0 1-5.3-1.6M6.1 6.1C3.9 7.6 3 10 3 12c0 1.1.5 2.3 1.3 3.5' : 'M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z'} /></svg>
             </button>
-          </div>
+          </div>}
+
+          {mode === 'login' && <button className="justify-self-end border-0 bg-transparent p-0 text-xs font-bold text-[#109d1a] hover:underline" onClick={() => switchMode('forgot')} type="button">Forgot password?</button>}
 
           {mode === 'signup' && (
             <div className="relative">
@@ -220,15 +220,17 @@ export default function LoginPage() {
               ? 'Please wait…'
               : mode === 'login'
                 ? 'Sign in'
-                : 'Create account'}
+                : mode === 'forgot'
+                  ? 'Send reset link'
+                  : 'Create account'}
           </button>
         </form>
 
-        <p className="mb-0 mt-3 text-center text-xs leading-5 text-[var(--auth-muted)]">
+        {mode !== 'forgot' && <p className="mb-0 mt-3 text-center text-xs leading-5 text-[var(--auth-muted)]">
           Faculty and administrator accounts are administrator-created.
-        </p>
+        </p>}
         <p className="mb-0 mt-2 text-center text-sm text-[var(--auth-muted)]">
-          {mode === 'login' ? 'No student account yet?' : 'Already have an account?'}{' '}
+          {mode === 'login' ? 'No student account yet?' : mode === 'forgot' ? 'Remembered your password?' : 'Already have an account?'}{' '}
           <button className="border-0 bg-transparent p-0 font-black text-[#109d1a] hover:underline" type="button" onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}>
             {mode === 'login' ? 'Register' : 'Sign in'}
           </button>

@@ -56,13 +56,20 @@ function LiveStudentDashboard() {
       return
     }
 
-    setEnrollments(data)
-    setSelectedClassId((current) => data.some((item) => item.class?.id === current) ? current : data.find((item) => item.status === 'active')?.class?.id || '')
+    const validEnrollments = (data ?? []).filter((item) => item.class)
+    const accessibleEnrollments = validEnrollments.filter((item) => item.status === 'active')
 
-    const hasActiveEnrollment = data.some((item) => item.status === 'active')
+    setEnrollments(validEnrollments)
+    setSelectedClassId((current) => (
+      accessibleEnrollments.some((item) => item.class.id === current)
+        ? current
+        : accessibleEnrollments[0]?.class.id || ''
+    ))
+
+    const hasActiveEnrollment = accessibleEnrollments.length > 0
 
     if (hasActiveEnrollment) {
-      const classIds = data.filter((item) => item.status === 'active').map((item) => item.class.id)
+      const classIds = [...new Set(accessibleEnrollments.map((item) => item.class.id))]
       const [firearmResult, resultQuery, releaseResult, componentResult] = await Promise.all([
         supabase
           .from('firearms')
@@ -158,7 +165,7 @@ function LiveStudentDashboard() {
     setSavingName(false)
   }
 
-  const selectedEnrollment = enrollments.find((item) => item.class?.id === selectedClassId)
+  const selectedEnrollment = enrollments.find((item) => item.status === 'active' && item.class?.id === selectedClassId)
 
   function navigateSection(section) {
     setActivePage(section)

@@ -1,27 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { isDemoMode, isSupabaseConfigured, supabase } from '../lib/supabase.js'
+import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 import { AuthContext } from './auth-context.js'
-
-const demoProfiles = Object.freeze({
-  'admin@trigger3d.demo': Object.freeze({
-  id: 'demo-admin', email: 'admin@trigger3d.demo', full_name: 'Demo Administrator', role: 'admin',
-  }),
-  'student@trigger3d.demo': Object.freeze({
-    id: 'demo-student', email: 'student@trigger3d.demo', full_name: 'Demo Student', role: 'student',
-  }),
-  'faculty@trigger3d.demo': Object.freeze({
-    id: 'demo-faculty', email: 'faculty@trigger3d.demo', full_name: 'Demo Faculty', role: 'faculty',
-  }),
-})
 
 export default function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [profileError, setProfileError] = useState('')
-  const [loading, setLoading] = useState(isDemoMode ? false : isSupabaseConfigured)
+  const [loading, setLoading] = useState(isSupabaseConfigured)
 
   useEffect(() => {
-    if (isDemoMode) return undefined
     if (!isSupabaseConfigured) {
       return undefined
     }
@@ -89,7 +76,6 @@ export default function AuthProvider({ children }) {
   }, [])
 
   const refreshProfile = useCallback(async () => {
-    if (isDemoMode) return { data: profile, error: null }
     if (!session?.user) return { data: null, error: null }
 
     setLoading(true)
@@ -114,40 +100,21 @@ export default function AuthProvider({ children }) {
 
     setLoading(false)
     return { data, error }
-  }, [profile, session])
-
-  const demoSignIn = useCallback((email, password) => {
-    const demoProfile = demoProfiles[email.trim().toLowerCase()]
-    if (!demoProfile || password !== 'demo12345') {
-      return { error: new Error('Use one of the demo account credentials shown below.') }
-    }
-    setSession({ user: { id: demoProfile.id, email: demoProfile.email } })
-    setProfile(demoProfile)
-    return { error: null }
-  }, [])
+  }, [session])
 
   const value = useMemo(
     () => ({
       isConfigured: isSupabaseConfigured,
-      isDemoMode,
       loading,
       profile,
       profileError,
       refreshProfile,
-      demoSignIn,
       role: profile?.disabled_at ? null : (profile?.role ?? null),
       session,
       user: session?.user ?? null,
-      signOut: () => {
-        if (isDemoMode) {
-          setSession(null)
-          setProfile(null)
-          return Promise.resolve({ error: null })
-        }
-        return supabase?.auth.signOut()
-      },
+      signOut: () => supabase?.auth.signOut(),
     }),
-    [demoSignIn, loading, profile, profileError, refreshProfile, session],
+    [loading, profile, profileError, refreshProfile, session],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

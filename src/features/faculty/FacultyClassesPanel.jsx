@@ -7,6 +7,8 @@ function SmallIcon({ name }) {
     students: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-1.2A4.8 4.8 0 0 1 8.3 14h1.4a4.8 4.8 0 0 1 4.8 4.8V20" /><path d="M17 5.5a3 3 0 0 1 0 5.7" /></>,
     assessment: <><rect x="5" y="4" width="14" height="17" rx="2" /><path d="m9 12 2 2 4-4" /></>,
     copy: <><rect x="8" y="8" width="11" height="11" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></>,
+    eye: <><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.5" /></>,
+    eyeOff: <><path d="m3 3 18 18" /><path d="M10.6 6.1A10.6 10.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16.6 16.6 0 0 1-2.1 2.8M6.2 6.2C3.8 7.8 2.5 12 2.5 12s3.5 6 9.5 6a9.8 9.8 0 0 0 3.1-.5" /></>,
   }
   return <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" viewBox="0 0 24 24">{paths[name]}</svg>
 }
@@ -21,6 +23,7 @@ export default function FacultyClassesPanel({ attempts, className, classes, crea
   const [query, setQuery] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState({ code: '', status: '' })
+  const [visibleCodes, setVisibleCodes] = useState(() => new Set())
   const visibleClasses = useMemo(() => classes.filter((item) => (
     (status === 'archived' ? Boolean(item.archived_at) : !item.archived_at)
     && `${item.name} ${item.code}`.toLowerCase().includes(query.trim().toLowerCase())
@@ -30,6 +33,15 @@ export default function FacultyClassesPanel({ attempts, className, classes, crea
     const copied = await copyText(code)
     setCopyFeedback({ code, status: copied ? 'copied' : 'error' })
     window.setTimeout(() => setCopyFeedback((current) => current.code === code ? { code: '', status: '' } : current), 1800)
+  }
+
+  function toggleClassCode(classId) {
+    setVisibleCodes((current) => {
+      const next = new Set(current)
+      if (next.has(classId)) next.delete(classId)
+      else next.add(classId)
+      return next
+    })
   }
 
   return (
@@ -51,7 +63,8 @@ export default function FacultyClassesPanel({ attempts, className, classes, crea
             const completion = expected ? Math.min(100, Math.round((submitted / expected) * 100)) : 0
             const lastActivity = attempts.filter((entry) => entry.class_id === item.id).map((entry) => entry.submitted_at || entry.started_at).filter(Boolean).sort().at(-1)
             const feedback = copyFeedback.code === item.code ? copyFeedback.status : ''
-            return <tr key={item.id}><td><strong>{item.name}</strong><small>{item.archived_at ? 'Archived class' : 'Active class'}</small></td><td><button aria-label={`Copy class code ${item.code}`} className={`faculty-code-pill${feedback ? ` ${feedback}` : ''}`} onClick={() => copyClassCode(item.code)} title={feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Copy failed' : 'Copy class code'} type="button"><SmallIcon name="copy" /> {feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Try again' : item.code}</button></td><td><span className="faculty-table-count"><SmallIcon name="students" /> {students.length}</span></td><td><span className="faculty-table-count"><SmallIcon name="assessment" /> {classReleases.length}</span></td><td><div className="faculty-completion"><i><span style={{ width: `${completion}%` }} /></i><span>{completion}%</span></div></td><td>{formatActivity(lastActivity)}</td><td><button className="faculty-manage-class" onClick={() => onManageClass(item.id)} type="button">Manage students <span aria-hidden="true">›</span></button></td></tr>
+            const codeVisible = visibleCodes.has(item.id)
+            return <tr key={item.id}><td><strong>{item.name}</strong><small>{item.archived_at ? 'Archived class' : 'Active class'}</small></td><td><div className="faculty-code-controls"><button aria-label={`Copy class code for ${item.name}`} className={`faculty-code-pill${feedback ? ` ${feedback}` : ''}`} onClick={() => copyClassCode(item.code)} title={feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Copy failed' : 'Copy class code'} type="button"><SmallIcon name="copy" /> <span>{feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Try again' : codeVisible ? item.code : '••••••••'}</span></button><button aria-label={`${codeVisible ? 'Hide' : 'Show'} class code for ${item.name}`} aria-pressed={codeVisible} className="faculty-code-visibility" onClick={() => toggleClassCode(item.id)} title={`${codeVisible ? 'Hide' : 'Show'} class code`} type="button"><SmallIcon name={codeVisible ? 'eyeOff' : 'eye'} /></button></div></td><td><span className="faculty-table-count"><SmallIcon name="students" /> {students.length}</span></td><td><span className="faculty-table-count"><SmallIcon name="assessment" /> {classReleases.length}</span></td><td><div className="faculty-completion"><i><span style={{ width: `${completion}%` }} /></i><span>{completion}%</span></div></td><td>{formatActivity(lastActivity)}</td><td><button className="faculty-manage-class" onClick={() => onManageClass(item.id)} type="button">Manage students <span aria-hidden="true">›</span></button></td></tr>
           })}
         </tbody></table>
         {!loading && visibleClasses.length === 0 && <p className="faculty-empty-state">No {status} classes match your search.</p>}
