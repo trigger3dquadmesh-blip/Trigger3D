@@ -18,12 +18,13 @@ function formatActivity(value) {
   return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
-export default function FacultyClassesPanel({ attempts, className, classes, creating, enrollments, loading, onClassNameChange, onCreateClass, onManageClass, releases }) {
+export default function FacultyClassesPanel({ attempts, className, classes, creating, enrollments, firearms = [], loading, onClassNameChange, onCreateClass, onManageClass, releases }) {
   const [status, setStatus] = useState('active')
   const [query, setQuery] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState({ code: '', status: '' })
   const [visibleCodes, setVisibleCodes] = useState(() => new Set())
+  const availableAssessmentCount = firearms.filter((firearm) => firearm.status === 'ready').length
   const visibleClasses = useMemo(() => classes.filter((item) => (
     (status === 'archived' ? Boolean(item.archived_at) : !item.archived_at)
     && `${item.name} ${item.code}`.toLowerCase().includes(query.trim().toLowerCase())
@@ -66,7 +67,7 @@ export default function FacultyClassesPanel({ attempts, className, classes, crea
             const lastActivity = activeAttempts.map((entry) => entry.submitted_at || entry.started_at).filter(Boolean).sort().at(-1)
             const feedback = copyFeedback.code === item.code ? copyFeedback.status : ''
             const codeVisible = visibleCodes.has(item.id)
-            return <tr key={item.id}><td><strong>{item.name}</strong><small>{item.archived_at ? 'Archived class' : 'Active class'}</small></td><td><div className="faculty-code-controls"><button aria-label={`Copy class code for ${item.name}`} className={`faculty-code-pill${feedback ? ` ${feedback}` : ''}`} onClick={() => copyClassCode(item.code)} title={feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Copy failed' : 'Copy class code'} type="button"><SmallIcon name="copy" /> <span>{feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Try again' : codeVisible ? item.code : '••••••••'}</span></button><button aria-label={`${codeVisible ? 'Hide' : 'Show'} class code for ${item.name}`} aria-pressed={codeVisible} className="faculty-code-visibility" onClick={() => toggleClassCode(item.id)} title={`${codeVisible ? 'Hide' : 'Show'} class code`} type="button"><SmallIcon name={codeVisible ? 'eyeOff' : 'eye'} /></button></div></td><td><span className="faculty-table-count"><SmallIcon name="students" /> {students.length}</span></td><td><span className="faculty-table-count"><SmallIcon name="assessment" /> {classReleases.length}</span></td><td><div className="faculty-completion"><i><span style={{ width: `${completion}%` }} /></i><span>{completion}%</span></div></td><td>{formatActivity(lastActivity)}</td><td><button className="faculty-manage-class" onClick={() => onManageClass(item.id)} type="button">Manage students <span aria-hidden="true">›</span></button></td></tr>
+            return <tr key={item.id}><td><strong>{item.name}</strong><small>{item.archived_at ? 'Archived class' : 'Active class'}</small></td><td><div className="faculty-code-controls"><button aria-label={`Copy class code for ${item.name}`} className={`faculty-code-pill${feedback ? ` ${feedback}` : ''}`} onClick={() => copyClassCode(item.code)} title={feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Copy failed' : 'Copy class code'} type="button"><SmallIcon name="copy" /> <span>{feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Try again' : codeVisible ? item.code : '••••••••'}</span></button><button aria-label={`${codeVisible ? 'Hide' : 'Show'} class code for ${item.name}`} aria-pressed={codeVisible} className="faculty-code-visibility" onClick={() => toggleClassCode(item.id)} title={`${codeVisible ? 'Hide' : 'Show'} class code`} type="button"><SmallIcon name={codeVisible ? 'eyeOff' : 'eye'} /></button></div></td><td><span className="faculty-table-count"><SmallIcon name="students" /> {students.length}</span></td><td><span className="faculty-table-count" title={`${classReleases.length} configured for this class`}><SmallIcon name="assessment" /> {availableAssessmentCount}</span></td><td><div className="faculty-completion"><i><span style={{ width: `${completion}%` }} /></i><span>{completion}%</span></div></td><td>{formatActivity(lastActivity)}</td><td><button className="faculty-manage-class" onClick={() => onManageClass(item.id)} type="button">Manage students <span aria-hidden="true">›</span></button></td></tr>
           })}
         </tbody></table>
         {!loading && visibleClasses.length === 0 && <p className="faculty-empty-state">No {status} classes match your search.</p>}
