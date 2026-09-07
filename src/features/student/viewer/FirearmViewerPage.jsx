@@ -3,8 +3,11 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import AdminModelViewerPanel from '../../admin/AdminModelViewerPanel.jsx'
 import { supabase } from '../../../lib/supabase.js'
 import { getAssessmentLockKey } from '../assessment/assessment-lock.js'
+import useAuth from '../../../auth/useAuth.js'
+import { markFirearmViewed } from './viewed-firearms.js'
 
 export default function FirearmViewerPage() {
+  const { profile } = useAuth()
   const { firearmId } = useParams()
   const [searchParams] = useSearchParams()
   const classId = searchParams.get('classId') || ''
@@ -37,13 +40,19 @@ export default function FirearmViewerPage() {
         setFirearm(firearmResult.data)
         setStatus(statusResult.data)
         setLocked(statusResult.data.attempt_status === 'in_progress')
+        if (statusResult.data.attempt_status !== 'in_progress') {
+          markFirearmViewed(localStorage, profile?.id, classId, firearmId)
+          if (profile?.id) {
+            void supabase.from('student_firearm_views').upsert({ student_id: profile.id, class_id: classId, firearm_id: firearmId, viewed_at: new Date().toISOString() })
+          }
+        }
       }
       setLoading(false)
     }
 
     void loadViewerAccess()
     return () => { active = false }
-  }, [classId, firearmId])
+  }, [classId, firearmId, profile?.id])
 
   useEffect(() => {
     const lockKey = getAssessmentLockKey(firearmId, classId)

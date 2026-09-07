@@ -5,11 +5,11 @@ import RoleDashboard from '../../components/RoleDashboard.jsx'
 import { supabase } from '../../lib/supabase.js'
 import AdminSettings from '../admin/AdminSettings.jsx'
 import StudentSidebar from './StudentSidebar.jsx'
-import { StudentClassDetail, StudentClasses, StudentJoinDialog, StudentOverview } from './StudentDashboardPanels.jsx'
+import { StudentClassDetail, StudentClasses, StudentJoinDialog, StudentOverview, StudentResults } from './StudentDashboardPanels.jsx'
 import { getSavedDashboardPage, saveDashboardPage } from '../../components/dashboard-location.js'
 import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
 
-const studentPages = ['overview', 'classes', 'class']
+const studentPages = ['overview', 'classes', 'class', 'results']
 const studentDashboardPageKey = 'trigger3d.student.active-page'
 
 export default function StudentDashboard() {
@@ -97,7 +97,7 @@ function LiveStudentDashboard() {
         supabase.from('assessment_releases').select('class_id, firearm_id, is_open, updated_at').in('class_id', classIds),
         supabase
           .from('firearms')
-          .select('id, identifier, name, caliber, description, firearm_type, tutorial_url, model_credit, status')
+          .select('id, identifier, name, caliber, description, firearm_type, tutorial_url, model_credit, status, glb_storage_path')
           .eq('status', 'ready')
           .order('created_at'),
       ])
@@ -226,20 +226,6 @@ function LiveStudentDashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  async function handleLeaveClass(classId) {
-    setError('')
-    setNotice('')
-    const { error: leaveError } = await supabase.rpc('leave_class', { target_class_id: classId })
-    if (leaveError) {
-      setError(leaveError.message)
-      return false
-    }
-    setNotice('You have left the class. Your existing assessment results were preserved.')
-    await loadEnrollment()
-    navigateSection('classes')
-    return true
-  }
-
   function openClass(classId) {
     setSelectedClassId(classId)
     navigateSection('class')
@@ -290,7 +276,8 @@ function LiveStudentDashboard() {
     >
       {activePage === 'overview' && <StudentOverview attempts={attempts} enrollments={enrollments} firearms={firearms} loading={loading} onJoin={() => { setError(''); setJoinOpen(true) }} onNavigate={navigateSection} onOpenClass={openClass} releases={releases} />}
       {activePage === 'classes' && <StudentClasses attempts={attempts} enrollments={enrollments} onOpenClass={openClass} releases={releases} />}
-      {activePage === 'class' && selectedEnrollment && <StudentClassDetail attempts={attempts} components={components} enrollment={selectedEnrollment} firearms={firearms} onLeave={handleLeaveClass} releases={releases} />}
+      {activePage === 'class' && selectedEnrollment && <StudentClassDetail attempts={attempts} components={components} enrollment={selectedEnrollment} firearms={firearms} onBack={() => navigateSection('classes')} releases={releases} studentId={profile?.id} />}
+      {activePage === 'results' && <StudentResults attempts={attempts} enrollments={enrollments} loading={loading} />}
       {joinOpen && <StudentJoinDialog classCode={classCode} error={error} joining={joining} onChange={setClassCode} onClose={() => { setJoinOpen(false); setError('') }} onSubmit={handleJoinClass} />}
 
       {(error || notice) && (

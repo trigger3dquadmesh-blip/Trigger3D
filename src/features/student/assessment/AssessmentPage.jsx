@@ -12,6 +12,7 @@ import { createQuestionDeadline, secondsUntilDeadline } from './assessment-timer
 
 const QUESTION_TIME_SECONDS = 30
 const TIMED_OUT_ANSWER = '[No answer — time expired]'
+const REVIEW_PAGE_SIZE = 5
 
 function readStoredDraft(attemptId) {
   try {
@@ -44,6 +45,10 @@ export default function AssessmentPage() {
   const [answers, setAnswers] = useState({})
   const [currentIndex, setCurrentIndex] = useState(0)
   const [result, setResult] = useState(null)
+  const [review, setReview] = useState([])
+  const [reviewPage, setReviewPage] = useState(0)
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewError, setReviewError] = useState('')
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -83,6 +88,7 @@ export default function AssessmentPage() {
           setAssessmentLock(firearmId, false, classId)
           if (statusResult.data.attempt_id) {
             removeStoredDraft(statusResult.data.attempt_id)
+            setAttemptId(statusResult.data.attempt_id)
           }
           setResult({
             correct_count: statusResult.data.correct_count,
@@ -100,6 +106,46 @@ export default function AssessmentPage() {
     void loadAssessment()
     return () => { active = false }
   }, [classId, firearmId])
+
+  useEffect(() => {
+    if (!result || !attemptId) return undefined
+    let active = true
+
+    async function loadReview() {
+      setReviewLoading(true)
+      setReviewError('')
+      const { data, error: responseError } = await supabase.rpc('get_my_assessment_review', {
+        target_attempt_id: attemptId,
+      })
+
+      if (!active) return
+      if (responseError) {
+        const missingFunction = responseError.code === 'PGRST202'
+          || responseError.message?.includes('get_my_assessment_review')
+        setReviewError(missingFunction
+          ? 'The student answer-review database update has not been installed yet.'
+          : `Your grade is available, but the answer review could not be loaded. ${responseError.message}`)
+        setReview([])
+      } else {
+        const rows = (data ?? []).map((row) => {
+          return {
+            id: `${row.attempt_id}:${row.question_id}`,
+            label: row.question_id,
+            prompt: row.prompt || 'Component identification question',
+            correctAnswer: row.component_name || '',
+            studentAnswer: row.student_answer || TIMED_OUT_ANSWER,
+            isCorrect: Boolean(row.is_correct),
+          }
+        }).sort((left, right) => String(left.label).localeCompare(String(right.label), undefined, { numeric: true }))
+        setReview(rows)
+        setReviewPage(0)
+      }
+      setReviewLoading(false)
+    }
+
+    void loadReview()
+    return () => { active = false }
+  }, [attemptId, result])
 
   const currentQuestion = questions[currentIndex] ?? null
   const canSubmit = useMemo(
@@ -284,8 +330,13 @@ export default function AssessmentPage() {
   }
 
   if (result) {
+    const incorrectCount = review.filter((item) => !item.isCorrect).length
+    const reviewPageCount = Math.ceil(review.length / REVIEW_PAGE_SIZE)
+    const reviewStart = reviewPage * REVIEW_PAGE_SIZE
+    const reviewItems = review.slice(reviewStart, reviewStart + REVIEW_PAGE_SIZE)
     return (
       <main className="student-assessment-page student-assessment-complete">
+        <div className="student-assessment-back"><Link onClick={() => localStorage.setItem('trigger3d.student.active-page', 'results')} to="/student">← Back to My Results</Link></div>
         <section className="student-assessment-result">
           <span className="student-assessment-result-icon">✓</span>
           <p className="eyebrow">Assessment complete</p>
@@ -296,6 +347,22 @@ export default function AssessmentPage() {
             <Link to={`/student/models/${firearmId}${classQuery}`}>Return to model</Link>
             <Link className="primary" to="/student">Student dashboard</Link>
           </footer>
+        </section>
+        <section className="student-answer-review" aria-labelledby="answer-review-title">
+          <header><div><p className="eyebrow">Personal analytics</p><h2 id="answer-review-title">Answer review</h2></div>{!reviewLoading && review.length > 0 && <span>{incorrectCount} to review</span>}</header>
+          {reviewLoading && <p className="student-review-message">Loading your answers...</p>}
+          {reviewError && <div className="alert alert-error" role="alert">{reviewError}</div>}
+          {!reviewLoading && !reviewError && review.length === 0 && <p className="student-review-message">No answer details are available for this assessment.</p>}
+          {reviewItems.length > 0 && <>
+            <div className="student-review-progress"><span>Questions {reviewStart + 1}–{Math.min(reviewStart + REVIEW_PAGE_SIZE, review.length)} of {review.length}</span><progress max={review.length} value={Math.min(reviewStart + REVIEW_PAGE_SIZE, review.length)} /></div>
+            <div className="student-review-list">
+              {reviewItems.map((item, index) => <article className={item.isCorrect ? 'correct' : 'incorrect'} key={item.id}>
+                <span aria-label={item.isCorrect ? 'Correct answer' : 'Incorrect answer'}>{item.isCorrect ? '✓' : '×'}</span>
+                <div><small>Question {reviewStart + index + 1} · {item.isCorrect ? 'Correct' : 'Needs review'}</small><h3>{item.prompt}</h3><p><b>Your answer:</b> {item.studentAnswer}</p>{!item.isCorrect && <p><b>Correct answer:</b> {item.correctAnswer ? item.correctAnswer.replaceAll('_', ' ') : 'Not available'}</p>}</div>
+              </article>)}
+            </div>
+            <footer className="student-review-controls"><button disabled={reviewPage === 0} onClick={() => setReviewPage((page) => Math.max(0, page - 1))} type="button">← Previous</button><span>Page {reviewPage + 1} of {reviewPageCount}</span><button disabled={reviewPage >= reviewPageCount - 1} onClick={() => setReviewPage((page) => Math.min(reviewPageCount - 1, page + 1))} type="button">Next →</button></footer>
+          </>}
         </section>
       </main>
     )

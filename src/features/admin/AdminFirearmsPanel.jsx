@@ -5,42 +5,14 @@ import { isFirearmDeleteConfirmed } from './firearm-utils.js'
 import { supabase } from '../../lib/supabase.js'
 import AdminDesignModal, { AdminBadge, AdminButton, AdminField } from './AdminDesignModal.jsx'
 import AdminIcon from './AdminIcon.jsx'
-import FirearmCanvas from '../student/viewer/FirearmCanvas.jsx'
+import FirearmCardPreview from '../shared/FirearmCardPreview.jsx'
 import { modelCreditHref } from './import/firearm-metadata.js'
-
-function Crosshair() {
-  return <svg aria-hidden="true" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="1.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" /><path d="M12 2v4m0 12v4M2 12h4m12 0h4" /></svg>
-}
 
 function UploadBundleModal({ onClose, onImported, open }) {
   return (
     <AdminDesignModal description="Select the GLB model, component CSV, and question CSV used by the current validated importer." onClose={onClose} open={open} title="Upload Firearm Bundle" width="max-w-[760px]">
       <div className="admin-live-import-modal"><FirearmImportPanel onImported={async () => { await onImported(); onClose() }} /></div>
     </AdminDesignModal>
-  )
-}
-
-function FirearmCardPreview({ firearm }) {
-  const [modelUrl, setModelUrl] = useState('')
-  const [failed, setFailed] = useState(false)
-
-  useEffect(() => {
-    let active = true
-    if (!firearm.glb_storage_path) return undefined
-    supabase.storage.from('firearm-models').createSignedUrl(firearm.glb_storage_path, 3600).then(({ data, error }) => {
-      if (!active) return
-      if (error || !data?.signedUrl) setFailed(true)
-      else setModelUrl(data.signedUrl)
-    })
-    return () => { active = false }
-  }, [firearm.glb_storage_path])
-
-  return (
-    <div aria-label={`${firearm.name} model preview`} className="admin-firearm-card-preview">
-      {modelUrl && !failed
-        ? <FirearmCanvas components={[]} exploded={false} modelUrl={modelUrl} onSelect={() => {}} resetKey={0} selectedName={null} />
-        : <div className="admin-firearm-card-preview-fallback"><Crosshair /><span>{failed ? 'Preview unavailable' : 'Loading preview…'}</span></div>}
-    </div>
   )
 }
 
@@ -145,12 +117,12 @@ export default function AdminFirearmsPanel({ dataError, firearms, loading, onCha
       {loading && <p className="text-xs text-[#5f6b63]">Loading firearm library...</p>}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {firearms.map((firearm) => (
-          <article className="admin-firearm-live-card flex min-h-[330px] flex-col gap-4 overflow-hidden rounded-[10px] border border-[#b8c1bb] bg-white p-5" key={firearm.id}>
+          <article className="admin-firearm-live-card flex min-h-[330px] flex-col gap-[14px] overflow-hidden rounded-[10px] border border-[#b8c1bb] bg-white p-5" key={firearm.id}>
             <FirearmCardPreview firearm={firearm} />
-            <div className="flex items-start justify-between gap-2"><div><strong className="block text-sm">{firearm.name}</strong><span className="text-xs text-[#5f6b63]">{firearm.identifier}</span></div><AdminBadge status={firearm.status === 'ready' ? 'active' : 'neutral'}>{firearm.status}</AdminBadge></div>
+            <div className="admin-firearm-heading flex items-start justify-between gap-2"><div><strong className="block text-sm">{firearm.name}</strong><span className="text-xs text-[#5f6b63]">{firearm.identifier}</span></div><AdminBadge status={firearm.status === 'ready' ? 'active' : 'neutral'}>{firearm.status}</AdminBadge></div>
             <div className="admin-firearm-learning-info"><p>{firearm.description || 'No firearm description provided.'}</p><ModelCredit value={firearm.model_credit} />{firearm.tutorial_url && <a href={firearm.tutorial_url} rel="noreferrer" target="_blank"><AdminIcon name="play" /> Watch YouTube tutorial</a>}</div>
-            <dl className="grid grid-cols-2 gap-2 text-xs">{[['Caliber', firearm.caliber], ['Components', firearm.component_count], ['Submitted Results', firearm.assessment_count], ['Imported', firearm.created_at ? new Date(firearm.created_at).toLocaleDateString() : '—']].map(([label, value]) => <div key={label}><dt className="mb-0.5 text-[10px] uppercase tracking-wide text-[#5f6b63]">{label}</dt><dd className="m-0 text-[11px]">{value}</dd></div>)}</dl>
-            <div className="mt-auto flex gap-2 border-t border-[#b8c1bb] pt-3"><AdminButton className="flex-1 border-[#b8c1bb]" kind="ghost" onClick={() => onPreview(firearm.id)}><AdminIcon name="eye" /> Preview</AdminButton><div className="admin-firearm-card-menu" ref={menuFirearmId === firearm.id ? menuRef : null}><button aria-expanded={menuFirearmId === firearm.id} aria-haspopup="menu" aria-label={`Open actions for ${firearm.name}`} className="admin-firearm-more" onClick={() => setMenuFirearmId((current) => current === firearm.id ? '' : firearm.id)} title="Firearm actions" type="button"><AdminIcon name="more" /></button>{menuFirearmId === firearm.id && <div className="admin-firearm-action-menu" role="menu"><button onClick={() => { setMenuFirearmId(''); setComponentTarget(firearm) }} role="menuitem" type="button"><AdminIcon name="file" />Update component CSV</button><button className="danger" onClick={() => { setMenuFirearmId(''); setDeleteConfirmation(''); setDeleteTarget(firearm) }} role="menuitem" type="button"><AdminIcon name="trash" />Delete firearm</button></div>}</div></div>
+            <dl className="admin-firearm-metadata grid grid-cols-2 gap-2 text-xs">{[['Caliber', firearm.caliber], ['Components', firearm.component_count], ['Submitted Results', firearm.assessment_count], ['Imported', firearm.created_at ? new Date(firearm.created_at).toLocaleDateString() : '—']].map(([label, value]) => <div key={label}><dt className="mb-0.5 text-[10px] uppercase tracking-wide text-[#5f6b63]">{label}</dt><dd className="m-0 text-[11px]">{value}</dd></div>)}</dl>
+            <div className="admin-firearm-footer mt-auto flex gap-2 border-t border-[#b8c1bb] pt-3"><AdminButton className="flex-1 border-[#b8c1bb]" kind="ghost" onClick={() => onPreview(firearm.id)}><AdminIcon name="eye" /> Preview</AdminButton><div className="admin-firearm-card-menu" ref={menuFirearmId === firearm.id ? menuRef : null}><button aria-expanded={menuFirearmId === firearm.id} aria-haspopup="menu" aria-label={`Open actions for ${firearm.name}`} className="admin-firearm-more" onClick={() => setMenuFirearmId((current) => current === firearm.id ? '' : firearm.id)} title="Firearm actions" type="button"><AdminIcon name="more" /></button>{menuFirearmId === firearm.id && <div className="admin-firearm-action-menu" role="menu"><button onClick={() => { setMenuFirearmId(''); setComponentTarget(firearm) }} role="menuitem" type="button"><AdminIcon name="file" />Update component CSV</button><button className="danger" onClick={() => { setMenuFirearmId(''); setDeleteConfirmation(''); setDeleteTarget(firearm) }} role="menuitem" type="button"><AdminIcon name="trash" />Delete firearm</button></div>}</div></div>
           </article>
         ))}
       </div>

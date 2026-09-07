@@ -7,6 +7,7 @@ import AdminSettings from '../features/admin/AdminSettings.jsx'
 import AdminSidebar from '../features/admin/AdminSidebar.jsx'
 import FacultySidebar from '../features/faculty/FacultySidebar.jsx'
 import StudentSidebar from '../features/student/StudentSidebar.jsx'
+import StudentClassSettings from '../features/student/StudentClassSettings.jsx'
 import { saveDashboardPage } from '../components/dashboard-location.js'
 
 const roleDetails = {
@@ -57,6 +58,7 @@ export default function SettingsPage() {
       variant="role-dashboard-redesign admin-reference-shell admin-settings-shell"
     >
       <AdminSettings page roleName={details.roleName} />
+      {role === ROLES.STUDENT && <StudentClassSettings />}
     </RoleDashboard>
   )
 }

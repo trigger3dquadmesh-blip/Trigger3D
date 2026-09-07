@@ -4,6 +4,7 @@ import useAuth from '../../auth/useAuth.js'
 const items = [
   ['overview', 'dashboard', 'Dashboard'],
   ['classes', 'classroom', 'My Classes'],
+  ['results', 'results', 'My Results'],
 ]
 
 export default function StudentSidebar({ activePage, collapsed, onNavigate, onToggle, settings }) {

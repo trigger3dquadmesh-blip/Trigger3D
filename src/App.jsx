@@ -3,25 +3,29 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import RoleProtectedRoute from './components/RoleProtectedRoute.jsx'
 import { ROLES } from './config/roles.js'
-import AdminDashboard from './features/admin/AdminDashboard.jsx'
-import FacultyDashboard from './features/faculty/FacultyDashboard.jsx'
-import StudentDashboard from './features/student/StudentDashboard.jsx'
-import StudentRouteShell from './features/student/StudentRouteShell.jsx'
 import ThemeToggle from './components/ThemeToggle.jsx'
-import AccountPage from './pages/AccountPage.jsx'
-import ChangePasswordPage from './pages/ChangePasswordPage.jsx'
-import SettingsPage from './pages/SettingsPage.jsx'
-import HomePage from './pages/HomePage.jsx'
-import LoginPage from './pages/LoginPage.jsx'
-import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
-import NotFoundPage from './pages/NotFoundPage.jsx'
 
+const HomePage = lazy(() => import('./pages/HomePage.jsx'))
+const LoginPage = lazy(() => import('./pages/LoginPage.jsx'))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'))
+const AccountPage = lazy(() => import('./pages/AccountPage.jsx'))
+const ChangePasswordPage = lazy(() => import('./pages/ChangePasswordPage.jsx'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'))
+const AdminDashboard = lazy(() => import('./features/admin/AdminDashboard.jsx'))
+const FacultyDashboard = lazy(() => import('./features/faculty/FacultyDashboard.jsx'))
+const StudentDashboard = lazy(() => import('./features/student/StudentDashboard.jsx'))
+const StudentRouteShell = lazy(() => import('./features/student/StudentRouteShell.jsx'))
 const FirearmViewerPage = lazy(
   () => import('./features/student/viewer/FirearmViewerPage.jsx'),
 )
 const AssessmentPage = lazy(
   () => import('./features/student/assessment/AssessmentPage.jsx'),
 )
+
+function RouteLoading() {
+  return <main aria-busy="true" aria-live="polite" className="page status-page">Loading Trigger3D...</main>
+}
 
 export default function App() {
   const location = useLocation()
@@ -32,6 +36,7 @@ export default function App() {
       {!['/', '/login', '/reset-password'].includes(location.pathname) && !dashboardOwnsThemeToggle && (
         <ThemeToggle compact={location.pathname.startsWith('/admin') || location.pathname === '/settings'} />
       )}
+      <Suspense fallback={<RouteLoading />}>
       <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
@@ -95,9 +100,7 @@ export default function App() {
         element={
           <ProtectedRoute>
             <RoleProtectedRoute allowedRole={ROLES.STUDENT}>
-              <Suspense fallback={<main className="page status-page">Loading viewer...</main>}>
-                <StudentRouteShell><FirearmViewerPage /></StudentRouteShell>
-              </Suspense>
+              <StudentRouteShell><FirearmViewerPage /></StudentRouteShell>
             </RoleProtectedRoute>
           </ProtectedRoute>
         }
@@ -107,9 +110,7 @@ export default function App() {
         element={
           <ProtectedRoute>
             <RoleProtectedRoute allowedRole={ROLES.STUDENT}>
-              <Suspense fallback={<main className="page status-page">Loading assessment...</main>}>
-                <StudentRouteShell><AssessmentPage /></StudentRouteShell>
-              </Suspense>
+              <StudentRouteShell><AssessmentPage /></StudentRouteShell>
             </RoleProtectedRoute>
           </ProtectedRoute>
         }
@@ -117,6 +118,7 @@ export default function App() {
       <Route path="/404" element={<NotFoundPage />} />
       <Route path="*" element={<Navigate to="/404" replace />} />
       </Routes>
+      </Suspense>
     </>
   )
 }

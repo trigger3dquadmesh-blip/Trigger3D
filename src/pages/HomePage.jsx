@@ -166,7 +166,7 @@ export default function HomePage() {
           </div>
         </div>
         {showHeroModel && <div className="relative -translate-y-[clamp(2.5rem,6vh,3.125rem)] h-[clamp(24rem,68vh,42rem)] min-w-0">
-          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[clamp(4rem,7vw,7rem)] font-black leading-none tracking-[-0.08em] text-transparent opacity-60 [writing-mode:vertical-rl] [-webkit-text-stroke:2px_#109d1a]" aria-hidden="true">TRIGGER3D</span>
+          <span className="pointer-events-none absolute right-4 top-[54%] -translate-y-1/2 text-[clamp(4rem,7vw,7rem)] font-black leading-none tracking-[-0.08em] text-transparent opacity-60 [writing-mode:vertical-rl] [-webkit-text-stroke:2px_#109d1a]" aria-hidden="true">TRIGGER3D</span>
           <LandingFirearm />
         </div>}
       </section>

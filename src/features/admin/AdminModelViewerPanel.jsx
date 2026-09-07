@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
-import FirearmCanvas from '../student/viewer/FirearmCanvas.jsx'
 import AdminIcon from './AdminIcon.jsx'
 import { modelCreditHref } from './import/firearm-metadata.js'
+
+const FirearmCanvas = lazy(() => import('../student/viewer/FirearmCanvas.jsx'))
 
 export default function AdminModelViewerPanel({ firearms, headerActions = null, headerLeading = null, initialFirearmId = '', lockSelection = false }) {
   const [firearmId, setFirearmId] = useState(initialFirearmId)
@@ -70,7 +71,7 @@ export default function AdminModelViewerPanel({ firearms, headerActions = null, 
       </header>
       {!activeFirearmId ? <div className="grid flex-1 place-items-center border border-[#b8c1bb] bg-[#171717] text-sm text-[#aeb8b2]">No uploaded firearm models are available.</div> : error ? <div className="grid flex-1 place-items-center border border-red-300 bg-red-50 p-6 text-sm text-red-700">{error}</div> : <div className="flex min-h-0 flex-1 border-x border-b border-[#b8c1bb]">
         <div className="relative min-w-0 flex-1 overflow-hidden bg-[#171717]">
-          {loading || !modelUrl ? <div className="grid h-full place-items-center text-sm text-[#aeb8b2]">Loading {details?.name || '3D model'}...</div> : <div className="admin-live-viewer-canvas h-full"><FirearmCanvas components={components} exploded={exploded} modelUrl={modelUrl} onSelect={(name) => name ? choose(name) : setSelectedName(null)} resetKey={resetKey} selectedName={selectedName} /></div>}
+          {loading || !modelUrl ? <div className="grid h-full place-items-center text-sm text-[#aeb8b2]">Loading {details?.name || '3D model'}...</div> : <div className="admin-live-viewer-canvas h-full"><Suspense fallback={<div className="grid h-full place-items-center text-sm text-[#aeb8b2]">Preparing 3D viewer...</div>}><FirearmCanvas components={components} exploded={exploded} modelUrl={modelUrl} onSelect={(name) => name ? choose(name) : setSelectedName(null)} resetKey={resetKey} selectedName={selectedName} /></Suspense></div>}
           <div className="absolute right-3 top-1/2 z-10 flex -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-[#aab3ae] bg-[#d7dad8]/90 p-1.5 text-[#46534c] shadow"><button aria-label="Toggle exploded view" className={'grid h-10 w-10 place-items-center rounded-lg hover:bg-white/70 ' + (exploded ? 'bg-[#109d1a] text-white' : '')} onClick={() => setExploded((value) => !value)} title={exploded ? 'Reassemble model' : 'Exploded view'} type="button"><AdminIcon className="h-[18px] w-[18px]" name="explode" /></button><button aria-label="Reset model view" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/70" onClick={() => { setExploded(false); setSelectedName(null); setResetKey((value) => value + 1) }} title="Reset view" type="button"><AdminIcon className="h-[18px] w-[18px]" name="reset" /></button></div>
         </div>
         <aside className={'min-h-0 shrink-0 overflow-hidden bg-white transition-[width] ' + (panelOpen ? 'w-[300px] border-l border-[#b8c1bb]' : 'w-0')}>
