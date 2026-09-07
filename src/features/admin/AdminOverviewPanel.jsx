@@ -26,6 +26,12 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
   const activeClasses = data.classes.filter((item) => !item.archived_at)
   const recentAccountEvents = data.auditEvents.filter((item) => item.entity_type === 'profile').slice(0, 4)
   const recentFirearmEvents = data.auditEvents.filter((item) => item.entity_type === 'firearm').slice(0, 3)
+  const activeProfiles = data.profiles.filter((profile) => !profile.disabled_at)
+  const roleCounts = ['student', 'faculty', 'admin'].map((role) => ({ role, count: activeProfiles.filter((profile) => profile.role === role).length }))
+  const draftFirearms = data.firearms.filter((firearm) => firearm.status !== 'ready').length
+  const archivedClasses = data.classes.length - activeClasses.length
+  const inProgressAttempts = (data.attempts || []).filter((attempt) => attempt.status !== 'submitted').length
+  const latestActivity = data.auditEvents[0]?.created_at
   const stats = [
     { label: 'Total Accounts', value: data.profiles.length, detail: archivedProfiles.length + ' archived', icon: 'accounts' },
     { label: 'Active Firearms', value: readyFirearms.length, detail: data.firearms.length + ' total', icon: 'firearms' },
@@ -96,6 +102,25 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
             ))}
             {!loading && recentFirearmEvents.length === 0 && <p className="m-0 p-5 text-xs text-[#5f6b63]">No firearm records found.</p>}
           </div>
+        </section>
+      </div>
+
+      <div className="admin-overview-insights mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section className="admin-overview-insight-card">
+          <header><div><h2>Active Account Breakdown</h2><p>Current users by assigned role</p></div><button onClick={() => onNavigate('accounts')} type="button">View accounts <span aria-hidden="true">›</span></button></header>
+          <dl>{roleCounts.map((item) => <div key={item.role}><dt><span className="admin-overview-role-dot" />{item.role}</dt><dd>{loading ? '—' : item.count}</dd></div>)}</dl>
+          <footer><span>Archived accounts</span><strong>{loading ? '—' : archivedProfiles.length}</strong></footer>
+        </section>
+
+        <section className="admin-overview-insight-card">
+          <header><div><h2>Operational Status</h2><p>Live content and activity indicators</p></div><button onClick={() => onNavigate('audit')} type="button">View audit log <span aria-hidden="true">›</span></button></header>
+          <dl>
+            <div><dt>Firearm components</dt><dd>{loading ? '—' : data.componentCount}</dd></div>
+            <div><dt>Firearms not ready</dt><dd>{loading ? '—' : draftFirearms}</dd></div>
+            <div><dt>Archived classes</dt><dd>{loading ? '—' : archivedClasses}</dd></div>
+            <div><dt>Unsubmitted attempts</dt><dd>{loading ? '—' : inProgressAttempts}</dd></div>
+          </dl>
+          <footer><span>Latest recorded activity</span><strong>{loading ? 'Loading…' : formatDate(latestActivity)}</strong></footer>
         </section>
       </div>
     </section>

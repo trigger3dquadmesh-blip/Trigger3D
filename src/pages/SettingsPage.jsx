@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../auth/useAuth.js'
 import RoleDashboard from '../components/RoleDashboard.jsx'
@@ -18,8 +18,15 @@ const roleDetails = {
 export default function SettingsPage() {
   const { role } = useAuth()
   const navigate = useNavigate()
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.matchMedia('(min-width: 1025px)').matches)
   const details = roleDetails[role]
+
+  useEffect(() => {
+    const desktopLayout = window.matchMedia('(min-width: 1025px)')
+    const updateSidebar = (event) => setSidebarCollapsed(event.matches)
+    desktopLayout.addEventListener('change', updateSidebar)
+    return () => desktopLayout.removeEventListener('change', updateSidebar)
+  }, [])
 
   if (!details) return null
 

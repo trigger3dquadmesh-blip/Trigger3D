@@ -17,12 +17,12 @@ export default function AdminDashboard() {
   const [activePage, setActivePage] = useState(() => (
     getSavedDashboardPage(localStorage, adminDashboardPageKey, adminPages, 'overview')
   ))
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.matchMedia('(max-width: 760px)').matches)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.matchMedia('(min-width: 1025px)').matches)
   const [viewerFirearmId, setViewerFirearmId] = useState('')
   const { data, error, loading, reload } = useAdminLiveData()
 
   useEffect(() => {
-    const phoneLayout = window.matchMedia('(max-width: 760px)')
+    const phoneLayout = window.matchMedia('(min-width: 1025px)')
     const updateSidebar = (event) => setSidebarCollapsed(event.matches)
     phoneLayout.addEventListener('change', updateSidebar)
     return () => phoneLayout.removeEventListener('change', updateSidebar)
@@ -31,7 +31,6 @@ export default function AdminDashboard() {
   function navigateSection(section) {
     setActivePage(section)
     saveDashboardPage(localStorage, adminDashboardPageKey, section)
-    if (window.matchMedia('(max-width: 760px)').matches) setSidebarCollapsed(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 

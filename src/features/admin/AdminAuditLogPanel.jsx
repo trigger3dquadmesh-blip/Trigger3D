@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { AdminBadge } from './AdminDesignModal.jsx'
 import AdminIcon from './AdminIcon.jsx'
+import { getAuditReason } from './audit-log-reasons.js'
 
 function formatDate(value) {
   if (!value) return '—'
@@ -13,7 +14,7 @@ export default function AdminAuditLogPanel({ auditEvents = [], dataError }) {
   const [page, setPage] = useState(1)
   const [expandedId, setExpandedId] = useState(null)
   const perPage = 8
-  const events = useMemo(() => auditEvents.map((item) => ({ id: item.id, event: item.event_type, actor: item.actor?.full_name || item.actor?.email || 'System', record: item.record_label || 'Unknown record', type: item.entity_type === 'profile' ? 'Account' : item.entity_type, reason: item.reason?.trim() || 'No reason recorded', date: formatDate(item.created_at), category: item.entity_type === 'profile' ? 'account' : item.entity_type, timestamp: item.created_at })), [auditEvents])
+  const events = useMemo(() => auditEvents.map((item) => ({ id: item.id, event: item.event_type, actor: item.actor?.full_name || item.actor?.email || 'System', record: item.record_label || 'Unknown record', type: item.entity_type === 'profile' ? 'Account' : item.entity_type, reason: getAuditReason(item), date: formatDate(item.created_at), category: item.entity_type === 'profile' ? 'account' : item.entity_type, timestamp: item.created_at })), [auditEvents])
   const filtered = useMemo(() => events.filter((event) => (type === 'all' || event.category === type) && (!query || `${event.event} ${event.actor} ${event.record} ${event.reason}`.toLowerCase().includes(query.toLowerCase()))), [events, query, type])
   const pages = Math.max(1, Math.ceil(filtered.length / perPage))
   const rows = filtered.slice((page - 1) * perPage, page * perPage)

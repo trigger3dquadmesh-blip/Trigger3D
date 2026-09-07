@@ -11,9 +11,7 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
   const { profile, refreshProfile, signOut, user } = useAuth()
   const navigate = useNavigate()
   const [fullName, setFullName] = useState(profile?.full_name || '')
-  const [email, setEmail] = useState(profile?.email || user?.email || '')
   const [saving, setSaving] = useState(false)
-  const [editingProfile, setEditingProfile] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const [confirmSignOut, setConfirmSignOut] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
@@ -25,9 +23,11 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
   const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const photoInputRef = useRef(null)
+  const photoMenuRef = useRef(null)
   const profileMenuButtonRef = useRef(null)
   const profileMenuRef = useRef(null)
   const [photo, setPhoto] = useState(() => profile?.avatar_url || '')
+  const [photoMenuOpen, setPhotoMenuOpen] = useState(false)
   const [photoRemoving, setPhotoRemoving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -58,6 +58,22 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
     }
   }, [profileMenuOpen])
 
+  useEffect(() => {
+    if (!photoMenuOpen) return undefined
+    function closePhotoMenu(event) {
+      if (!photoMenuRef.current?.contains(event.target)) setPhotoMenuOpen(false)
+    }
+    function closePhotoMenuWithKeyboard(event) {
+      if (event.key === 'Escape') setPhotoMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', closePhotoMenu)
+    document.addEventListener('keydown', closePhotoMenuWithKeyboard)
+    return () => {
+      document.removeEventListener('pointerdown', closePhotoMenu)
+      document.removeEventListener('keydown', closePhotoMenuWithKeyboard)
+    }
+  }, [photoMenuOpen])
+
   async function saveProfile(event) {
     event.preventDefault()
     setSaving(true)
@@ -81,21 +97,10 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
       return
     }
 
-    if (email.trim().toLowerCase() !== user.email?.toLowerCase()) {
-      const { error: emailError } = await supabase.auth.updateUser({ email: email.trim() })
-      if (emailError) {
-        setError(`Username updated, but email could not be changed: ${emailError.message}`)
-        await refreshProfile()
-        setSaving(false)
-        return
-      }
-      setMessage('Username saved. Check your new email address to confirm the email change.')
-    } else {
-      setMessage(`${roleName} username saved.`)
-    }
+    setMessage(`${roleName} username saved.`)
 
     await refreshProfile()
-    setEditingProfile(false)
+    setFullName(trimmedName)
     setSaving(false)
   }
 
@@ -151,6 +156,7 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
   async function updatePhoto(event) {
     const file = event.target.files?.[0]
     if (!file) return
+    setPhotoMenuOpen(false)
     if (!file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) {
       setError('Choose a PNG, JPG, or WebP image up to 2 MB.')
       return
@@ -176,6 +182,7 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
       await supabase.storage.from('profile-photos').remove([previousStoragePath])
     }
     setMessage('Profile photo updated.')
+    event.target.value = ''
   }
 
   async function removePhoto() {
@@ -203,6 +210,7 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
     setPhoto('')
     await refreshProfile()
     setMessage('Profile photo removed.')
+    setPhotoMenuOpen(false)
     setPhotoRemoving(false)
   }
 
@@ -240,24 +248,32 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
   if (!page) return null
 
   const displayPhoto = photo || profile?.avatar_url || ''
+  const accountEmail = user?.email || profile?.email || ''
+  const profileName = profile?.full_name || ''
+  const displayName = profileName || roleName
+  const nameChanged = fullName.trim() !== profileName.trim()
+
+  function handlePhotoEdit() {
+    if (displayPhoto) setPhotoMenuOpen((value) => !value)
+    else photoInputRef.current?.click()
+  }
 
   return (
     <>
       <header className="account-settings-title"><p>Settings</p><h1>Account Settings</h1></header>
       <section className="account-settings-page settings-profile-photo">
         <h2>Profile Photo</h2>
-        <div className="settings-photo-row"><div className="settings-photo-avatar-wrap"><div className="settings-photo-avatar">{displayPhoto ? <img alt="" src={displayPhoto} /> : <span>{fullName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'A'}</span>}</div><button aria-label="Choose profile photo" className="settings-camera-button" onClick={() => photoInputRef.current?.click()} title="Choose profile photo" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8.5h3l1.5-2h7l1.5 2h3v10H4z" /><circle cx="12" cy="13" r="3.2" /></svg></button></div><div><strong>Upload a profile photo</strong><p>JPG, PNG, or WebP. Max 2 MB.</p><div className="settings-photo-actions"><button disabled={photoRemoving} onClick={() => photoInputRef.current?.click()} type="button">Choose file</button>{displayPhoto && <button className="settings-remove-photo" disabled={photoRemoving} onClick={removePhoto} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>{photoRemoving ? 'Removing…' : 'Remove photo'}</button>}<input accept="image/png,image/jpeg,image/webp" hidden onChange={updatePhoto} ref={photoInputRef} type="file" /></div></div></div>
+        <div className="settings-photo-row"><div className="settings-photo-avatar-wrap" ref={photoMenuRef}><div className="settings-photo-avatar">{displayPhoto ? <img alt={`${displayName} profile`} src={displayPhoto} /> : <span>{displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'A'}</span>}</div><button aria-expanded={displayPhoto ? photoMenuOpen : undefined} aria-haspopup={displayPhoto ? 'menu' : undefined} aria-label={displayPhoto ? 'Edit profile photo' : 'Choose profile photo'} className="settings-camera-button" disabled={photoRemoving} onClick={handlePhotoEdit} title={displayPhoto ? 'Edit profile photo' : 'Choose profile photo'} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 16-.8 4 4-.8L18.5 7.9l-3.2-3.2L4 16Z" /><path d="m13.8 6.2 3.2 3.2" /></svg></button>{displayPhoto && photoMenuOpen && <div className="settings-photo-menu" role="menu"><button onClick={() => photoInputRef.current?.click()} role="menuitem" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 16V4m-5 5 5-5 5 5" /><path d="M4 15v5h16v-5" /></svg>Upload new photo</button><button className="danger" disabled={photoRemoving} onClick={removePhoto} role="menuitem" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>{photoRemoving ? 'Removing…' : 'Remove photo'}</button></div>}</div><div className="settings-photo-copy"><strong>{displayName}</strong><p>{accountEmail}</p><small>Profile photos may be JPG, PNG, or WebP up to 2 MB.</small></div><input accept="image/png,image/jpeg,image/webp" hidden onChange={updatePhoto} ref={photoInputRef} type="file" /></div>
       </section>
       <article className={`${standalone ? 'card auth-card' : 'dashboard-card dashboard-card-wide'} account-settings-page`}>
         <div className="settings-heading">
           <div><h2>Account Information</h2></div>
         </div>
         <form className="admin-settings-form" onSubmit={saveProfile}>
-          <label>Full Name<input disabled={!editingProfile || saving} minLength="2" onChange={(event) => setFullName(event.target.value)} required value={fullName} /></label>
-          <label>Email Address<input disabled={!editingProfile || saving} onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /></label>
+          <label>Full Name<input disabled={saving} minLength="2" onBlur={() => { if (fullName.trim().length < 2) setFullName(profileName) }} onChange={(event) => setFullName(event.target.value)} required value={fullName} /></label>
           {error && <div className="alert alert-error" role="alert">{error}</div>}
           {message && <div className="alert alert-success" role="status">{message}</div>}
-          <div className="settings-save-row">{editingProfile ? <><button className="settings-cancel-button" disabled={saving} onClick={() => { setFullName(profile?.full_name || ''); setEmail(profile?.email || user?.email || ''); setEditingProfile(false) }} type="button">Cancel</button><button className="button" disabled={saving} type="submit">{saving ? 'Saving...' : 'Save Changes'}</button></> : <button className="button settings-edit-button" onClick={() => setEditingProfile(true)} type="button">Edit</button>}</div>
+          {nameChanged && <div className="settings-save-row"><button className="button" disabled={saving || fullName.trim().length < 2} type="submit">{saving ? 'Saving...' : 'Save Changes'}</button></div>}
         </form>
       </article>
       <section className="account-settings-page settings-password-card"><h2>Change Password</h2><form className="admin-settings-form" onSubmit={updatePassword}><label>Current Password<input autoComplete="current-password" disabled={passwordSaving} onChange={(event) => setCurrentPassword(event.target.value)} required type="password" value={currentPassword} /></label><div className="settings-password-grid"><label>New Password<input autoComplete="new-password" disabled={passwordSaving} minLength="8" onChange={(event) => setNewPassword(event.target.value)} placeholder="At least 8 characters" required type="password" value={newPassword} /></label><label>Confirm Password<input autoComplete="new-password" disabled={passwordSaving} minLength="8" onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Re-enter new password" required type="password" value={confirmPassword} /></label></div>{passwordError && <div className="alert alert-error" role="alert">{passwordError}</div>}{passwordMessage && <div className="alert alert-success" role="status">{passwordMessage}</div>}<div className="settings-save-row"><button className="button" disabled={passwordSaving} type="submit">{passwordSaving ? 'Updating...' : 'Update Password'}</button></div></form></section>

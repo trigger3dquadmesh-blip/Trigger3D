@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import {
@@ -9,6 +10,10 @@ import {
 } from '../src/features/admin/import/validation.js'
 
 const gunFolder = fileURLToPath(new URL('../content/gun_a/', import.meta.url))
+const hasComponentFixture = existsSync(`${gunFolder}gun_a_components.csv`)
+const hasCompleteGunFixture = hasComponentFixture
+  && existsSync(`${gunFolder}gun_a.glb`)
+  && existsSync(`${gunFolder}gun_a_questions.csv`)
 
 function textFile(name, content) {
   return {
@@ -27,7 +32,7 @@ function binaryFile(name, buffer) {
   }
 }
 
-test('validates the real gun_a three-file bundle', async () => {
+test('validates the real gun_a three-file bundle', { skip: !hasCompleteGunFixture && 'Private gun_a fixtures are not available.' }, async () => {
   const [glb, components, questions] = await Promise.all([
     readFile(`${gunFolder}gun_a.glb`),
     readFile(`${gunFolder}gun_a_components.csv`, 'utf8'),
@@ -62,7 +67,7 @@ test('validates the real gun_a three-file bundle', async () => {
   )
 })
 
-test('validates a component-only layout update for an existing firearm', async () => {
+test('validates a component-only layout update for an existing firearm', { skip: !hasComponentFixture && 'Private gun_a component fixture is not available.' }, async () => {
   const components = await readFile(`${gunFolder}gun_a_components.csv`, 'utf8')
   const expectedNames = parseCsv(components).records.map((component) => component.component_name)
   const result = await validateComponentLayout({
@@ -77,7 +82,7 @@ test('validates a component-only layout update for an existing firearm', async (
   assert.equal(result.data.components[0].assembly_group, 'upper_assembly')
 })
 
-test('rejects a blank explosion offset', async () => {
+test('rejects a blank explosion offset', { skip: !hasComponentFixture && 'Private gun_a component fixture is not available.' }, async () => {
   const components = await readFile(`${gunFolder}gun_a_components.csv`, 'utf8')
   const invalidComponents = components.replace(',0,1.6,0,1,upper_assembly', ',,1.6,0,1,upper_assembly')
   const expectedNames = parseCsv(components).records.map((component) => component.component_name)

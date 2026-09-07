@@ -54,6 +54,22 @@ Deno.serve(async (request) => {
     }
 
     const body = await request.json()
+    if (body.action === 'list_users') {
+      const users = []
+      const perPage = 1000
+      let page = 1
+
+      while (true) {
+        const { data: pageData, error: listError } = await adminClient.auth.admin.listUsers({ page, perPage })
+        if (listError) return jsonResponse({ error: listError.message }, 400)
+        users.push(...pageData.users)
+        if (pageData.users.length < perPage) break
+        page += 1
+      }
+
+      return jsonResponse({ users: users.map((authUser) => ({ id: authUser.id, email: authUser.email, created_at: authUser.created_at, last_sign_in_at: authUser.last_sign_in_at })) })
+    }
+
     if (body.action === 'create_faculty' || body.action === 'create_account') {
       const email = normalizeEmail(body.email)
       const fullName = normalizeName(body.full_name)

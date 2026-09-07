@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../../lib/supabase.js'
 import AdminIcon from '../AdminIcon.jsx'
 import { validateGunBundle } from './validation.js'
+import { normalizeModelCredit, normalizeTutorialUrl, validateFirearmMetadata } from './firearm-metadata.js'
 
 function FilePicker({ accept, file, hint, icon, label, onChange }) {
   return (
@@ -18,6 +19,9 @@ export default function FirearmImportPanel({ onImported }) {
   const [name, setName] = useState('')
   const [caliber, setCaliber] = useState('')
   const [description, setDescription] = useState('')
+  const [firearmType, setFirearmType] = useState('')
+  const [tutorialUrl, setTutorialUrl] = useState('')
+  const [modelCredit, setModelCredit] = useState('')
   const [glbFile, setGlbFile] = useState(null)
   const [componentsFile, setComponentsFile] = useState(null)
   const [questionsFile, setQuestionsFile] = useState(null)
@@ -43,6 +47,11 @@ export default function FirearmImportPanel({ onImported }) {
   async function importBundle() {
     if (!name.trim() || !caliber.trim()) {
       setError('Enter the firearm name and caliber.')
+      return
+    }
+    const metadataError = validateFirearmMetadata({ firearmType, modelCredit, tutorialUrl })
+    if (metadataError) {
+      setError(metadataError)
       return
     }
     const result = validation?.data ? validation : await runValidation()
@@ -71,6 +80,13 @@ export default function FirearmImportPanel({ onImported }) {
       setImporting(false)
       return
     }
+    const { error: metadataSaveError } = await supabase.rpc('set_firearm_learning_metadata', { target_identifier: result.data.identifier, new_firearm_type: firearmType, new_tutorial_url: normalizeTutorialUrl(tutorialUrl) || null, new_model_credit: normalizeModelCredit(modelCredit) || null })
+    if (metadataSaveError) {
+      setError(`The bundle was imported, but its classification, tutorial link, and model credits could not be saved: ${metadataSaveError.message}`)
+      setImporting(false)
+      await onImported?.(data)
+      return
+    }
     setImporting(false)
     await onImported?.(data)
   }
@@ -84,6 +100,9 @@ export default function FirearmImportPanel({ onImported }) {
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-1.5 text-xs font-semibold text-[var(--admin-text)]">Firearm name<input className={fieldClass} onChange={(event) => setName(event.target.value)} placeholder="e.g. Glock 17" required value={name} /></label>
           <label className="grid gap-1.5 text-xs font-semibold text-[var(--admin-text)]">Caliber<input className={fieldClass} onChange={(event) => setCaliber(event.target.value)} placeholder="e.g. 9mm Parabellum" required value={caliber} /></label>
+          <label className="grid gap-1.5 text-xs font-semibold text-[var(--admin-text)]">Firearm classification<select className={fieldClass} onChange={(event) => setFirearmType(event.target.value)} required value={firearmType}><option value="">Select a classification</option><option value="short_arm">Short arm</option><option value="long_arm">Long arm</option></select></label>
+          <label className="grid gap-1.5 text-xs font-semibold text-[var(--admin-text)]"><span>YouTube tutorial link <span className="font-normal text-[var(--admin-muted)]">(optional)</span></span><input className={fieldClass} inputMode="url" onChange={(event) => setTutorialUrl(event.target.value)} placeholder="https://www.youtube.com/watch?v=…" type="url" value={tutorialUrl} /></label>
+          <label className="grid gap-1.5 text-xs font-semibold text-[var(--admin-text)] sm:col-span-2"><span>Model source / credits <span className="font-normal text-[var(--admin-muted)]">(optional)</span></span><input className={fieldClass} maxLength="300" onChange={(event) => setModelCredit(event.target.value)} placeholder="e.g. Creator name, organization, or source website" value={modelCredit} /></label>
         </div>
         <label className="grid gap-1.5 text-xs font-semibold text-[var(--admin-text)]">Description<textarea className="min-h-[76px] w-full resize-y rounded-[8px] border border-[var(--admin-border)] bg-[var(--admin-input)] px-3 py-2 text-sm text-[var(--admin-input-text)] outline-none focus:border-[#109d1a] focus:ring-2 focus:ring-[#109d1a]/20" onChange={(event) => setDescription(event.target.value)} placeholder="Brief model description" value={description} /></label>
       </section>

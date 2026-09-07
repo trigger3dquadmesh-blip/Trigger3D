@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import useAuth from '../auth/useAuth.js'
 import LandingFirearm from '../components/LandingFirearm.jsx'
@@ -52,9 +52,9 @@ function FeatureIcon({ name }) {
 
 function Brand({ large = false }) {
   return (
-    <span className={`${large ? 'h-12 w-52' : 'h-10 w-36'} relative inline-block overflow-hidden`}>
+    <span className={`${large ? 'h-12 w-52' : 'h-10 w-36'} relative inline-block shrink-0 overflow-hidden`}>
       <img
-        className={`${large ? 'left-[-23px] top-[-102px] h-[255px] w-[255px]' : 'left-[-16px] top-[-70px] h-[177px] w-[177px]'} absolute max-w-none`}
+        className={`${large ? 'left-[-23px] top-[-102px] h-[255px] w-[255px]' : 'left-[-16px] top-[-70px] h-[177px] w-[177px]'} pointer-events-none absolute max-w-none select-none`}
         src={brandLogo}
         alt="Trigger3D - QuadMeshIT"
       />
@@ -77,6 +77,8 @@ export default function HomePage() {
   const [contactStatus, setContactStatus] = useState('')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showHeroModel, setShowHeroModel] = useState(() => window.matchMedia('(min-width: 1024px)').matches)
+  const landingScrollRef = useRef(null)
+  const layoutModeRef = useRef(window.innerWidth < 768 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop')
   const accountPath = user ? '/account' : '/login'
 
   useEffect(() => {
@@ -84,6 +86,31 @@ export default function HomePage() {
     const update = () => setShowHeroModel(query.matches)
     query.addEventListener('change', update)
     return () => query.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    function handleViewportChange() {
+      const nextMode = window.innerWidth < 768 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop'
+      if (nextMode === layoutModeRef.current) return
+      layoutModeRef.current = nextMode
+      const landingPage = landingScrollRef.current
+      const previousScrollBehavior = landingPage?.style.scrollBehavior || ''
+      if (landingPage) landingPage.style.scrollBehavior = 'auto'
+      const resetLandingPosition = () => {
+        if (landingPage) landingPage.scrollTop = 0
+        window.scrollTo(0, 0)
+      }
+      resetLandingPosition()
+      window.requestAnimationFrame(() => {
+        resetLandingPosition()
+        window.requestAnimationFrame(() => {
+          resetLandingPosition()
+          if (landingPage) landingPage.style.scrollBehavior = previousScrollBehavior
+        })
+      })
+    }
+    window.addEventListener('resize', handleViewportChange)
+    return () => window.removeEventListener('resize', handleViewportChange)
   }, [])
 
   function handleContact(event) {
@@ -97,7 +124,7 @@ export default function HomePage() {
   }
 
   return (
-    <main className="landing-page landing-scroll min-h-screen overflow-x-hidden bg-[var(--landing-bg)] text-[var(--landing-text)] md:h-screen md:overflow-y-auto md:scroll-smooth">
+    <main className="landing-page landing-scroll min-h-screen overflow-x-hidden [overflow-anchor:none] bg-[var(--landing-bg)] text-[var(--landing-text)] md:h-screen md:overflow-y-auto md:scroll-smooth" ref={landingScrollRef}>
       <header className="sticky top-0 z-50 border-b border-[var(--landing-border)] bg-[var(--landing-bg)]/95 backdrop-blur-md">
         <nav aria-label="Primary navigation" className="mx-auto flex h-16 w-[94%] max-w-[1600px] items-center justify-between gap-5">
           <a href="#top" aria-label="Trigger3D home" onClick={() => setMobileMenuOpen(false)}><Brand /></a>
@@ -139,7 +166,7 @@ export default function HomePage() {
           </div>
         </div>
         {showHeroModel && <div className="relative -translate-y-[clamp(2.5rem,6vh,3.125rem)] h-[clamp(24rem,68vh,42rem)] min-w-0">
-          <span className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-[clamp(4rem,9vw,9rem)] font-black leading-none tracking-[-0.08em] text-transparent opacity-70 [writing-mode:vertical-rl] [-webkit-text-stroke:2px_#109d1a]" aria-hidden="true">TRIGGER3D</span>
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[clamp(4rem,7vw,7rem)] font-black leading-none tracking-[-0.08em] text-transparent opacity-60 [writing-mode:vertical-rl] [-webkit-text-stroke:2px_#109d1a]" aria-hidden="true">TRIGGER3D</span>
           <LandingFirearm />
         </div>}
       </section>
@@ -148,13 +175,13 @@ export default function HomePage() {
       <div className="mx-auto w-[94%] max-w-[1600px]">
         <SectionTitle id="sdg-heading">SDG Goals</SectionTitle>
         <p className="mx-auto -mt-7 mb-[clamp(2rem,5vh,3.5rem)] max-w-3xl text-center text-[clamp(1rem,1.2vw,1.125rem)] leading-7 text-[var(--landing-muted)]">Trigger3D supports inclusive, technology-enabled learning by connecting interactive education with innovation and accessible training.</p>
-        <div className="grid gap-16 pt-20 md:grid-cols-3 md:gap-[clamp(2.5rem,3vw,3rem)]">
+        <div className="grid gap-14 pt-16 md:grid-cols-3 md:gap-[clamp(2rem,3vw,3rem)] md:pt-20 lg:gap-[clamp(2.5rem,3vw,3rem)]">
           {goals.map(([number, title, color, image]) => (
-            <article key={number} className="relative flex min-h-70 flex-col items-center justify-end rounded-2xl bg-[var(--landing-card)] px-6 pb-8 pt-36 text-center shadow-md">
-              <div className="absolute -top-10 grid h-50 w-70 place-items-center rounded-xl text-white shadow-sm" style={{ backgroundColor: color }}>
-                <img className="h-full w-full rounded-xl object-contain p-7" src={image} alt="" /><span className="absolute right-3 top-2 text-s font-black">{number}</span>
+            <article key={number} className="relative flex min-h-60 flex-col items-center justify-start rounded-2xl bg-[var(--landing-card)] px-6 pb-6 pt-44 text-center shadow-md md:min-h-56 md:pt-34 lg:min-h-70 lg:justify-end lg:pb-8 lg:pt-36">
+              <div className="absolute -top-8 grid aspect-[7/5] w-[min(15.5rem,calc(100%-2rem))] place-items-center rounded-xl text-white shadow-sm lg:-top-10 lg:h-50 lg:w-70" style={{ backgroundColor: color }}>
+                <img className="h-full w-full rounded-xl object-contain p-[clamp(1rem,2.5vw,1.5rem)] lg:p-7" decoding="async" loading="lazy" src={image} alt="" /><span className="absolute right-3 top-2 text-xs font-black">{number}</span>
               </div>
-              <h3 className="max-w-s text-md font-black uppercase leading-6 tracking-wide">{title}</h3>
+              <h3 className="max-w-xs text-base font-black uppercase leading-6 tracking-wide">{title}</h3>
             </article>
           ))}
         </div>
@@ -165,10 +192,10 @@ export default function HomePage() {
       <div className="mx-auto w-[90%] max-w-[1280px]">
         <SectionTitle id="stakeholder-heading">Stakeholders</SectionTitle>
         <p className="mx-auto -mt-7 mb-[clamp(2rem,5vh,3.5rem)] max-w-3xl text-center text-[clamp(1rem,1.2vw,1.125rem)] leading-7 text-[var(--landing-muted)]">Trigger3D is developed for the Partido State University community in collaboration with Criminology educators and learners.</p>
-        <div className="grid gap-16 pt-10 md:grid-cols-2 md:gap-10">
-          {[[stakeholderPsu, 'Partido State University', 'Camarines Sur', 'h-55 w-55'], [stakeholderCriminology, 'BS in Criminology', 'College stakeholder', 'h-52 w-52']].map(([image, title, detail, logoSize]) => (
-            <article key={title} className="relative flex min-h-65 flex-col justify-end rounded-2xl bg-[var(--landing-card)] px-6 pb-10 pt-40 text-center shadow-md">
-              <div className={`absolute -top-15 left-1/2 grid ${logoSize} -translate-x-1/2 place-items-center`}><img className="h-full w-full object-contain drop-shadow-[0_10px_10px_rgb(0_0_0/0.18)]" src={image} alt="" /></div>
+        <div className="grid gap-14 pt-12 md:grid-cols-2 md:gap-12 md:pt-14 lg:gap-16 lg:pt-10">
+          {[[stakeholderPsu, 'Partido State University', 'Camarines Sur', 'lg:h-55 lg:w-55'], [stakeholderCriminology, 'BS in Criminology', 'College stakeholder', 'lg:h-52 lg:w-52']].map(([image, title, detail, desktopLogoSize]) => (
+            <article key={title} className="relative flex min-h-56 flex-col items-center justify-start rounded-2xl bg-[var(--landing-card)] px-6 pb-6 pt-36 text-center shadow-md md:min-h-60 md:pt-40 lg:min-h-65 lg:justify-end lg:pb-10 lg:pt-40">
+              <div className={`absolute -top-8 left-1/2 grid h-[clamp(9rem,22vw,12rem)] w-[clamp(9rem,22vw,12rem)] -translate-x-1/2 place-items-center lg:-top-15 ${desktopLogoSize}`}><img className="h-full w-full object-contain drop-shadow-[0_10px_10px_rgb(0_0_0/0.18)]" decoding="async" loading="lazy" src={image} alt="" /></div>
               <h3 className="font-black uppercase tracking-wide">{title}</h3><p className="mt-1 text-sm text-[var(--landing-muted)]">{detail}</p>
             </article>
           ))}
@@ -205,7 +232,7 @@ export default function HomePage() {
           {teamMembers.map(([image, name, role]) => 
           <article key={name} className="min-w-0 text-center">
             <div className="h-[clamp(16rem,44vh,30rem)] overflow-hidden rounded-2xl bg-[var(--landing-card)] shadow-md">
-              <img className="h-full w-full object-cover object-center" src={image} alt={name} />
+              <img className="h-full w-full object-cover object-center" decoding="async" loading="lazy" src={image} alt={name} />
             </div>
             <div className="flex min-h-20 flex-col items-center px-1 pt-5">
               <h3 className="max-w-full break-words text-sm font-black leading-5">{name}</h3>

@@ -35,10 +35,17 @@ function LiveFacultyDashboard() {
   const [activePage, setActivePage] = useState(() => (
     getSavedDashboardPage(localStorage, facultyDashboardPageKey, facultyPages, 'overview')
   ))
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.matchMedia('(min-width: 1025px)').matches)
   const [overviewData, setOverviewData] = useState({ attempts: [], enrollments: [], firearms: [], releases: [], resultRows: [] })
 
   useAutoDismissNotice(notice, () => setNotice(''))
+
+  useEffect(() => {
+    const desktopLayout = window.matchMedia('(min-width: 1025px)')
+    const updateSidebar = (event) => setSidebarCollapsed(event.matches)
+    desktopLayout.addEventListener('change', updateSidebar)
+    return () => desktopLayout.removeEventListener('change', updateSidebar)
+  }, [])
 
   const loadClasses = useCallback(async () => {
     const { data, error: classesError } = await supabase
@@ -63,7 +70,7 @@ function LiveFacultyDashboard() {
       classIds.length
         ? supabase.from('enrollments').select('id, class_id, student_id, status, enrolled_at, student:profiles!enrollments_student_id_fkey(id, email, full_name)').in('class_id', classIds)
         : Promise.resolve({ data: [] }),
-      supabase.from('firearms').select('id, identifier, name, caliber, description, status, created_at, glb_storage_path').order('created_at'),
+      supabase.from('firearms').select('id, identifier, name, caliber, description, firearm_type, tutorial_url, model_credit, status, created_at, glb_storage_path').order('created_at'),
       classIds.length
         ? supabase.from('assessment_releases').select('class_id, firearm_id, is_open, updated_at').in('class_id', classIds)
         : Promise.resolve({ data: [] }),
