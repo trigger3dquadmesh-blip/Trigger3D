@@ -196,11 +196,15 @@ export default function HomePage() {
 
       <section id="team" className="landing-snap mx-auto flex w-[94%] max-w-[1500px] scroll-mt-16 flex-col justify-center py-[clamp(2rem,5vh,4rem)] md:min-h-[calc(100vh-4rem)]" aria-labelledby="team-heading">
         <SectionTitle id="team-heading">Meet the Team</SectionTitle>
-        <p className="mx-auto -mt-5 mb-12 max-w-4xl text-center text-lg leading-7 text-[var(--landing-muted)]"><strong className="text-[var(--landing-text)]">Trigger3D</strong> is developed by <strong className="text-[var(--landing-text)]">Team QuadMeshIT</strong>, a group of student developers creating an interactive learning tool for Criminology education.</p>
+        <p className="mx-auto -mt-5 mb-5 max-w-4xl text-center text-lg leading-7 text-[var(--landing-muted)]"><strong className="text-[var(--landing-text)]">Trigger3D</strong> is developed by <strong className="text-[var(--landing-text)]">Team QuadMeshIT</strong>, a group of student developers creating an interactive learning tool for Criminology education.</p>
+        <aside className="mx-auto mb-5 flex max-w-5xl items-center justify-center gap-2 rounded-lg border border-[var(--landing-border)] bg-[var(--landing-card)]/60 px-3 py-2 text-center text-xs leading-5 text-[var(--landing-muted)]" aria-label="Team photo safety disclaimer">
+          <svg aria-hidden="true" className="h-4 w-4 shrink-0 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M12 9v4m0 3h.01M10.2 4.8 3.4 17a2 2 0 0 0 1.8 3h13.6a2 2 0 0 0 1.8-3L13.8 4.8a2 2 0 0 0-3.6 0Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <p className="m-0"><strong className="text-[var(--landing-text)]">Photo disclaimer:</strong> Firearm-like items shown are non-functional props used only for educational presentation.</p>
+        </aside>
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
           {teamMembers.map(([image, name, role]) => 
           <article key={name} className="min-w-0 text-center">
-            <div className="h-[clamp(18rem,50vh,34rem)] overflow-hidden rounded-2xl bg-[var(--landing-card)] shadow-md">
+            <div className="h-[clamp(16rem,44vh,30rem)] overflow-hidden rounded-2xl bg-[var(--landing-card)] shadow-md">
               <img className="h-full w-full object-cover object-center" src={image} alt={name} />
             </div>
             <div className="flex min-h-20 flex-col items-center px-1 pt-5">

@@ -8,6 +8,7 @@ import {
   restoreAssessmentDraft,
 } from './assessment-draft.js'
 import { setAssessmentLock } from './assessment-lock.js'
+import { createQuestionDeadline, secondsUntilDeadline } from './assessment-timer.js'
 
 const QUESTION_TIME_SECONDS = 30
 const TIMED_OUT_ANSWER = '[No answer — time expired]'
@@ -49,6 +50,7 @@ export default function AssessmentPage() {
   const [timeRemaining, setTimeRemaining] = useState(QUESTION_TIME_SECONDS)
   const [error, setError] = useState('')
   const handledTimeoutRef = useRef('')
+  const questionDeadlineRef = useRef(0)
 
   useEffect(() => {
     let active = true
@@ -108,13 +110,21 @@ export default function AssessmentPage() {
   useEffect(() => {
     if (!attemptId || !currentQuestion || result || submitting) return undefined
     handledTimeoutRef.current = ''
+    questionDeadlineRef.current = createQuestionDeadline(Date.now(), QUESTION_TIME_SECONDS)
     // Resetting here synchronizes the countdown with the newly displayed question.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTimeRemaining(QUESTION_TIME_SECONDS)
-    const timer = window.setInterval(() => {
-      setTimeRemaining((seconds) => Math.max(0, seconds - 1))
-    }, 1000)
-    return () => window.clearInterval(timer)
+    const updateCountdown = () => {
+      setTimeRemaining(secondsUntilDeadline(questionDeadlineRef.current, Date.now()))
+    }
+    const timer = window.setInterval(updateCountdown, 250)
+    document.addEventListener('visibilitychange', updateCountdown)
+    window.addEventListener('focus', updateCountdown)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', updateCountdown)
+      window.removeEventListener('focus', updateCountdown)
+    }
   }, [attemptId, currentQuestion, result, submitting])
 
   useEffect(() => {
@@ -275,7 +285,7 @@ export default function AssessmentPage() {
 
   if (result) {
     return (
-      <main className="student-assessment-page">
+      <main className="student-assessment-page student-assessment-complete">
         <section className="student-assessment-result">
           <span className="student-assessment-result-icon">✓</span>
           <p className="eyebrow">Assessment complete</p>

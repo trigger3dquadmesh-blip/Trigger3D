@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 
-export default function AssessmentReleasePanel({ attempts = [], onChanged, onViewAnalytics, selectedClass }) {
+export default function AssessmentReleasePanel({ attempts = [], enrollments = [], onChanged, onViewAnalytics, selectedClass }) {
   const [firearms, setFirearms] = useState([])
   const [releases, setReleases] = useState([])
   const [loading, setLoading] = useState(false)
@@ -88,7 +88,8 @@ export default function AssessmentReleasePanel({ attempts = [], onChanged, onVie
         <div className="faculty-release-list">
           {firearms.map((firearm) => {
             const isOpen = releaseByFirearm.get(firearm.id)?.is_open ?? false
-            const firearmAttempts = attempts.filter((item) => item.class_id === selectedClass.id && item.firearm_id === firearm.id && item.status === 'submitted')
+            const activeStudentIds = new Set(enrollments.filter((item) => item.status === 'active').map((item) => item.student?.id || item.student_id))
+            const firearmAttempts = attempts.filter((item) => item.class_id === selectedClass.id && item.firearm_id === firearm.id && item.status === 'submitted' && activeStudentIds.has(item.student_id))
             const average = firearmAttempts.length ? firearmAttempts.reduce((sum, item) => sum + Number(item.percentage || 0), 0) / firearmAttempts.length : 0
             const passing = firearmAttempts.length ? firearmAttempts.filter((item) => Number(item.percentage) >= 75).length / firearmAttempts.length * 100 : 0
             return (

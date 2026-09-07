@@ -57,11 +57,13 @@ export default function FacultyClassesPanel({ attempts, className, classes, crea
         <table className="faculty-class-table"><thead><tr><th>Class</th><th>Code</th><th>Students</th><th>Assessments</th><th>Completion</th><th>Last Activity</th><th aria-label="Actions" /></tr></thead><tbody>
           {visibleClasses.map((item) => {
             const students = enrollments.filter((entry) => entry.class_id === item.id && entry.status === 'active')
+            const activeStudentIds = new Set(students.map((entry) => entry.student_id))
             const classReleases = releases.filter((entry) => entry.class_id === item.id)
             const expected = students.length * classReleases.length
-            const submitted = attempts.filter((entry) => entry.class_id === item.id && entry.status === 'submitted').length
+            const activeAttempts = attempts.filter((entry) => entry.class_id === item.id && activeStudentIds.has(entry.student_id))
+            const submitted = activeAttempts.filter((entry) => entry.status === 'submitted').length
             const completion = expected ? Math.min(100, Math.round((submitted / expected) * 100)) : 0
-            const lastActivity = attempts.filter((entry) => entry.class_id === item.id).map((entry) => entry.submitted_at || entry.started_at).filter(Boolean).sort().at(-1)
+            const lastActivity = activeAttempts.map((entry) => entry.submitted_at || entry.started_at).filter(Boolean).sort().at(-1)
             const feedback = copyFeedback.code === item.code ? copyFeedback.status : ''
             const codeVisible = visibleCodes.has(item.id)
             return <tr key={item.id}><td><strong>{item.name}</strong><small>{item.archived_at ? 'Archived class' : 'Active class'}</small></td><td><div className="faculty-code-controls"><button aria-label={`Copy class code for ${item.name}`} className={`faculty-code-pill${feedback ? ` ${feedback}` : ''}`} onClick={() => copyClassCode(item.code)} title={feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Copy failed' : 'Copy class code'} type="button"><SmallIcon name="copy" /> <span>{feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Try again' : codeVisible ? item.code : '••••••••'}</span></button><button aria-label={`${codeVisible ? 'Hide' : 'Show'} class code for ${item.name}`} aria-pressed={codeVisible} className="faculty-code-visibility" onClick={() => toggleClassCode(item.id)} title={`${codeVisible ? 'Hide' : 'Show'} class code`} type="button"><SmallIcon name={codeVisible ? 'eyeOff' : 'eye'} /></button></div></td><td><span className="faculty-table-count"><SmallIcon name="students" /> {students.length}</span></td><td><span className="faculty-table-count"><SmallIcon name="assessment" /> {classReleases.length}</span></td><td><div className="faculty-completion"><i><span style={{ width: `${completion}%` }} /></i><span>{completion}%</span></div></td><td>{formatActivity(lastActivity)}</td><td><button className="faculty-manage-class" onClick={() => onManageClass(item.id)} type="button">Manage students <span aria-hidden="true">›</span></button></td></tr>

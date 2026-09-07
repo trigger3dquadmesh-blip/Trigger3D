@@ -58,6 +58,7 @@ function LiveStudentDashboard() {
 
     const validEnrollments = (data ?? []).filter((item) => item.class)
     const accessibleEnrollments = validEnrollments.filter((item) => item.status === 'active')
+    const historyClassIds = [...new Set(validEnrollments.map((item) => item.class.id))]
 
     setEnrollments(validEnrollments)
     setSelectedClassId((current) => (
@@ -70,12 +71,7 @@ function LiveStudentDashboard() {
 
     if (hasActiveEnrollment) {
       const classIds = [...new Set(accessibleEnrollments.map((item) => item.class.id))]
-      const [firearmResult, resultQuery, releaseResult, componentResult] = await Promise.all([
-        supabase
-          .from('firearms')
-          .select('id, identifier, name, caliber, description, status')
-          .eq('status', 'ready')
-          .order('created_at'),
+      const [resultQuery, releaseResult, firearmResult] = await Promise.all([
         supabase
           .from('assessment_attempts')
           .select(`
@@ -89,24 +85,74 @@ function LiveStudentDashboard() {
             submitted_at,
             firearm:firearms!assessment_attempts_firearm_id_fkey(name, caliber)
           `)
+          .in('class_id', historyClassIds)
           .order('submitted_at', { ascending: false }),
         supabase.from('assessment_releases').select('class_id, firearm_id, is_open, updated_at').in('class_id', classIds),
-        supabase.from('firearm_components').select('id, firearm_id'),
+        supabase
+          .from('firearms')
+          .select('id, identifier, name, caliber, description, status')
+          .eq('status', 'ready')
+          .order('created_at'),
       ])
 
-      if (firearmResult.error || resultQuery.error || releaseResult.error || componentResult.error) {
-        setError(firearmResult.error?.message || resultQuery.error?.message || releaseResult.error?.message || componentResult.error?.message)
+      if (resultQuery.error || releaseResult.error || firearmResult.error) {
+        setError(resultQuery.error?.message || releaseResult.error?.message || firearmResult.error?.message)
+        setFirearms([])
+        setAttempts([])
+        setReleases([])
+        setComponents([])
       } else {
-        setFirearms(firearmResult.data)
-        setAttempts(resultQuery.data)
-        setReleases(releaseResult.data ?? [])
-        setComponents(componentResult.data ?? [])
+        const readyFirearms = firearmResult.data ?? []
+        const storedReleases = releaseResult.data ?? []
+        const effectiveReleases = classIds.flatMap((classId) => readyFirearms.map((firearm) => {
+          const stored = storedReleases.find((item) => item.class_id === classId && item.firearm_id === firearm.id)
+          return stored ?? { class_id: classId, firearm_id: firearm.id, is_open: false, updated_at: null }
+        }))
+        const firearmIds = readyFirearms.map((item) => item.id)
+        const componentResult = firearmIds.length
+          ? await supabase.from('firearm_components').select('id, firearm_id').in('firearm_id', firearmIds)
+          : { data: [], error: null }
+
+        if (componentResult.error) {
+          setError(componentResult.error.message)
+          setFirearms([])
+          setAttempts([])
+          setReleases([])
+          setComponents([])
+        } else {
+          setFirearms(readyFirearms)
+          setAttempts(resultQuery.data ?? [])
+          setReleases(effectiveReleases)
+          setComponents(componentResult.data ?? [])
+        }
       }
     } else {
       setFirearms([])
-      setAttempts([])
       setReleases([])
       setComponents([])
+      const historyResult = historyClassIds.length
+        ? await supabase
+            .from('assessment_attempts')
+            .select(`
+              id,
+              class_id,
+              firearm_id,
+              status,
+              correct_count,
+              total_questions,
+              percentage,
+              submitted_at,
+              firearm:firearms!assessment_attempts_firearm_id_fkey(name, caliber)
+            `)
+            .in('class_id', historyClassIds)
+            .order('submitted_at', { ascending: false })
+        : { data: [], error: null }
+      if (historyResult.error) {
+        setError(historyResult.error.message)
+        setAttempts([])
+      } else {
+        setAttempts(historyResult.data ?? [])
+      }
     }
 
     setLoading(false)
@@ -236,7 +282,7 @@ function LiveStudentDashboard() {
       sidebar={<StudentSidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings profileMenu roleName="Student" sidebar />} />}
     >
       {activePage === 'overview' && <StudentOverview attempts={attempts} enrollments={enrollments} firearms={firearms} loading={loading} onJoin={() => { setError(''); setJoinOpen(true) }} onNavigate={navigateSection} onOpenClass={openClass} releases={releases} />}
-      {activePage === 'classes' && <StudentClasses attempts={attempts} enrollments={enrollments} onJoin={() => { setError(''); setJoinOpen(true) }} onOpenClass={openClass} releases={releases} />}
+      {activePage === 'classes' && <StudentClasses attempts={attempts} enrollments={enrollments} onOpenClass={openClass} releases={releases} />}
       {activePage === 'class' && selectedEnrollment && <StudentClassDetail attempts={attempts} components={components} enrollment={selectedEnrollment} firearms={firearms} onLeave={handleLeaveClass} releases={releases} />}
       {joinOpen && <StudentJoinDialog classCode={classCode} error={error} joining={joining} onChange={setClassCode} onClose={() => { setJoinOpen(false); setError('') }} onSubmit={handleJoinClass} />}
 

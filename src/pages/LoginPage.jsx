@@ -5,6 +5,7 @@ import { isValidFullName, normalizeFullName } from '../auth/name.js'
 import useAuth from '../auth/useAuth.js'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 import useAutoDismissNotice from '../components/useAutoDismissNotice.js'
+import { getRoleHomePath } from '../config/roles.js'
 import { supabase } from '../lib/supabase.js'
 
 const allowedDomain = (
@@ -18,11 +19,21 @@ function getPublicSiteUrl() {
   return window.location.origin
 }
 
+function clearSavedDashboardLocations() {
+  try {
+    localStorage.removeItem('trigger3d.admin.active-page')
+    localStorage.removeItem('trigger3d.faculty.active-page')
+    localStorage.removeItem('trigger3d.student.active-page')
+  } catch {
+    // Private browsing can disable storage; direct role navigation still works.
+  }
+}
+
 const inputClass = 'peer h-[52px] w-full rounded-lg border border-[var(--auth-border)] bg-[var(--auth-input)] px-4 pb-1.5 pt-5 text-[var(--auth-text)] outline-none transition placeholder:text-transparent focus:border-[#109d1a] focus:ring-2 focus:ring-[#109d1a]/20 disabled:cursor-not-allowed disabled:opacity-60'
 const labelClass = 'pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[var(--auth-muted)] transition-all peer-focus:top-1.5 peer-focus:translate-y-0 peer-focus:text-[0.65rem] peer-focus:font-bold peer-focus:text-[#109d1a] peer-[:not(:placeholder-shown)]:top-1.5 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.65rem] peer-[:not(:placeholder-shown)]:font-bold'
 
 export default function LoginPage() {
-  const { isConfigured, loading: sessionLoading, user } = useAuth()
+  const { isConfigured, loading: sessionLoading, role, user } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [mode, setMode] = useState(
@@ -41,7 +52,7 @@ export default function LoginPage() {
   useAutoDismissNotice(notice, () => setNotice(''), 5000)
 
   if (!sessionLoading && user) {
-    return <Navigate to="/account" replace />
+    return <Navigate to={getRoleHomePath(role)} replace />
   }
 
   function switchMode(nextMode) {
@@ -102,7 +113,7 @@ export default function LoginPage() {
           email: normalizedEmail,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/account`,
+            emailRedirectTo: `${getPublicSiteUrl()}/account`,
             data: {
               requested_role: 'student',
               full_name: normalizeFullName(fullName),
@@ -113,21 +124,36 @@ export default function LoginPage() {
         if (signUpError) throw signUpError
 
         if (data.session) {
-          navigate('/account', { replace: true })
+          clearSavedDashboardLocations()
+          navigate('/student', { replace: true })
         } else {
           setNotice('Registration received. Check your school email to confirm your account.')
           setPassword('')
           setConfirmPassword('')
         }
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: normalizedEmail,
           password,
         })
 
         if (signInError) throw signInError
 
-        navigate('/account', { replace: true })
+        const { data: signedInProfile, error: profileLookupError } = await supabase
+          .from('profiles')
+          .select('role, disabled_at')
+          .eq('id', signInData.user.id)
+          .maybeSingle()
+
+        if (profileLookupError || !signedInProfile || signedInProfile.disabled_at) {
+          await supabase.auth.signOut()
+          if (profileLookupError) throw profileLookupError
+          if (!signedInProfile) throw new Error('No Trigger3D profile was found for this account.')
+          throw new Error('This account has been disabled. Contact an administrator.')
+        }
+
+        clearSavedDashboardLocations()
+        navigate(getRoleHomePath(signedInProfile.role), { replace: true })
       }
     } catch (authError) {
       setError(authError.message || 'Authentication failed. Please try again.')

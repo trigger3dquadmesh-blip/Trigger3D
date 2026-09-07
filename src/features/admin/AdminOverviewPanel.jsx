@@ -30,7 +30,7 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
     { label: 'Total Accounts', value: data.profiles.length, detail: archivedProfiles.length + ' archived', icon: 'accounts' },
     { label: 'Active Firearms', value: readyFirearms.length, detail: data.firearms.length + ' total', icon: 'firearms' },
     { label: 'Active Classes', value: activeClasses.length, detail: data.classes.length + ' total', icon: 'classes' },
-    { label: 'Assessment Attempts', value: data.assessmentCount, detail: 'Recorded submissions', icon: 'assessments' },
+    { label: 'Submitted Assessments', value: data.assessmentCount, detail: 'Recorded results', icon: 'assessments' },
   ]
 
   return (

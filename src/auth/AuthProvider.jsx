@@ -1,6 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 import { AuthContext } from './auth-context.js'
+import { resolveProfileAvatar } from './profile-avatar.js'
+
+const awayTimestampKey = 'trigger3d.auth.away-at'
+const awaySignOutDelay = 30_000
+
+function readAwayTimestamp() {
+  try {
+    return Number(sessionStorage.getItem(awayTimestampKey)) || 0
+  } catch {
+    return 0
+  }
+}
+
+function clearAwayTimestamp() {
+  try {
+    sessionStorage.removeItem(awayTimestampKey)
+  } catch {
+    // Session storage can be unavailable in restrictive browser modes.
+  }
+}
 
 export default function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
@@ -14,6 +34,7 @@ export default function AuthProvider({ children }) {
     }
 
     let active = true
+    let awayAtMemory = readAwayTimestamp()
 
     async function applySession(nextSession) {
       if (!active) return
@@ -44,14 +65,16 @@ export default function AuthProvider({ children }) {
         setProfile(null)
         setProfileError('No account profile was found. Run the Trigger3D roles migration in Supabase.')
       } else {
-        setProfile(data)
+        const resolvedProfile = await resolveProfileAvatar(data)
+        if (!active) return
+        setProfile(resolvedProfile)
         setProfileError(data.disabled_at ? 'This account has been disabled. Contact an administrator.' : '')
       }
 
       setLoading(false)
     }
 
-    supabase.auth.getSession().then(({ data, error }) => {
+    supabase.auth.getSession().then(async ({ data, error }) => {
       if (!active) return
 
       if (error) {
@@ -60,8 +83,47 @@ export default function AuthProvider({ children }) {
         return
       }
 
+      const awayAt = readAwayTimestamp()
+      if (data.session && awayAt && Date.now() - awayAt >= awaySignOutDelay) {
+        awayAtMemory = 0
+        clearAwayTimestamp()
+        await supabase.auth.signOut()
+        if (active) void applySession(null)
+        return
+      }
+
+      awayAtMemory = 0
+      clearAwayTimestamp()
       void applySession(data.session)
     })
+
+    function markUserAway() {
+      if (!awayAtMemory) awayAtMemory = Date.now()
+      try {
+        sessionStorage.setItem(awayTimestampKey, String(awayAtMemory))
+      } catch {
+        // The in-memory timestamp still supports the current page session.
+      }
+    }
+
+    function checkWhetherSessionExpired() {
+      const awayAt = awayAtMemory || readAwayTimestamp()
+      awayAtMemory = 0
+      clearAwayTimestamp()
+      if (awayAt && Date.now() - awayAt >= awaySignOutDelay) {
+        void supabase.auth.signOut()
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'hidden') markUserAway()
+      else checkWhetherSessionExpired()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('blur', markUserAway)
+    window.addEventListener('focus', checkWhetherSessionExpired)
+    window.addEventListener('pagehide', markUserAway)
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, nextSession) => {
@@ -71,6 +133,10 @@ export default function AuthProvider({ children }) {
 
     return () => {
       active = false
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('blur', markUserAway)
+      window.removeEventListener('focus', checkWhetherSessionExpired)
+      window.removeEventListener('pagehide', markUserAway)
       authListener.subscription.unsubscribe()
     }
   }, [])
@@ -85,10 +151,12 @@ export default function AuthProvider({ children }) {
       .eq('id', session.user.id)
       .maybeSingle()
 
+    let resolvedData = data
     if (error) {
       setProfileError(error.message)
     } else {
-      setProfile(data)
+      resolvedData = await resolveProfileAvatar(data)
+      setProfile(resolvedData)
       setProfileError(
         data?.disabled_at
           ? 'This account has been disabled. Contact an administrator.'
@@ -99,7 +167,7 @@ export default function AuthProvider({ children }) {
     }
 
     setLoading(false)
-    return { data, error }
+    return { data: resolvedData, error }
   }, [session])
 
   const value = useMemo(

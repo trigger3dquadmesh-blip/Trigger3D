@@ -15,5 +15,10 @@ const hasSupabaseCredentials = !hasPlaceholderCredentials
 export const isSupabaseConfigured = hasSupabaseCredentials
 
 export const supabase = hasSupabaseCredentials
-  ? createClient(supabaseUrl, supabasePublishableKey)
+  ? createClient(supabaseUrl, supabasePublishableKey, {
+      auth: {
+        persistSession: true,
+        storage: window.sessionStorage,
+      },
+    })
   : null

@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase.js'
 import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
 import AdminIcon from './AdminIcon.jsx'
 import { validatePasswordChange } from '../../auth/password.js'
+import { getAvatarStoragePath } from '../../auth/profile-avatar.js'
 
 export default function AdminSettings({ roleName = 'Administrator', sidebar = false, profileMenu = false, page = false, active = false, standalone = false }) {
   const { profile, refreshProfile, signOut, user } = useAuth()
@@ -26,8 +27,7 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
   const photoInputRef = useRef(null)
   const profileMenuButtonRef = useRef(null)
   const profileMenuRef = useRef(null)
-  const photoStorageKey = `trigger3d-avatar-${user?.id}`
-  const [photo, setPhoto] = useState(() => profile?.avatar_url || localStorage.getItem(photoStorageKey) || '')
+  const [photo, setPhoto] = useState(() => profile?.avatar_url || '')
   const [photoRemoving, setPhotoRemoving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -163,17 +163,19 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
       setError(uploadError.message)
       return
     }
-    const { data: publicUrlData } = supabase.storage.from('profile-photos').getPublicUrl(storagePath)
-    const nextPhoto = `${publicUrlData.publicUrl}?v=${Date.now()}`
-    const { error: profilePhotoError } = await supabase.rpc('set_own_avatar_url', { new_avatar_url: nextPhoto })
+    const previousStoragePath = profile?.avatar_storage_path || getAvatarStoragePath(profile?.avatar_url)
+    const { error: profilePhotoError } = await supabase.rpc('set_own_avatar_url', { new_avatar_url: storagePath })
     if (profilePhotoError) {
       setError(profilePhotoError.message)
+      await supabase.storage.from('profile-photos').remove([storagePath])
       return
     }
-    localStorage.setItem(photoStorageKey, nextPhoto)
-    setPhoto(nextPhoto)
+    const refreshed = await refreshProfile()
+    setPhoto(refreshed.data?.avatar_url || '')
+    if (previousStoragePath && previousStoragePath !== storagePath) {
+      await supabase.storage.from('profile-photos').remove([previousStoragePath])
+    }
     setMessage('Profile photo updated.')
-    await refreshProfile()
   }
 
   async function removePhoto() {
@@ -181,12 +183,8 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
     setError('')
     setMessage('')
 
-    const storedUrl = profile?.avatar_url || photo
-    const publicPathMarker = '/storage/v1/object/public/profile-photos/'
-    const markerIndex = storedUrl.indexOf(publicPathMarker)
-    if (markerIndex >= 0) {
-      const encodedPath = storedUrl.slice(markerIndex + publicPathMarker.length).split('?')[0]
-      const storagePath = decodeURIComponent(encodedPath)
+    const storagePath = profile?.avatar_storage_path || getAvatarStoragePath(profile?.avatar_url || photo)
+    if (storagePath) {
       const { error: removalError } = await supabase.storage.from('profile-photos').remove([storagePath])
       if (removalError) {
         setError(removalError.message)
@@ -202,7 +200,6 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
       return
     }
 
-    localStorage.removeItem(photoStorageKey)
     setPhoto('')
     await refreshProfile()
     setMessage('Profile photo removed.')
@@ -242,12 +239,14 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
 
   if (!page) return null
 
+  const displayPhoto = photo || profile?.avatar_url || ''
+
   return (
     <>
       <header className="account-settings-title"><p>Settings</p><h1>Account Settings</h1></header>
       <section className="account-settings-page settings-profile-photo">
         <h2>Profile Photo</h2>
-        <div className="settings-photo-row"><div className="settings-photo-avatar-wrap"><div className="settings-photo-avatar">{photo ? <img alt="" src={photo} /> : <span>{fullName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'A'}</span>}</div><button aria-label="Choose profile photo" className="settings-camera-button" onClick={() => photoInputRef.current?.click()} title="Choose profile photo" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8.5h3l1.5-2h7l1.5 2h3v10H4z" /><circle cx="12" cy="13" r="3.2" /></svg></button></div><div><strong>Upload a profile photo</strong><p>JPG, PNG, or WebP. Max 2 MB.</p><div className="settings-photo-actions"><button disabled={photoRemoving} onClick={() => photoInputRef.current?.click()} type="button">Choose file</button>{photo && <button className="settings-remove-photo" disabled={photoRemoving} onClick={removePhoto} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>{photoRemoving ? 'Removing…' : 'Remove photo'}</button>}<input accept="image/png,image/jpeg,image/webp" hidden onChange={updatePhoto} ref={photoInputRef} type="file" /></div></div></div>
+        <div className="settings-photo-row"><div className="settings-photo-avatar-wrap"><div className="settings-photo-avatar">{displayPhoto ? <img alt="" src={displayPhoto} /> : <span>{fullName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'A'}</span>}</div><button aria-label="Choose profile photo" className="settings-camera-button" onClick={() => photoInputRef.current?.click()} title="Choose profile photo" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8.5h3l1.5-2h7l1.5 2h3v10H4z" /><circle cx="12" cy="13" r="3.2" /></svg></button></div><div><strong>Upload a profile photo</strong><p>JPG, PNG, or WebP. Max 2 MB.</p><div className="settings-photo-actions"><button disabled={photoRemoving} onClick={() => photoInputRef.current?.click()} type="button">Choose file</button>{displayPhoto && <button className="settings-remove-photo" disabled={photoRemoving} onClick={removePhoto} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>{photoRemoving ? 'Removing…' : 'Remove photo'}</button>}<input accept="image/png,image/jpeg,image/webp" hidden onChange={updatePhoto} ref={photoInputRef} type="file" /></div></div></div>
       </section>
       <article className={`${standalone ? 'card auth-card' : 'dashboard-card dashboard-card-wide'} account-settings-page`}>
         <div className="settings-heading">

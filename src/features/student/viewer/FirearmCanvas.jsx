@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Bounds, Html, OrbitControls, useBounds, useGLTF } from '@react-three/drei'
 import { Box3, Color, Vector3 } from 'three'
@@ -47,7 +47,7 @@ function materialList(material) {
   return Array.isArray(material) ? material : [material]
 }
 
-function FirearmModel({ url, components, selectedName, exploded, onSelect }) {
+function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSelect }) {
   const { scene } = useGLTF(url)
   const componentLayout = useMemo(
     () => new Map(components.map((component) => [component.mesh_name, component])),
@@ -69,6 +69,10 @@ function FirearmModel({ url, components, selectedName, exploded, onSelect }) {
 
     return copy
   }, [scene])
+
+  useEffect(() => {
+    onLoaded()
+  }, [model, onLoaded])
 
   useEffect(() => {
     model.traverse((object) => {
@@ -205,6 +209,24 @@ export default function FirearmCanvas({
   resetKey,
   onSelect,
 }) {
+  const [loaded, setLoaded] = useState(false)
+  const [timedOut, setTimedOut] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
+
+  useEffect(() => {
+    // A new signed URL or retry starts a fresh, bounded loading attempt.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoaded(false)
+    setTimedOut(false)
+    const timeout = window.setTimeout(() => setTimedOut(true), 30_000)
+    return () => window.clearTimeout(timeout)
+  }, [modelUrl, retryKey])
+
+  function retryModel() {
+    useGLTF.clear(modelUrl)
+    setRetryKey((value) => value + 1)
+  }
+
   return (
     <div className="viewer-canvas">
       <ViewerErrorBoundary resetKey={modelUrl}>
@@ -221,10 +243,12 @@ export default function FirearmCanvas({
           <Bounds observe margin={1.35}>
             <Suspense fallback={<Html center><span className="canvas-loader">Loading model...</span></Html>}>
               <FirearmModel
+                key={`${modelUrl}:${retryKey}`}
                 url={modelUrl}
                 components={components}
                 selectedName={selectedName}
                 exploded={exploded}
+                onLoaded={() => { setLoaded(true); setTimedOut(false) }}
                 onSelect={onSelect}
               />
               <BoundsController resetKey={resetKey} />
@@ -239,6 +263,7 @@ export default function FirearmCanvas({
           </Bounds>
         </Canvas>
       </ViewerErrorBoundary>
+      {!loaded && timedOut && <div className="viewer-load-timeout" role="alert"><strong>The 3D model is taking too long to load.</strong><span>Check your connection, then try downloading the model again.</span><button onClick={retryModel} type="button">Retry model</button></div>}
     </div>
   )
 }

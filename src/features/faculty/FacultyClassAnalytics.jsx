@@ -4,11 +4,13 @@ function metric(value) {
 }
 
 export default function FacultyClassAnalytics({ attempts, classItem, enrollments, firearms, releases, resultRows }) {
-  const submitted = attempts.filter((item) => item.class_id === classItem.id && item.status === 'submitted')
   const activeStudents = enrollments.filter((item) => item.status === 'active')
+  const activeStudentIds = new Set(activeStudents.map((item) => item.student?.id || item.student_id))
+  const activeAttempts = attempts.filter((item) => item.class_id === classItem.id && activeStudentIds.has(item.student_id))
+  const submitted = activeAttempts.filter((item) => item.status === 'submitted')
   const classReleases = releases.filter((item) => item.class_id === classItem.id)
   const assigned = activeStudents.length * classReleases.length
-  const inProgress = attempts.filter((item) => item.class_id === classItem.id && item.status === 'in_progress').length
+  const inProgress = activeAttempts.filter((item) => item.status === 'in_progress').length
   const completedRate = assigned ? Math.min(100, submitted.length / assigned * 100) : 0
   const inProgressRate = assigned ? Math.min(100 - completedRate, inProgress / assigned * 100) : 0
   const bands = [[90, 101, '90–100'], [80, 90, '80–89'], [70, 80, '70–79'], [60, 70, '60–69'], [0, 60, 'Below 60']].map(([min, max, label]) => ({ label, value: submitted.filter((item) => Number(item.percentage) >= min && Number(item.percentage) < max).length }))
