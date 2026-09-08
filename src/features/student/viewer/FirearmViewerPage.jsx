@@ -74,9 +74,8 @@ export default function FirearmViewerPage() {
   }
 
   const completed = status?.attempt_status === 'submitted'
-  const assessmentLabel = completed ? 'View Result' : 'Start Assessment'
   const headerLeading = <Link className="student-viewer-back" to="/student" aria-label="Back to class">← <span>Back to class</span></Link>
-  const headerActions = <Link className="student-viewer-assessment" to={`/student/models/${firearmId}/assessment${classQuery}`}>{assessmentLabel}</Link>
+  const headerActions = completed ? null : <Link className="student-viewer-assessment" to={`/student/models/${firearmId}/assessment${classQuery}`}>Start Assessment</Link>
 
   return <AdminModelViewerPanel firearms={[firearm]} headerActions={headerActions} headerLeading={headerLeading} initialFirearmId={firearmId} lockSelection />
 }

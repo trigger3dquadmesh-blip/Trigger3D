@@ -2,10 +2,11 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import AdminIcon from './AdminIcon.jsx'
 import { modelCreditHref } from './import/firearm-metadata.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 const FirearmCanvas = lazy(() => import('../student/viewer/FirearmCanvas.jsx'))
 
-export default function AdminModelViewerPanel({ firearms, headerActions = null, headerLeading = null, initialFirearmId = '', lockSelection = false }) {
+export default function AdminModelViewerPanel({ dataLoading = false, firearms, headerActions = null, headerLeading = null, initialFirearmId = '', lockSelection = false }) {
   const [firearmId, setFirearmId] = useState(initialFirearmId)
   const [details, setDetails] = useState(null)
   const [components, setComponents] = useState([])
@@ -61,6 +62,8 @@ export default function AdminModelViewerPanel({ firearms, headerActions = null, 
     setSelectedName(name)
     setTab('details')
   }
+
+  if (dataLoading) return <section className="admin-live-model-viewer p-6"><DashboardLoading label="Loading firearms…" /></section>
 
   return (
     <section className="admin-live-model-viewer flex h-[calc(100dvh-54px)] flex-col overflow-hidden bg-[#f5f7f6] p-6 text-[#172019]">

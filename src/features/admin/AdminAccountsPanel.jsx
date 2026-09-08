@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase.js'
 import AdminDesignModal, { AdminBadge, AdminButton, AdminField } from './AdminDesignModal.jsx'
 import AdminIcon from './AdminIcon.jsx'
 import { isAccountDeleteConfirmed } from './accounts/account-utils.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 function CreateAccountModal({ onClose, onCreate, open }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'faculty' })
@@ -180,6 +181,8 @@ export default function AdminAccountsPanel({ accounts, dataError, loading, onCha
     setSaving(false)
   }
 
+  if (loading) return <section className="admin-accounts-page w-full p-6"><DashboardLoading label="Loading accounts…" /></section>
+
   return (
     <section className="admin-accounts-page w-full p-6 text-[#172019]">
       <div className="mb-6 flex items-end justify-between gap-4"><div><nav className="mb-2 flex gap-1 text-xs text-[#5f6b63]"><span>Admin</span><span>›</span><span>Accounts</span></nav><h1 className="m-0 text-xl font-semibold">Account Management</h1></div><AdminButton onClick={() => setCreateOpen(true)}><AdminIcon name="userPlus" /> Create Account</AdminButton></div>
@@ -228,7 +231,6 @@ export default function AdminAccountsPanel({ accounts, dataError, loading, onCha
         </table>
         {filtered.length === 0 && <p className="m-0 p-12 text-center text-sm text-[#5f6b63]">No accounts found.</p>}
       </div>
-      {loading && <p className="m-0 p-5 text-xs text-[#5f6b63]">Loading accounts...</p>}
       <CreateAccountModal onClose={() => setCreateOpen(false)} onCreate={createAccount} open={createOpen} />
       <ConfirmAccountModal account={target?.action === 'delete' || target?.action === 'bulk-delete' ? null : target?.account} accounts={target?.action === 'delete' || target?.action === 'bulk-delete' ? [] : target?.accounts} action={target?.action} onClose={() => setTarget(null)} onConfirm={confirmTarget} />
       <DeleteAccountModal account={target?.action === 'delete' ? target.account : null} confirmation={deleteConfirmation} onClose={() => { setTarget(null); setDeleteConfirmation('') }} onConfirm={deleteAccount} onConfirmationChange={setDeleteConfirmation} saving={saving} />

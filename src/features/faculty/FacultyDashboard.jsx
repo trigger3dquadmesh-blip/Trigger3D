@@ -10,11 +10,15 @@ import FacultyOverviewPanel from './FacultyOverviewPanel.jsx'
 import FacultySidebar from './FacultySidebar.jsx'
 import { sortClassesByName } from './class-utils.js'
 import { filterEnrollmentsByStudentQuery } from './enrollment-search.js'
-import { getSavedDashboardPage, saveDashboardPage } from '../../components/dashboard-location.js'
+import { getSavedDashboardPage } from '../../components/dashboard-location.js'
 import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
+import useResponsiveSidebar from '../../components/useResponsiveSidebar.js'
+import useDashboardTransition from '../../components/useDashboardTransition.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 const facultyPages = ['overview', 'classes', 'class', 'students', 'assessments', 'results']
 const facultyDashboardPageKey = 'trigger3d.faculty.active-page'
+const facultyLoadingLabels = { overview: 'Loading dashboard…', classes: 'Loading classes…', class: 'Loading class…', students: 'Loading students…', assessments: 'Loading assessments…', results: 'Loading results…' }
 
 export default function FacultyDashboard() {
   return <LiveFacultyDashboard />
@@ -35,17 +39,11 @@ function LiveFacultyDashboard() {
   const [activePage, setActivePage] = useState(() => (
     getSavedDashboardPage(localStorage, facultyDashboardPageKey, facultyPages, 'overview')
   ))
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.matchMedia('(min-width: 1025px)').matches)
+  const [sidebarCollapsed, setSidebarCollapsed] = useResponsiveSidebar()
+  const { navigate: transitionTo, pendingPage } = useDashboardTransition(activePage, setActivePage, facultyDashboardPageKey)
   const [overviewData, setOverviewData] = useState({ attempts: [], enrollments: [], firearms: [], releases: [], resultRows: [] })
 
   useAutoDismissNotice(notice, () => setNotice(''))
-
-  useEffect(() => {
-    const desktopLayout = window.matchMedia('(min-width: 1025px)')
-    const updateSidebar = (event) => setSidebarCollapsed(event.matches)
-    desktopLayout.addEventListener('change', updateSidebar)
-    return () => desktopLayout.removeEventListener('change', updateSidebar)
-  }, [])
 
   const loadClasses = useCallback(async () => {
     const { data, error: classesError } = await supabase
@@ -225,9 +223,7 @@ function LiveFacultyDashboard() {
   function navigateSection(section) {
     setError('')
     setNotice('')
-    setActivePage(section)
-    saveDashboardPage(localStorage, facultyDashboardPageKey, section)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    transitionTo(section)
   }
 
   return (
@@ -237,15 +233,18 @@ function LiveFacultyDashboard() {
       hideUser
       hideHeader
       variant="role-dashboard-redesign admin-reference-shell faculty-reference-shell"
-      sidebar={<FacultySidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings profileMenu roleName="Faculty" sidebar />} />}
+      sidebar={<FacultySidebar activePage={pendingPage || activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings profileMenu roleName="Faculty" sidebar />} />}
     >
+      {pendingPage ? <section className="faculty-reference-page"><DashboardLoading label={facultyLoadingLabels[pendingPage]} /></section> : <>
       {activePage === 'overview' && <FacultyOverviewPanel attempts={overviewData.attempts} classes={classes} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} onNavigate={navigateSection} releases={overviewData.releases} />}
 
       {activePage === 'classes' && <FacultyClassesPanel attempts={overviewData.attempts} className={className} classes={classes} creating={creating} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onClassNameChange={setClassName} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} releases={overviewData.releases} />}
 
       {activePage === 'class' && selectedClass && <FacultyClassWorkspace attempts={overviewData.attempts} classItem={selectedClass} enrollments={enrollments} firearms={overviewData.firearms} loading={loading} onArchive={handleArchiveClass} onAssessmentChange={loadClasses} onBack={() => navigateSection('classes')} onResetAttempt={handleResetAttempt} onStatusChange={handleStatusChange} releases={overviewData.releases} resettingId={resettingId} resultRows={overviewData.resultRows} updatingId={updatingId} />}
 
-      {activePage === 'students' &&
+      {activePage === 'students' && loading && <section className="faculty-reference-page"><DashboardLoading label="Loading students…" /></section>}
+
+      {activePage === 'students' && !loading &&
       <article className="dashboard-card dashboard-card-wide">
         <div className="account-panel-heading">
           <div>
@@ -298,7 +297,7 @@ function LiveFacultyDashboard() {
         )}
       </article>}
 
-      {activePage === 'assessments' && <AdminModelViewerPanel firearms={overviewData.firearms.filter((item) => item.status === 'ready')} />}
+      {activePage === 'assessments' && <AdminModelViewerPanel dataLoading={loading} firearms={overviewData.firearms.filter((item) => item.status === 'ready')} />}
       {activePage === 'results' && <FacultyAnalyticsPanel attempts={overviewData.attempts} classes={classes} enrollments={overviewData.enrollments} loading={loading} releases={overviewData.releases} resultRows={overviewData.resultRows} />}
 
       {(error || notice) && (
@@ -309,6 +308,7 @@ function LiveFacultyDashboard() {
           {error || notice}
         </div>
       )}
+      </>}
     </RoleDashboard>
   )
 }

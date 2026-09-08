@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 function mean(values) {
   return values.length ? values.reduce((total, value) => total + Number(value || 0), 0) / values.length : 0
@@ -66,9 +67,11 @@ export default function FacultyAnalyticsPanel({ attempts, classes, enrollments, 
     ['Passing Rate', metric(passing, '%')],
   ]
 
+  if (loading) return <section className="faculty-analytics-page"><DashboardLoading label="Loading results…" /></section>
+
   return <section className="faculty-analytics-page">
     <div className="faculty-page-heading"><div><nav><span>Faculty</span><span>›</span><span>Analytics</span></nav><h1>Analytics</h1></div>{!hideClassPicker && <label className="faculty-analytics-picker"><span className="faculty-sr-only">Choose analytics scope</span><select aria-label="Analytics class" onChange={(event) => setClassId(event.target.value)} value={classId}><option value="all">Overall Summary</option>{activeClasses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}</div>
-    <div className="faculty-analytics-metrics">{metrics.map(([label, value]) => <article key={label}><span>{label}</span><strong>{loading ? '—' : value}</strong></article>)}</div>
+    <div className="faculty-analytics-metrics">{metrics.map(([label, value]) => <article key={label}><span>{label}</span><strong>{loading ? 'Loading…' : value}</strong></article>)}</div>
     <div className="faculty-analytics-grid">
       <section className="faculty-reference-card"><header><h2>Average Score per Class</h2></header><div className="faculty-class-bar-chart">{summaries.map((item) => <div className="faculty-chart-point" data-tooltip={`${item.name} · Average score ${metric(item.average, '%')} · ${item.students} students`} key={item.id} tabIndex="0"><div><i style={{ height: `${Math.max(item.average, item.average ? 6 : 0)}%` }} /></div><span>{item.name}</span><small>{metric(item.average, '%')}</small></div>)}</div></section>
       <section className="faculty-reference-card"><header><h2>Completion Status per Class</h2></header><div className="faculty-class-bar-chart stacked">{summaries.map((item) => <div className="faculty-chart-point" data-tooltip={`${item.name} · ${metric(item.completion, '%')} completed · ${metric(100 - item.completion, '%')} incomplete`} key={item.id} tabIndex="0"><div><i style={{ height: `${item.completion}%` }} /><b style={{ height: `${100 - item.completion}%` }} /></div><span>{item.name}</span><small>{metric(item.completion, '%')}</small></div>)}</div><p className="faculty-chart-legend"><span>● Completed</span><span>● Incomplete</span></p></section>

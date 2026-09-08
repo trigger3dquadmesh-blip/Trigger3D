@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
+import DashboardLoading from '../../../components/DashboardLoading.jsx'
 import { supabase } from '../../../lib/supabase.js'
+import useAuth from '../../../auth/useAuth.js'
 import { allQuestionsAnswered, buildSubmission, isAnswered } from './assessment-utils.js'
 import {
   createAssessmentDraft,
@@ -9,6 +11,7 @@ import {
 } from './assessment-draft.js'
 import { setAssessmentLock } from './assessment-lock.js'
 import { createQuestionDeadline, secondsUntilDeadline } from './assessment-timer.js'
+import { clearActiveAssessmentSession, markActiveAssessmentSession } from './assessment-session.js'
 
 const QUESTION_TIME_SECONDS = 30
 const TIMED_OUT_ANSWER = '[No answer — time expired]'
@@ -31,6 +34,7 @@ function removeStoredDraft(attemptId) {
 }
 
 export default function AssessmentPage() {
+  const { user } = useAuth()
   const { firearmId } = useParams()
   const [searchParams] = useSearchParams()
   const classId = searchParams.get('classId') || ''
@@ -87,6 +91,7 @@ export default function AssessmentPage() {
         if (statusResult.data.attempt_status === 'submitted') {
           setAssessmentLock(firearmId, false, classId)
           if (statusResult.data.attempt_id) {
+            clearActiveAssessmentSession(sessionStorage, user?.id, statusResult.data.attempt_id)
             removeStoredDraft(statusResult.data.attempt_id)
             setAttemptId(statusResult.data.attempt_id)
           }
@@ -97,6 +102,7 @@ export default function AssessmentPage() {
           })
         } else if (statusResult.data.attempt_status === 'in_progress') {
           setAssessmentLock(firearmId, true, classId)
+          markActiveAssessmentSession(sessionStorage, user?.id, statusResult.data.attempt_id)
         }
       }
 
@@ -105,7 +111,7 @@ export default function AssessmentPage() {
 
     void loadAssessment()
     return () => { active = false }
-  }, [classId, firearmId])
+  }, [classId, firearmId, user?.id])
 
   useEffect(() => {
     if (!result || !attemptId) return undefined
@@ -203,6 +209,7 @@ export default function AssessmentPage() {
       if (data?.attempt_status !== 'submitted') return
       removeStoredDraft(attemptId)
       setAssessmentLock(firearmId, false, classId)
+      clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
       setResult({
         correct_count: data.correct_count,
         total_questions: data.total_questions,
@@ -210,7 +217,7 @@ export default function AssessmentPage() {
       })
     }, 4000)
     return () => window.clearInterval(poll)
-  }, [attemptId, classId, firearmId, result])
+  }, [attemptId, classId, firearmId, result, user?.id])
 
   useEffect(() => {
     if (!attemptId || !attemptStartedAt || !questions.length || result) return
@@ -253,6 +260,7 @@ export default function AssessmentPage() {
 
       setQuestions(data)
       setAssessmentLock(firearmId, true, classId)
+      markActiveAssessmentSession(sessionStorage, user?.id, data[0].attempt_id)
       setAttemptId(data[0].attempt_id)
       setAttemptStartedAt(revision)
       setActivityRecorded(false)
@@ -278,6 +286,7 @@ export default function AssessmentPage() {
     else {
       removeStoredDraft(attemptId)
       setAssessmentLock(firearmId, false, classId)
+      clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
       setResult(data)
     }
 
@@ -315,7 +324,7 @@ export default function AssessmentPage() {
     if (!activityError) setActivityRecorded(true)
   }
 
-  if (loading) return <main className="page status-page">Loading assessment...</main>
+  if (loading) return <main className="page status-page"><DashboardLoading className="dashboard-loading-route" label="Loading assessment…" /></main>
 
   if (error && !firearm) {
     return (

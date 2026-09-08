@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 import { AuthContext } from './auth-context.js'
 import { resolveProfileAvatar } from './profile-avatar.js'
+import { hasActiveAssessmentSession } from '../features/student/assessment/assessment-session.js'
 
 const awayTimestampKey = 'trigger3d.auth.away-at'
 const awaySignOutDelay = 30_000
@@ -35,10 +36,12 @@ export default function AuthProvider({ children }) {
 
     let active = true
     let awayAtMemory = readAwayTimestamp()
+    let activeUserId = ''
 
     async function applySession(nextSession) {
       if (!active) return
 
+      activeUserId = nextSession?.user?.id || ''
       setSession(nextSession)
       setProfileError('')
 
@@ -84,7 +87,10 @@ export default function AuthProvider({ children }) {
       }
 
       const awayAt = readAwayTimestamp()
-      if (data.session && awayAt && Date.now() - awayAt >= awaySignOutDelay) {
+      if (data.session
+        && hasActiveAssessmentSession(sessionStorage, data.session.user.id)
+        && awayAt
+        && Date.now() - awayAt >= awaySignOutDelay) {
         awayAtMemory = 0
         clearAwayTimestamp()
         await supabase.auth.signOut()
@@ -98,6 +104,11 @@ export default function AuthProvider({ children }) {
     })
 
     function markUserAway() {
+      if (!hasActiveAssessmentSession(sessionStorage, activeUserId)) {
+        awayAtMemory = 0
+        clearAwayTimestamp()
+        return
+      }
       if (!awayAtMemory) awayAtMemory = Date.now()
       try {
         sessionStorage.setItem(awayTimestampKey, String(awayAtMemory))
@@ -110,7 +121,9 @@ export default function AuthProvider({ children }) {
       const awayAt = awayAtMemory || readAwayTimestamp()
       awayAtMemory = 0
       clearAwayTimestamp()
-      if (awayAt && Date.now() - awayAt >= awaySignOutDelay) {
+      if (hasActiveAssessmentSession(sessionStorage, activeUserId)
+        && awayAt
+        && Date.now() - awayAt >= awaySignOutDelay) {
         void supabase.auth.signOut()
       }
     }

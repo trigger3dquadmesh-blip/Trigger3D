@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 export default function StudentClassSettings() {
   const [classes, setClasses] = useState([])
@@ -41,7 +42,7 @@ export default function StudentClassSettings() {
       <div><h2>Class Membership</h2><p>Manage the active classes connected to your student account.</p></div>
       {error && <div className="alert alert-error" role="alert">{error}</div>}
       {notice && <div className="alert alert-success" role="status">{notice}</div>}
-      {loading ? <p>Loading active classes…</p> : classes.length ? <div className="student-class-settings-list">{classes.map((item) => <article key={item.id}><div><strong>{item.class.name}</strong><small>Active class</small></div><button onClick={() => { setTarget(item); setConfirmation('') }} type="button">Leave class</button></article>)}</div> : <p className="student-class-settings-empty">You are not enrolled in an active class.</p>}
+      {loading ? <DashboardLoading label="Loading class settings…" /> : classes.length ? <div className="student-class-settings-list">{classes.map((item) => <article key={item.id}><div><strong>{item.class.name}</strong><small>Active class</small></div><button onClick={() => { setTarget(item); setConfirmation('') }} type="button">Leave class</button></article>)}</div> : <p className="student-class-settings-empty">You are not enrolled in an active class.</p>}
       {target && <div className="confirmation-backdrop" role="presentation"><section aria-labelledby="leave-settings-title" aria-modal="true" className="confirmation-dialog student-leave-dialog" role="dialog"><p className="eyebrow">Class membership</p><h2 id="leave-settings-title">Leave {target.class.name}?</h2><p>You will lose access to its learning resources and open assessments. Submitted results will remain available.</p><label>Type <strong>{target.class.name}</strong> to confirm<input autoFocus disabled={leaving} onChange={(event) => setConfirmation(event.target.value)} value={confirmation} /></label><div className="confirmation-actions"><button disabled={leaving} onClick={() => { setTarget(null); setConfirmation('') }} type="button">Cancel</button><button className="danger-action" disabled={leaving || confirmation.trim() !== target.class.name} onClick={leaveClass} type="button">{leaving ? 'Leaving…' : 'Leave Class'}</button></div></section></div>}
     </section>
   )

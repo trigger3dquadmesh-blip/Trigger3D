@@ -1,4 +1,5 @@
 import { getActiveFacultyDashboardData } from './faculty-dashboard-data.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 function OverviewIcon({ name }) {
   const paths = {
@@ -61,6 +62,14 @@ export default function FacultyOverviewPanel({ attempts, classes, enrollments, f
     { label: 'Firearms Available', value: readyFirearms.length, detail: 'Active 3D models', icon: 'firearms' },
   ]
 
+  if (loading) {
+    return (
+      <section className="faculty-overview-page">
+        <DashboardLoading label="Loading dashboard…" />
+      </section>
+    )
+  }
+
   return (
     <section className="faculty-overview-page" aria-labelledby="faculty-overview-title">
       <div className="faculty-overview-heading">
@@ -68,7 +77,7 @@ export default function FacultyOverviewPanel({ attempts, classes, enrollments, f
       </div>
 
       <div className="faculty-overview-metrics">
-        {stats.map((stat) => <article key={stat.label}><div><span>{stat.label}</span><i><OverviewIcon name={stat.icon} /></i></div><strong>{loading ? '—' : stat.value}</strong><small>{stat.detail}</small></article>)}
+        {stats.map((stat) => <article key={stat.label}><div><span>{stat.label}</span><i><OverviewIcon name={stat.icon} /></i></div><strong>{loading ? 'Loading…' : stat.value}</strong><small>{stat.detail}</small></article>)}
       </div>
 
       <div className="faculty-overview-grid">

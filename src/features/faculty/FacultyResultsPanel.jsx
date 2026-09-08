@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import useAuth from '../../auth/useAuth.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 import { supabase } from '../../lib/supabase.js'
 import {
   aggregateQuestionResults,
@@ -272,7 +273,7 @@ export default function FacultyResultsPanel({ selectedClass }) {
       {exportError && <div className="alert alert-error" role="alert">{exportError}</div>}
 
       {!selectedClass ? null : loading ? (
-        <p>Loading results...</p>
+        <DashboardLoading label="Loading results…" />
       ) : error ? (
         <div className="alert alert-error" role="alert">{error}</div>
       ) : activity.length === 0 ? (

@@ -1298,7 +1298,7 @@ button.submitted-attempts-row:focus-visible { outline: 2px solid var(--accent); 
   left: 34px;
 }
 .admin-reference-shell .dashboard-page { background: #f5f7f6; }
-.admin-reference-shell .dashboard-page::before { display: block; height: 54px; border-bottom: 1px solid #b8c1bb; background: #fff; content: ''; }
+.admin-reference-shell .dashboard-page::before { display: none; height: 0; border: 0; content: none; }
 .admin-reference-sidebar .admin-navigation button { color: #5f6b63; font-weight: 400; }
 .admin-reference-sidebar .admin-navigation button span { color: currentColor; }
 .admin-reference-sidebar .admin-navigation button.active { color: #109d1a; background: rgb(16 157 26 / 12%); font-weight: 500; }
@@ -1758,6 +1758,25 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .student-recent-results td small { margin-top: 4px; color: var(--admin-muted); }
 .student-recent-results .passed { padding: 3px 9px; border-radius: 99px; color: #07951a; background: #e9f8eb; }
 .student-recent-results .review { padding: 3px 9px; border-radius: 99px; color: #c52222; background: #ffeded; }
+.student-result-disclosures { display: grid; }
+.student-result-disclosure { border-top: 1px solid var(--admin-border); }
+.student-result-disclosure:first-child { border-top: 0; }
+.student-result-disclosure summary { display: grid; min-height: 64px; grid-template-columns: minmax(0, 1fr) auto 18px; align-items: center; gap: 14px; padding: 12px 22px; cursor: pointer; list-style: none; }
+.student-result-disclosure summary::-webkit-details-marker { display: none; }
+.student-result-disclosure summary:hover { background: var(--admin-muted-surface); }
+.student-result-name strong, .student-result-name small { display: block; }
+.student-result-name strong { overflow: hidden; font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.student-result-name small { margin-top: 2px; color: var(--admin-muted); font-size: 0.65rem; }
+.student-result-score { color: #109d1a; font-size: 0.85rem; }
+.student-result-disclosure summary > svg { width: 17px; height: 17px; fill: none; stroke: var(--admin-muted); stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; transition: transform 160ms ease; }
+.student-result-disclosure[open] summary > svg { transform: rotate(180deg); }
+.student-result-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: end; gap: 14px; padding: 13px 22px 16px; border-top: 1px solid var(--admin-border); background: var(--admin-muted-surface); }
+.student-result-details p { min-width: 0; margin: 0; }
+.student-result-details p > span, .student-result-details p > strong { display: block; }
+.student-result-details p > span { margin-bottom: 5px; color: var(--admin-muted); font-size: 0.61rem; font-weight: 700; text-transform: uppercase; }
+.student-result-details p > strong { overflow: hidden; font-size: 0.69rem; text-overflow: ellipsis; white-space: nowrap; }
+.student-result-details > a { padding: 7px 10px; border: 1px solid var(--admin-border); border-radius: 7px; color: var(--admin-text); background: var(--admin-card); font-size: 0.68rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.student-result-details > a:hover { border-color: #109d1a; color: #109d1a; }
 .student-results-page .student-page-heading p { margin: 7px 0 0; color: var(--admin-muted); font-size: 0.78rem; }
 .student-results-list { margin-top: 18px; }
 .student-results-list > div { display: grid; }
@@ -1771,6 +1790,10 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .student-result-grade span { margin-top: 3px; color: var(--admin-muted); font-size: 0.65rem; }
 .student-results-list article > a { padding: 8px 11px; border: 1px solid var(--admin-border); border-radius: 7px; color: var(--admin-text); font-size: 0.7rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .student-results-list article > a:hover { border-color: #109d1a; color: #109d1a; }
+.student-results-pagination { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--admin-border); }
+.student-results-pagination span { color: var(--admin-muted); font-size: 0.68rem; text-align: center; }
+.student-results-pagination button { padding: 8px 11px; border: 1px solid var(--admin-border); border-radius: 7px; color: var(--admin-text); background: var(--admin-card); font-size: 0.7rem; cursor: pointer; }
+.student-results-pagination button:disabled { opacity: 0.45; cursor: default; }
 .student-empty { padding: 18px 22px; color: var(--admin-muted); font-size: 0.74rem; }
 .student-class-tabs { display: flex; width: fit-content; margin-top: 26px; border-bottom: 1px solid var(--admin-border); }
 .student-class-tabs button { padding: 10px 18px; border: 0; border-bottom: 2px solid transparent; color: var(--admin-muted); background: transparent; cursor: pointer; }
@@ -1782,6 +1805,7 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .student-class-list > button.history-only { cursor: default; }
 .student-empty-state { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; margin: 16px; padding: 18px; border: 1px solid var(--admin-border); border-radius: 10px; background: var(--admin-muted-surface); }
 .student-empty-state > span { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 50%; color: #109d1a; background: var(--admin-card); font-size: 1.1rem; font-weight: 700; }
+.student-empty-state > span svg { width: 18px; height: 18px; }
 .student-empty-state strong { display: block; font-size: 0.8rem; }
 .student-empty-state p { margin: 5px 0 0; color: var(--admin-muted); font-size: 0.7rem; line-height: 1.5; }
 .student-empty-state > button { min-height: 36px; padding: 8px 12px; border: 1px solid #109d1a; border-radius: 7px; color: #fff; background: #109d1a; font-size: 0.7rem; font-weight: 700; cursor: pointer; }
@@ -1813,7 +1837,7 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .student-resource-grid strong { margin-top: 18px; font-size: 0.78rem; }
 .student-resource-grid small { margin-top: 6px; min-height: 35px; color: var(--admin-muted); font-size: 0.68rem; line-height: 1.4; }
 .student-resource-grid footer { display: flex; justify-content: space-between; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--admin-border); color: var(--admin-muted); font-size: 0.65rem; }
-.student-firearm-card { display: flex; min-height: 330px; flex-direction: column; gap: 14px; overflow: hidden; padding: 20px; border: 1px solid var(--admin-border); border-radius: 10px; color: var(--admin-text); background: var(--admin-card); }
+.student-firearm-card { display: flex; min-height: 250px; flex-direction: column; gap: 14px; overflow: hidden; padding: 20px; border: 1px solid var(--admin-border); border-radius: 10px; color: var(--admin-text); background: var(--admin-card); }
 .student-firearm-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .student-firearm-heading strong, .student-firearm-heading span { display: block; }
 .student-firearm-heading strong { margin: 0; font-size: 0.82rem; }
@@ -1825,9 +1849,20 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .student-firearm-card dt { color: var(--admin-muted); font-size: 0.58rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .student-firearm-card dd { margin: 3px 0 0; font-size: 0.68rem; text-transform: capitalize; }
 .student-firearm-tutorial { color: #109d1a; font-size: 0.66rem; font-weight: 700; text-decoration: none; }
-.student-firearm-card > footer { margin-top: auto; }
+.student-firearm-card > footer { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: auto; }
 .student-firearm-card > footer a { display: flex; min-height: 38px; align-items: center; justify-content: center; width: 100%; border: 1px solid var(--admin-border); border-radius: 7px; color: var(--admin-text); font-size: 0.72rem; font-weight: 700; text-decoration: none; }
 .student-firearm-card > footer a:hover { border-color: #109d1a; color: #109d1a; }
+.student-class-settings-panel { width: min(100%, 620px); margin-top: 20px; padding: 22px; }
+.student-class-settings-panel h2 { margin: 0; font-size: 0.9rem; }
+.student-class-settings-panel p { margin: 12px 0 18px; color: var(--admin-muted); font-size: 0.74rem; line-height: 1.55; }
+.student-class-settings-panel > button { padding: 8px 13px; border: 1px solid #b42318; border-radius: 7px; color: #b42318; background: var(--admin-card); font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: border-color 150ms ease, color 150ms ease, background 150ms ease, transform 150ms ease; }
+.student-class-settings-panel > button:hover { border-color: #8f1c13; color: #fff; background: #b42318; transform: translateY(-1px); }
+.student-class-settings-panel > button:focus-visible { outline: 3px solid rgb(180 35 24 / 22%); outline-offset: 2px; }
+.dashboard-loading-state { display: flex; min-height: 240px; align-items: center; justify-content: center; gap: 10px; color: var(--admin-muted); font-size: 0.78rem; }
+.dashboard-loading-spinner { width: 18px; height: 18px; border: 2px solid var(--admin-border); border-top-color: #109d1a; border-radius: 50%; animation: dashboard-loading-spin 700ms linear infinite; }
+.dashboard-loading-screen { width: 100%; min-height: clamp(180px, 35vh, 320px); }
+.dashboard-loading-route { min-height: clamp(260px, 60vh, 640px); }
+@keyframes dashboard-loading-spin { to { transform: rotate(360deg); } }
 .student-assessment-section { width: 100%; margin-top: 22px; }
 .student-class-detail .student-filter-select { position: relative; display: flex !important; width: min(100%, 230px); flex-direction: column; align-items: stretch; gap: 7px; margin-top: 22px; color: var(--admin-muted); font-size: 0.66rem; font-weight: 700; }
 .student-class-detail .student-filter-select::after { position: absolute; right: 14px; bottom: 16px; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; color: var(--admin-muted); content: ''; pointer-events: none; transform: rotate(45deg); transform-origin: center; }
@@ -2386,8 +2421,12 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .student-class-settings-list button:hover, .student-class-settings-list button:focus-visible { color: #fff; background: #dc2626; outline: none; }
 .student-class-settings-empty { margin: 18px 0 0; padding: 16px; border-radius: 8px; color: var(--admin-muted); background: var(--admin-muted-surface); font-size: 0.72rem; }
 .student-leave-dialog label { display: grid; gap: 7px; margin-top: 18px; color: var(--admin-text); font-size: 0.72rem; }
+.student-leave-dialog label > span { display: inline; }
+.student-leave-dialog label > span strong { display: inline; }
 .student-leave-dialog input { width: 100%; min-height: 42px; padding: 8px 11px; border: 1px solid var(--admin-border); border-radius: 7px; color: var(--admin-text); background: var(--admin-card); }
 .student-leave-dialog input:focus { border-color: #dc2626; outline: 3px solid rgb(220 38 38 / 14%); }
+:root:not([data-theme='light']) .student-class-settings-panel > button { border-color: #f87171; color: #fca5a5; background: var(--admin-card); }
+:root:not([data-theme='light']) .student-class-settings-panel > button:hover { border-color: #ef4444; color: #fff; background: #b42318; }
 .admin-settings-shell .account-settings-page .admin-settings-form { max-width: none; margin-top: 1.25rem; }
 .admin-settings-shell .account-settings-page input {
   height: 40px;
@@ -2700,10 +2739,17 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   .role-dashboard-redesign.sidebar-collapsed .admin-reference-sidebar {
     position: sticky;
     z-index: 1200;
+    inset: auto;
     top: 0;
     width: 100%;
+    height: auto;
     min-height: 54px;
+    max-height: none;
     padding: 0;
+  }
+  .role-dashboard-redesign.sidebar-collapsed .admin-reference-sidebar {
+    height: 54px;
+    max-height: 54px;
   }
   .admin-reference-sidebar .admin-sidebar-brand { min-height: 54px; padding: 0 16px; }
   .admin-reference-sidebar .sidebar-toggle { position: static; margin-left: auto; }
@@ -2799,7 +2845,7 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   .faculty-class-workspace { padding: 22px 20px 30px; }
   .student-resource-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-firearm-live-card,
-  .student-firearm-card { min-height: 320px; }
+  .student-firearm-card { min-height: 250px; }
   .admin-firearm-live-card,
   .student-firearm-card,
   .faculty-release-card {
@@ -2819,8 +2865,26 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 }
 
 @media (max-width: 760px) {
+  .admin-reference-shell.role-dashboard-redesign .dashboard-page::before,
+  .admin-reference-shell.role-dashboard-redesign.sidebar-collapsed .dashboard-page::before {
+    display: none !important;
+    height: 0;
+    border: 0;
+    content: none;
+  }
+
   .student-reference-shell .dashboard-page,
   .faculty-reference-shell .dashboard-page { min-width: 0; }
+
+  .student-reference-page,
+  .faculty-overview-page,
+  .faculty-classes-page,
+  .faculty-analytics-page,
+  .faculty-class-workspace,
+  .admin-overview-page,
+  .admin-accounts-page,
+  .admin-firearms-page,
+  .admin-audit-page { padding-top: 10px; }
 
   .student-assessment-page { min-height: calc(100dvh - 54px); padding: 18px 12px 26px; }
   .student-assessment-complete { padding-block: 18px; }
@@ -2861,6 +2925,12 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 
   .student-recent-results { overflow: visible; border: 0; background: transparent; }
   .student-recent-results > header { border: 1px solid var(--admin-border); border-radius: 10px 10px 0 0; background: var(--admin-card); }
+  .student-result-disclosures { overflow: hidden; border: 1px solid var(--admin-border); border-top: 0; border-radius: 0 0 10px 10px; background: var(--admin-card); }
+  .student-result-disclosure summary { min-height: 58px; gap: 9px; padding: 10px 13px; }
+  .student-result-name strong { font-size: 0.7rem; }
+  .student-result-name small { margin-top: 1px; }
+  .student-result-details { grid-template-columns: 1fr 1fr; padding: 12px 13px 14px; }
+  .student-result-details > a { grid-column: 1 / -1; text-align: center; }
   .student-recent-results table,
   .student-recent-results tbody { display: block; }
   .student-recent-results thead { display: none; }
@@ -2887,7 +2957,7 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   .student-code-visibility { width: 44px; height: 44px; }
   .student-resource-grid { gap: 12px; }
   .admin-firearm-live-card,
-  .student-firearm-card { min-height: 300px; gap: 12px; padding: 16px; }
+  .student-firearm-card { min-height: 240px; gap: 12px; padding: 16px; }
   .admin-firearm-live-card,
   .student-firearm-card,
   .faculty-release-card {

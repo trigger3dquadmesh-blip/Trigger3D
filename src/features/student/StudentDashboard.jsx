@@ -6,11 +6,15 @@ import { supabase } from '../../lib/supabase.js'
 import AdminSettings from '../admin/AdminSettings.jsx'
 import StudentSidebar from './StudentSidebar.jsx'
 import { StudentClassDetail, StudentClasses, StudentJoinDialog, StudentOverview, StudentResults } from './StudentDashboardPanels.jsx'
-import { getSavedDashboardPage, saveDashboardPage } from '../../components/dashboard-location.js'
+import { getSavedDashboardPage } from '../../components/dashboard-location.js'
 import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
+import useResponsiveSidebar from '../../components/useResponsiveSidebar.js'
+import useDashboardTransition from '../../components/useDashboardTransition.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 const studentPages = ['overview', 'classes', 'class', 'results']
 const studentDashboardPageKey = 'trigger3d.student.active-page'
+const studentLoadingLabels = { overview: 'Loading dashboard…', classes: 'Loading classes…', class: 'Loading class…', results: 'Loading results…' }
 
 export default function StudentDashboard() {
   return <LiveStudentDashboard />
@@ -33,18 +37,12 @@ function LiveStudentDashboard() {
   const [activePage, setActivePage] = useState(() => (
     getSavedDashboardPage(localStorage, studentDashboardPageKey, studentPages, 'overview')
   ))
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.matchMedia('(min-width: 1025px)').matches)
+  const [sidebarCollapsed, setSidebarCollapsed] = useResponsiveSidebar()
   const [selectedClassId, setSelectedClassId] = useState('')
   const [joinOpen, setJoinOpen] = useState(false)
+  const { navigate: transitionTo, pendingPage } = useDashboardTransition(activePage, setActivePage, studentDashboardPageKey)
 
   useAutoDismissNotice(notice, () => setNotice(''))
-
-  useEffect(() => {
-    const desktopLayout = window.matchMedia('(min-width: 1025px)')
-    const updateSidebar = (event) => setSidebarCollapsed(event.matches)
-    desktopLayout.addEventListener('change', updateSidebar)
-    return () => desktopLayout.removeEventListener('change', updateSidebar)
-  }, [])
 
   const loadEnrollment = useCallback(async () => {
     const { data, error: enrollmentError } = await supabase
@@ -221,9 +219,7 @@ function LiveStudentDashboard() {
   const selectedEnrollment = enrollments.find((item) => item.status === 'active' && item.class?.id === selectedClassId)
 
   function navigateSection(section) {
-    setActivePage(section)
-    saveDashboardPage(localStorage, studentDashboardPageKey, section)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    transitionTo(section)
   }
 
   function openClass(classId) {
@@ -272,11 +268,13 @@ function LiveStudentDashboard() {
       hideUser
       hideHeader
       variant="role-dashboard-redesign admin-reference-shell student-reference-shell"
-      sidebar={<StudentSidebar activePage={activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings profileMenu roleName="Student" sidebar />} />}
+      sidebar={<StudentSidebar activePage={pendingPage || activePage} collapsed={sidebarCollapsed} onNavigate={navigateSection} onToggle={() => setSidebarCollapsed((value) => !value)} settings={<AdminSettings profileMenu roleName="Student" sidebar />} />}
     >
+      {pendingPage ? <section className="student-reference-page"><DashboardLoading label={studentLoadingLabels[pendingPage]} /></section> : <>
       {activePage === 'overview' && <StudentOverview attempts={attempts} enrollments={enrollments} firearms={firearms} loading={loading} onJoin={() => { setError(''); setJoinOpen(true) }} onNavigate={navigateSection} onOpenClass={openClass} releases={releases} />}
-      {activePage === 'classes' && <StudentClasses attempts={attempts} enrollments={enrollments} onOpenClass={openClass} releases={releases} />}
-      {activePage === 'class' && selectedEnrollment && <StudentClassDetail attempts={attempts} components={components} enrollment={selectedEnrollment} firearms={firearms} onBack={() => navigateSection('classes')} releases={releases} studentId={profile?.id} />}
+      {activePage === 'classes' && <StudentClasses attempts={attempts} enrollments={enrollments} loading={loading} onOpenClass={openClass} releases={releases} />}
+      {activePage === 'class' && loading && <section className="student-reference-page"><DashboardLoading label="Loading class…" /></section>}
+      {activePage === 'class' && !loading && selectedEnrollment && <StudentClassDetail attempts={attempts} components={components} enrollment={selectedEnrollment} firearms={firearms} onBack={() => navigateSection('classes')} onLeft={async () => { await loadEnrollment(); navigateSection('classes') }} releases={releases} studentId={profile?.id} />}
       {activePage === 'results' && <StudentResults attempts={attempts} enrollments={enrollments} loading={loading} />}
       {joinOpen && <StudentJoinDialog classCode={classCode} error={error} joining={joining} onChange={setClassCode} onClose={() => { setJoinOpen(false); setError('') }} onSubmit={handleJoinClass} />}
 
@@ -288,6 +286,7 @@ function LiveStudentDashboard() {
           {error || notice}
         </div>
       )}
+      </>}
     </RoleDashboard>
   )
 }

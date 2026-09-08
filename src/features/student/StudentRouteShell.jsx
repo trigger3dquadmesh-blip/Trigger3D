@@ -1,17 +1,11 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import useResponsiveSidebar from '../../components/useResponsiveSidebar.js'
 import AdminSettings from '../admin/AdminSettings.jsx'
 import StudentSidebar from './StudentSidebar.jsx'
 
 export default function StudentRouteShell({ children }) {
   const navigate = useNavigate()
-  const [collapsed, setCollapsed] = useState(() => window.matchMedia('(min-width: 1025px)').matches)
-  useEffect(() => {
-    const desktopLayout = window.matchMedia('(min-width: 1025px)')
-    const updateSidebar = (event) => setCollapsed(event.matches)
-    desktopLayout.addEventListener('change', updateSidebar)
-    return () => desktopLayout.removeEventListener('change', updateSidebar)
-  }, [])
+  const [collapsed, setCollapsed] = useResponsiveSidebar()
   function navigateSection(section) {
     localStorage.setItem('trigger3d.student.active-page', section)
     navigate('/student')

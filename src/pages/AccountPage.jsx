@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import useAuth from '../auth/useAuth.js'
 import { getRoleHomePath } from '../config/roles.js'
+import DashboardLoading from '../components/DashboardLoading.jsx'
 
 export default function AccountPage() {
   const { loading, profileError, role, signOut, user } = useAuth()
@@ -10,7 +11,7 @@ export default function AccountPage() {
   const [signOutError, setSignOutError] = useState('')
 
   if (loading) {
-    return <main className="page status-page">Loading your account…</main>
+    return <main className="page status-page"><DashboardLoading className="dashboard-loading-route" label="Loading your account…" /></main>
   }
 
   if (role) {

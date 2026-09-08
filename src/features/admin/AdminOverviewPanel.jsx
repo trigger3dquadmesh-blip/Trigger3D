@@ -1,3 +1,6 @@
+import { getRecentFirearmEvents } from './admin-overview-utils.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
+
 function DashboardIcon({ name, className = 'h-4 w-4' }) {
   const paths = {
     accounts: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
@@ -25,7 +28,7 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
   const readyFirearms = data.firearms.filter((firearm) => firearm.status === 'ready')
   const activeClasses = data.classes.filter((item) => !item.archived_at)
   const recentAccountEvents = data.auditEvents.filter((item) => item.entity_type === 'profile').slice(0, 4)
-  const recentFirearmEvents = data.auditEvents.filter((item) => item.entity_type === 'firearm').slice(0, 3)
+  const recentFirearmEvents = getRecentFirearmEvents(data.auditEvents, data.firearms)
   const activeProfiles = data.profiles.filter((profile) => !profile.disabled_at)
   const roleCounts = ['student', 'faculty', 'admin'].map((role) => ({ role, count: activeProfiles.filter((profile) => profile.role === role).length }))
   const draftFirearms = data.firearms.filter((firearm) => firearm.status !== 'ready').length
@@ -38,6 +41,14 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
     { label: 'Active Classes', value: activeClasses.length, detail: data.classes.length + ' total', icon: 'classes' },
     { label: 'Submitted Assessments', value: data.assessmentCount, detail: 'Recorded results', icon: 'assessments' },
   ]
+
+  if (loading) {
+    return (
+      <section className="admin-overview-page w-full p-6">
+        <DashboardLoading label="Loading dashboard…" />
+      </section>
+    )
+  }
 
   return (
     <section className="admin-overview-page w-full p-6 text-[#172019]" aria-labelledby="admin-overview-title">
@@ -56,7 +67,7 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#edf0ee] text-[#5f6b63]"><DashboardIcon name={stat.icon} /></span>
             </div>
             <div className="mt-auto">
-              <strong className="block text-2xl font-semibold leading-none">{loading ? '—' : stat.value}</strong>
+              <strong className="block text-2xl font-semibold leading-none">{loading ? 'Loading…' : stat.value}</strong>
               {stat.detail && <span className="mt-1 block text-xs text-[#5f6b63]">{stat.detail}</span>}
             </div>
           </article>
@@ -108,17 +119,17 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
       <div className="admin-overview-insights mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section className="admin-overview-insight-card">
           <header><div><h2>Active Account Breakdown</h2><p>Current users by assigned role</p></div><button onClick={() => onNavigate('accounts')} type="button">View accounts <span aria-hidden="true">›</span></button></header>
-          <dl>{roleCounts.map((item) => <div key={item.role}><dt><span className="admin-overview-role-dot" />{item.role}</dt><dd>{loading ? '—' : item.count}</dd></div>)}</dl>
-          <footer><span>Archived accounts</span><strong>{loading ? '—' : archivedProfiles.length}</strong></footer>
+          <dl>{roleCounts.map((item) => <div key={item.role}><dt><span className="admin-overview-role-dot" />{item.role}</dt><dd>{loading ? 'Loading…' : item.count}</dd></div>)}</dl>
+          <footer><span>Archived accounts</span><strong>{loading ? 'Loading…' : archivedProfiles.length}</strong></footer>
         </section>
 
         <section className="admin-overview-insight-card">
           <header><div><h2>Operational Status</h2><p>Live content and activity indicators</p></div><button onClick={() => onNavigate('audit')} type="button">View audit log <span aria-hidden="true">›</span></button></header>
           <dl>
-            <div><dt>Firearm components</dt><dd>{loading ? '—' : data.componentCount}</dd></div>
-            <div><dt>Firearms not ready</dt><dd>{loading ? '—' : draftFirearms}</dd></div>
-            <div><dt>Archived classes</dt><dd>{loading ? '—' : archivedClasses}</dd></div>
-            <div><dt>Unsubmitted attempts</dt><dd>{loading ? '—' : inProgressAttempts}</dd></div>
+            <div><dt>Firearm components</dt><dd>{loading ? 'Loading…' : data.componentCount}</dd></div>
+            <div><dt>Firearms not ready</dt><dd>{loading ? 'Loading…' : draftFirearms}</dd></div>
+            <div><dt>Archived classes</dt><dd>{loading ? 'Loading…' : archivedClasses}</dd></div>
+            <div><dt>Unsubmitted attempts</dt><dd>{loading ? 'Loading…' : inProgressAttempts}</dd></div>
           </dl>
           <footer><span>Latest recorded activity</span><strong>{loading ? 'Loading…' : formatDate(latestActivity)}</strong></footer>
         </section>

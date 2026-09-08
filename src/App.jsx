@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx'
 import RoleProtectedRoute from './components/RoleProtectedRoute.jsx'
 import { ROLES } from './config/roles.js'
 import ThemeToggle from './components/ThemeToggle.jsx'
+import DashboardLoading from './components/DashboardLoading.jsx'
 
 const HomePage = lazy(() => import('./pages/HomePage.jsx'))
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'))
@@ -24,7 +25,7 @@ const AssessmentPage = lazy(
 )
 
 function RouteLoading() {
-  return <main aria-busy="true" aria-live="polite" className="page status-page">Loading Trigger3D...</main>
+  return <main className="page status-page"><DashboardLoading className="dashboard-loading-route" label="Loading Trigger3D…" /></main>
 }
 
 export default function App() {

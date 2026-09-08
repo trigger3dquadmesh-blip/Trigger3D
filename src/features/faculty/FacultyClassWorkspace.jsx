@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { copyText } from '../../lib/clipboard.js'
 import AssessmentReleasePanel from './AssessmentReleasePanel.jsx'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 import FacultyClassAnalytics from './FacultyClassAnalytics.jsx'
 
 function percentage(value) {
@@ -55,6 +56,8 @@ export default function FacultyClassWorkspace({ attempts, classItem, enrollments
     link.remove()
     URL.revokeObjectURL(url)
   }
+
+  if (loading) return <section className="faculty-class-workspace"><DashboardLoading label="Loading class…" /></section>
 
   return <section className="faculty-class-workspace">
     <button className="faculty-class-back" onClick={onBack} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></svg>Back to Classes</button>

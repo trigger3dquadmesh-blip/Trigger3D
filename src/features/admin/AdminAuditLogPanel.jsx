@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react'
 import { AdminBadge } from './AdminDesignModal.jsx'
 import AdminIcon from './AdminIcon.jsx'
 import { getAuditReason } from './audit-log-reasons.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 function formatDate(value) {
   if (!value) return '—'
   return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
-export default function AdminAuditLogPanel({ auditEvents = [], dataError }) {
+export default function AdminAuditLogPanel({ auditEvents = [], dataError, loading = false }) {
   const [query, setQuery] = useState('')
   const [type, setType] = useState('all')
   const [page, setPage] = useState(1)
@@ -18,6 +19,8 @@ export default function AdminAuditLogPanel({ auditEvents = [], dataError }) {
   const filtered = useMemo(() => events.filter((event) => (type === 'all' || event.category === type) && (!query || `${event.event} ${event.actor} ${event.record} ${event.reason}`.toLowerCase().includes(query.toLowerCase()))), [events, query, type])
   const pages = Math.max(1, Math.ceil(filtered.length / perPage))
   const rows = filtered.slice((page - 1) * perPage, page * perPage)
+
+  if (loading) return <section className="admin-audit-page w-full p-6"><DashboardLoading label="Loading audit log…" /></section>
 
   return (
     <section className="admin-audit-page w-full p-6 text-[#172019]">

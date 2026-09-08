@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { copyText } from '../../lib/clipboard.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 function SmallIcon({ name }) {
   const paths = {
@@ -44,6 +45,8 @@ export default function FacultyClassesPanel({ attempts, className, classes, crea
       return next
     })
   }
+
+  if (loading) return <section className="faculty-classes-page"><DashboardLoading label="Loading classes…" /></section>
 
   return (
     <section className="faculty-classes-page">

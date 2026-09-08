@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 export default function AssessmentReleasePanel({ attempts = [], enrollments = [], onChanged, onViewAnalytics, selectedClass }) {
   const [firearms, setFirearms] = useState([])
@@ -79,7 +80,7 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
           Assessment releases are disabled while this class is archived.
         </div>
       ) : loading ? (
-        <p>Loading assessments...</p>
+        <DashboardLoading label="Loading assessments…" />
       ) : error ? (
         <div className="alert alert-error" role="alert">{error}</div>
       ) : firearms.length === 0 ? (

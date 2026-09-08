@@ -5,8 +5,8 @@ import { isFirearmDeleteConfirmed } from './firearm-utils.js'
 import { supabase } from '../../lib/supabase.js'
 import AdminDesignModal, { AdminBadge, AdminButton, AdminField } from './AdminDesignModal.jsx'
 import AdminIcon from './AdminIcon.jsx'
-import FirearmCardPreview from '../shared/FirearmCardPreview.jsx'
 import { modelCreditHref } from './import/firearm-metadata.js'
+import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 function UploadBundleModal({ onClose, onImported, open }) {
   return (
@@ -99,13 +99,17 @@ export default function AdminFirearmsPanel({ dataError, firearms, loading, onCha
     const { data, error } = await supabase.functions.invoke('admin-firearms', { body: { action: 'delete_firearm', firearm_id: deleteTarget.id } })
     if (error) setActionError(error.message)
     else {
-      setNotice(data.storage_warning ? `${deleteTarget.name} was deleted. ${data.storage_warning}` : `${deleteTarget.name} was permanently deleted.`)
+      const warnings = [data.storage_warning, data.audit_warning].filter(Boolean).join(' ')
+      setNotice(`${deleteTarget.name} was permanently deleted.`)
+      if (warnings) setActionError(`Deletion completed, but follow-up cleanup needs attention. ${warnings}`)
       setDeleteTarget(null)
       setDeleteConfirmation('')
       await onChanged()
     }
     setDeleting(false)
   }
+
+  if (loading) return <section className="admin-firearms-page w-full p-6"><DashboardLoading label="Loading firearms…" /></section>
 
   return (
     <section className="admin-firearms-page w-full p-6 text-[#172019]">
@@ -114,11 +118,9 @@ export default function AdminFirearmsPanel({ dataError, firearms, loading, onCha
       {actionError && <div className="mb-4 rounded-[7px] border border-red-300 bg-red-50 px-4 py-3 text-xs text-red-700" role="alert">{actionError}</div>}
       {notice && <div className="mb-4 rounded-[7px] border border-green-300 bg-green-50 px-4 py-3 text-xs text-green-700" role="status">{notice}</div>}
       <div className="mb-4 flex border-b border-[#b8c1bb]"><button className="border-b-2 border-[#109d1a] px-4 py-2.5 text-sm font-medium text-[#109d1a]" type="button">Active Library <span className="ml-1 rounded-full bg-[#edf0ee] px-1.5 py-0.5 text-[11px]">{firearms.length}</span></button></div>
-      {loading && <p className="text-xs text-[#5f6b63]">Loading firearm library...</p>}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {firearms.map((firearm) => (
-          <article className="admin-firearm-live-card flex min-h-[330px] flex-col gap-[14px] overflow-hidden rounded-[10px] border border-[#b8c1bb] bg-white p-5" key={firearm.id}>
-            <FirearmCardPreview firearm={firearm} />
+          <article className="admin-firearm-live-card flex min-h-[250px] flex-col gap-[14px] overflow-hidden rounded-[10px] border border-[#b8c1bb] bg-white p-5" key={firearm.id}>
             <div className="admin-firearm-heading flex items-start justify-between gap-2"><div><strong className="block text-sm">{firearm.name}</strong><span className="text-xs text-[#5f6b63]">{firearm.identifier}</span></div><AdminBadge status={firearm.status === 'ready' ? 'active' : 'neutral'}>{firearm.status}</AdminBadge></div>
             <div className="admin-firearm-learning-info"><p>{firearm.description || 'No firearm description provided.'}</p><ModelCredit value={firearm.model_credit} />{firearm.tutorial_url && <a href={firearm.tutorial_url} rel="noreferrer" target="_blank"><AdminIcon name="play" /> Watch YouTube tutorial</a>}</div>
             <dl className="admin-firearm-metadata grid grid-cols-2 gap-2 text-xs">{[['Caliber', firearm.caliber], ['Components', firearm.component_count], ['Submitted Results', firearm.assessment_count], ['Imported', firearm.created_at ? new Date(firearm.created_at).toLocaleDateString() : '—']].map(([label, value]) => <div key={label}><dt className="mb-0.5 text-[10px] uppercase tracking-wide text-[#5f6b63]">{label}</dt><dd className="m-0 text-[11px]">{value}</dd></div>)}</dl>

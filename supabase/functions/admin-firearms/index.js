@@ -57,8 +57,20 @@ Deno.serve(async (request) => {
       .from('firearm-models')
       .remove([firearm.glb_storage_path])
 
+    const { error: auditError } = await adminClient.from('audit_events').insert({
+      actor_id: userData.user.id,
+      // Deleted records may no longer satisfy an audit entity foreign key.
+      // The immutable name and deletion details remain available below.
+      entity_id: null,
+      entity_type: 'firearm',
+      event_type: 'Firearm deleted',
+      reason: 'Permanently deleted from the firearm library.',
+      record_label: firearm.name,
+    })
+
     return jsonResponse({
       firearm,
+      audit_warning: auditError ? `Activity logging failed: ${auditError.message}` : null,
       storage_warning: storageError
         ? `The database records were deleted, but Storage cleanup failed: ${storageError.message}`
         : null,
