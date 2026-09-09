@@ -30,6 +30,7 @@ function LiveFacultyDashboard() {
   const [enrollments, setEnrollments] = useState([])
   const [studentSearch, setStudentSearch] = useState('')
   const [className, setClassName] = useState('')
+  const [classTerm, setClassTerm] = useState('Current term')
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [updatingId, setUpdatingId] = useState('')
@@ -133,9 +134,14 @@ function LiveFacultyDashboard() {
       return false
     }
 
+    if (classTerm.trim().length < 2) {
+      setError('Enter a semester or term containing at least 2 characters.')
+      return false
+    }
+
     setCreating(true)
     const { data, error: createError } = await supabase
-      .rpc('create_class', { class_name: className.trim() })
+      .rpc('create_class', { class_name: className.trim(), class_term: classTerm.trim() })
 
     if (createError) {
       setError(createError.message)
@@ -144,6 +150,7 @@ function LiveFacultyDashboard() {
     }
 
     setClassName('')
+    setClassTerm('Current term')
     setNotice(`Class created. Enrollment code: ${data.code}`)
     setCreating(false)
     await loadClasses()
@@ -206,12 +213,16 @@ function LiveFacultyDashboard() {
     const { error: resetError } = await supabase.rpc('reset_student_assessment_attempt', {
       target_attempt_id: attempt.id,
     })
-    if (resetError) setError(resetError.message)
-    else {
+    if (resetError) {
+      setError(resetError.message)
+      setResettingId('')
+      return false
+    } else {
       setNotice('The latest assessment attempt was reset for a retake.')
       await loadClasses()
     }
     setResettingId('')
+    return true
   }
 
   const selectedClass = classes.find((item) => item.id === selectedClassId)
@@ -238,7 +249,7 @@ function LiveFacultyDashboard() {
       {pendingPage ? <section className="faculty-reference-page"><DashboardLoading label={facultyLoadingLabels[pendingPage]} /></section> : <>
       {activePage === 'overview' && <FacultyOverviewPanel attempts={overviewData.attempts} classes={classes} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} onNavigate={navigateSection} releases={overviewData.releases} />}
 
-      {activePage === 'classes' && <FacultyClassesPanel attempts={overviewData.attempts} className={className} classes={classes} creating={creating} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onClassNameChange={setClassName} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} releases={overviewData.releases} />}
+      {activePage === 'classes' && <FacultyClassesPanel attempts={overviewData.attempts} className={className} classTerm={classTerm} classes={classes} creating={creating} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onClassNameChange={setClassName} onClassTermChange={setClassTerm} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} releases={overviewData.releases} />}
 
       {activePage === 'class' && selectedClass && <FacultyClassWorkspace attempts={overviewData.attempts} classItem={selectedClass} enrollments={enrollments} firearms={overviewData.firearms} loading={loading} onArchive={handleArchiveClass} onAssessmentChange={loadClasses} onBack={() => navigateSection('classes')} onResetAttempt={handleResetAttempt} onStatusChange={handleStatusChange} releases={overviewData.releases} resettingId={resettingId} resultRows={overviewData.resultRows} updatingId={updatingId} />}
 

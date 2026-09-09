@@ -14,12 +14,16 @@ function SmallIcon({ name }) {
   return <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" viewBox="0 0 24 24">{paths[name]}</svg>
 }
 
+function HistoryIcon() {
+  return <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg>
+}
+
 function formatActivity(value) {
   if (!value) return 'No activity yet'
   return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
-export default function FacultyClassesPanel({ attempts, className, classes, creating, enrollments, firearms = [], loading, onClassNameChange, onCreateClass, onManageClass, releases }) {
+export default function FacultyClassesPanel({ attempts, className, classTerm, classes, creating, enrollments, firearms = [], loading, onClassNameChange, onClassTermChange, onCreateClass, onManageClass, releases }) {
   const [status, setStatus] = useState('active')
   const [query, setQuery] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
@@ -57,7 +61,7 @@ export default function FacultyClassesPanel({ attempts, className, classes, crea
         </div>
         <label className="faculty-search"><SmallIcon name="search" /><input aria-label="Search classes" onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or code..." type="search" value={query} /></label>
       </div>
-      <div className="faculty-class-table-wrap">
+      <div className="faculty-class-table-wrap faculty-class-desktop-table">
         <table className="faculty-class-table"><thead><tr><th>Class</th><th>Code</th><th>Students</th><th>Assessments</th><th>Completion</th><th>Last Activity</th><th aria-label="Actions" /></tr></thead><tbody>
           {visibleClasses.map((item) => {
             const students = enrollments.filter((entry) => entry.class_id === item.id && entry.status === 'active')
@@ -73,10 +77,33 @@ export default function FacultyClassesPanel({ attempts, className, classes, crea
             return <tr key={item.id}><td><strong>{item.name}</strong><small>{item.archived_at ? 'Archived class' : 'Active class'}</small></td><td><div className="faculty-code-controls"><button aria-label={`Copy class code for ${item.name}`} className={`faculty-code-pill${feedback ? ` ${feedback}` : ''}`} onClick={() => copyClassCode(item.code)} title={feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Copy failed' : 'Copy class code'} type="button"><SmallIcon name="copy" /> <span>{feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Try again' : codeVisible ? item.code : '••••••••'}</span></button><button aria-label={`${codeVisible ? 'Hide' : 'Show'} class code for ${item.name}`} aria-pressed={codeVisible} className="faculty-code-visibility" onClick={() => toggleClassCode(item.id)} title={`${codeVisible ? 'Hide' : 'Show'} class code`} type="button"><SmallIcon name={codeVisible ? 'eyeOff' : 'eye'} /></button></div></td><td><span className="faculty-table-count"><SmallIcon name="students" /> {students.length}</span></td><td><span className="faculty-table-count" title={`${classReleases.length} configured for this class`}><SmallIcon name="assessment" /> {availableAssessmentCount}</span></td><td><div className="faculty-completion"><i><span style={{ width: `${completion}%` }} /></i><span>{completion}%</span></div></td><td>{formatActivity(lastActivity)}</td><td><button className="faculty-manage-class" onClick={() => onManageClass(item.id)} type="button">Manage students <span aria-hidden="true">›</span></button></td></tr>
           })}
         </tbody></table>
-        {!loading && visibleClasses.length === 0 && <p className="faculty-empty-state">No {status} classes match your search.</p>}
+        {!loading && visibleClasses.length === 0 && (status === 'archived' && !query.trim() ? <div className="faculty-class-history-empty"><HistoryIcon /><strong>No archived classes yet</strong><p>Classes you archive will appear here and can be restored whenever needed.</p></div> : <p className="faculty-empty-state">No {status} classes match your search.</p>)}
+      </div>
+      <div className="faculty-class-card-grid">
+          {visibleClasses.map((item) => {
+            const students = enrollments.filter((entry) => entry.class_id === item.id && entry.status === 'active')
+            const activeStudentIds = new Set(students.map((entry) => entry.student_id))
+            const classReleases = releases.filter((entry) => entry.class_id === item.id)
+            const expected = students.length * classReleases.length
+            const activeAttempts = attempts.filter((entry) => entry.class_id === item.id && activeStudentIds.has(entry.student_id))
+            const submitted = activeAttempts.filter((entry) => entry.status === 'submitted').length
+            const completion = expected ? Math.min(100, Math.round((submitted / expected) * 100)) : 0
+            const lastActivity = activeAttempts.map((entry) => entry.submitted_at || entry.started_at).filter(Boolean).sort().at(-1)
+            const feedback = copyFeedback.code === item.code ? copyFeedback.status : ''
+            const codeVisible = visibleCodes.has(item.id)
+            return <article className="faculty-class-card" key={item.id}>
+              <header><h2>{item.name}</h2><span>{item.archived_at ? 'Archived class' : 'Active class'}</span></header>
+              <div className="faculty-class-card-code"><span>Class code</span><div className="faculty-code-controls"><button aria-label={`Copy class code for ${item.name}`} className={`faculty-code-pill${feedback ? ` ${feedback}` : ''}`} onClick={() => copyClassCode(item.code)} title={feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Copy failed' : 'Copy class code'} type="button"><SmallIcon name="copy" /><span>{feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Try again' : codeVisible ? item.code : '••••••••'}</span></button><button aria-label={`${codeVisible ? 'Hide' : 'Show'} class code for ${item.name}`} aria-pressed={codeVisible} className="faculty-code-visibility" onClick={() => toggleClassCode(item.id)} type="button"><SmallIcon name={codeVisible ? 'eyeOff' : 'eye'} /></button></div></div>
+              <dl><div><dt>Students</dt><dd><SmallIcon name="students" />{students.length}</dd></div><div><dt>Assessments</dt><dd title={`${classReleases.length} configured for this class`}><SmallIcon name="assessment" />{classReleases.length}</dd></div></dl>
+              <div className="faculty-class-card-progress"><span>Completion <strong>{completion}%</strong></span><progress aria-label={`Assessment completion for ${item.name}`} max="100" value={completion} /></div>
+              <p className="faculty-class-card-activity"><span>Last activity</span>{formatActivity(lastActivity)}</p>
+              <footer><button className="faculty-manage-class" onClick={() => onManageClass(item.id)} type="button">Open class <span aria-hidden="true">›</span></button></footer>
+            </article>
+          })}
+        {!loading && visibleClasses.length === 0 && (status === 'archived' && !query.trim() ? <div className="faculty-class-history-empty"><HistoryIcon /><strong>No archived classes yet</strong><p>Classes you archive will appear here and can be restored whenever needed.</p></div> : <p className="faculty-empty-state">No {status} classes match your search.</p>)}
       </div>
 
-      {createOpen && <div className="confirmation-backdrop" role="presentation"><section aria-labelledby="create-class-title" aria-modal="true" className="faculty-create-class-dialog" role="dialog"><header><div><h2 id="create-class-title">Create New Class</h2><p>Students join with the generated class code after creation.</p></div><button aria-label="Close create class dialog" onClick={() => setCreateOpen(false)} type="button">×</button></header><form onSubmit={async (event) => { if (await onCreateClass(event)) setCreateOpen(false) }}><label>Class Name<input autoFocus disabled={creating} maxLength="100" minLength="2" onChange={(event) => onClassNameChange(event.target.value)} placeholder="e.g. Introduction to Forensic Ballistics" required value={className} /></label><label>Semester / Term<input disabled readOnly value="Current term" /></label><p className="faculty-create-note">A unique class code will be generated automatically. You can share it with students after creating the class.</p><footer><button disabled={creating} onClick={() => setCreateOpen(false)} type="button">Cancel</button><button className="faculty-primary-action" disabled={creating} type="submit">{creating ? 'Creating...' : 'Create Class'}</button></footer></form></section></div>}
+      {createOpen && <div className="confirmation-backdrop" role="presentation"><section aria-labelledby="create-class-title" aria-modal="true" className="faculty-create-class-dialog" role="dialog"><header><div><h2 id="create-class-title">Create New Class</h2><p>Students join with the generated class code after creation.</p></div><button aria-label="Close create class dialog" onClick={() => setCreateOpen(false)} type="button">×</button></header><form onSubmit={async (event) => { if (await onCreateClass(event)) setCreateOpen(false) }}><label>Class Name<input autoFocus disabled={creating} maxLength="100" minLength="2" onChange={(event) => onClassNameChange(event.target.value)} placeholder="e.g. Introduction to Forensic Ballistics" required value={className} /></label><label>Semester / Term<input disabled={creating} maxLength="60" minLength="2" onChange={(event) => onClassTermChange(event.target.value)} placeholder="e.g. First Semester 2026-2027" required value={classTerm} /></label><p className="faculty-create-note">A unique class code will be generated automatically. You can share it with students after creating the class.</p><footer><button disabled={creating} onClick={() => setCreateOpen(false)} type="button">Cancel</button><button className="faculty-primary-action" disabled={creating} type="submit">{creating ? 'Creating...' : 'Create Class'}</button></footer></form></section></div>}
     </section>
   )
 }

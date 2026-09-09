@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../../auth/useAuth.js'
 import { supabase } from '../../lib/supabase.js'
@@ -214,11 +215,29 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
     setPhotoRemoving(false)
   }
 
+  const signOutConfirmation = confirmSignOut ? createPortal(
+    <div aria-modal="true" className="confirmation-backdrop" role="dialog">
+      <section className="confirmation-dialog" aria-labelledby="sign-out-title">
+        <p className="eyebrow">Account</p>
+        <h2 id="sign-out-title">Sign out?</h2>
+        <p>You will need to sign in again to continue using Trigger3D.</p>
+        <div className="confirmation-actions">
+          <button className="danger-action" disabled={signingOut} onClick={handleSignOut} type="button">{signingOut ? 'Signing out...' : 'Sign out'}</button>
+          <button className="secondary-action" disabled={signingOut} onClick={() => setConfirmSignOut(false)} type="button">Cancel</button>
+        </div>
+      </section>
+    </div>,
+    document.body,
+  ) : null
+
   if (sidebar) {
+    const menuDisplayName = profile?.full_name || roleName
+    const menuInitials = menuDisplayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'A'
+    const menuPhoto = photo || profile?.avatar_url || ''
     return (
       <>
         <button aria-current={active ? 'page' : undefined} aria-expanded={profileMenu ? profileMenuOpen : undefined} aria-haspopup={profileMenu ? 'menu' : undefined} aria-label={`Open ${roleName.toLowerCase()} settings`} className={`admin-settings-toggle sidebar-settings-toggle${profileMenu ? ' profile-menu-toggle' : ''}${active ? ' active' : ''}`} onClick={() => profileMenu ? setProfileMenuOpen((value) => !value) : navigate('/settings')} ref={profileMenuButtonRef} title={`${roleName} settings`} type="button">
-          {profileMenu ? <AdminIcon name="more" /> : <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7.2-3.5a7.4 7.4 0 0 0-.1-1.1l2-1.5-2-3.4-2.4 1a8.2 8.2 0 0 0-1.9-1.1L14.5 3h-4l-.3 2.4a8.2 8.2 0 0 0-1.9 1.1l-2.4-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.2l-2 1.5 2 3.4 2.4-1a8.2 8.2 0 0 0 1.9 1.1l.3 2.4h4l.3-2.4a8.2 8.2 0 0 0 1.9-1.1l2.4 1 2-3.4-2-1.5c.1-.4.1-.7.1-1.1Z" /></svg>}
+          {profileMenu ? <><span className="sidebar-menu-more"><AdminIcon name="more" /></span><span className="sidebar-account-avatar">{menuPhoto ? <img alt="" src={menuPhoto} /> : menuInitials}</span></> : <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7.2-3.5a7.4 7.4 0 0 0-.1-1.1l2-1.5-2-3.4-2.4 1a8.2 8.2 0 0 0-1.9-1.1L14.5 3h-4l-.3 2.4a8.2 8.2 0 0 0-1.9 1.1l-2.4-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.2l-2 1.5 2 3.4 2.4-1a8.2 8.2 0 0 0 1.9 1.1l.3 2.4h4l.3-2.4a8.2 8.2 0 0 0 1.9-1.1l2.4 1 2-3.4-2-1.5c.1-.4.1-.7.1-1.1Z" /></svg>}
           <span>Account settings</span>
         </button>
         {profileMenu && profileMenuOpen && (
@@ -228,19 +247,7 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
             <button className="danger" onClick={() => { setProfileMenuOpen(false); setConfirmSignOut(true) }} role="menuitem" type="button">Sign out</button>
           </div>
         )}
-        {profileMenu && confirmSignOut && (
-          <div aria-modal="true" className="confirmation-backdrop" role="dialog">
-            <section className="confirmation-dialog" aria-labelledby="sidebar-sign-out-title">
-              <p className="eyebrow">Account</p>
-              <h2 id="sidebar-sign-out-title">Sign out?</h2>
-              <p>You will need to sign in again to continue using Trigger3D.</p>
-              <div className="confirmation-actions">
-                <button className="danger-action" disabled={signingOut} onClick={handleSignOut} type="button">{signingOut ? 'Signing out...' : 'Sign out'}</button>
-                <button disabled={signingOut} onClick={() => setConfirmSignOut(false)} type="button">Cancel</button>
-              </div>
-            </section>
-          </div>
-        )}
+        {profileMenu && signOutConfirmation}
       </>
     )
   }
@@ -277,19 +284,7 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
         </form>
       </article>
       <section className="account-settings-page settings-password-card"><h2>Change Password</h2><form className="admin-settings-form" onSubmit={updatePassword}><label>Current Password<input autoComplete="current-password" disabled={passwordSaving} onChange={(event) => setCurrentPassword(event.target.value)} required type="password" value={currentPassword} /></label><div className="settings-password-grid"><label>New Password<input autoComplete="new-password" disabled={passwordSaving} minLength="8" onChange={(event) => setNewPassword(event.target.value)} placeholder="At least 8 characters" required type="password" value={newPassword} /></label><label>Confirm Password<input autoComplete="new-password" disabled={passwordSaving} minLength="8" onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Re-enter new password" required type="password" value={confirmPassword} /></label></div>{passwordError && <div className="alert alert-error" role="alert">{passwordError}</div>}{passwordMessage && <div className="alert alert-success" role="status">{passwordMessage}</div>}<div className="settings-save-row"><button className="button" disabled={passwordSaving} type="submit">{passwordSaving ? 'Updating...' : 'Update Password'}</button></div></form></section>
-      {confirmSignOut && (
-        <div aria-modal="true" className="confirmation-backdrop" role="dialog">
-          <section className="confirmation-dialog" aria-labelledby="sign-out-title">
-            <p className="eyebrow">Account</p>
-            <h2 id="sign-out-title">Sign out?</h2>
-            <p>You will need to sign in again to continue using Trigger3D.</p>
-            <div className="confirmation-actions">
-              <button className="danger-action" disabled={signingOut} onClick={handleSignOut} type="button">{signingOut ? 'Signing out...' : 'Sign out'}</button>
-              <button className="secondary-action" disabled={signingOut} onClick={() => setConfirmSignOut(false)} type="button">Cancel</button>
-            </div>
-          </section>
-        </div>
-      )}
+      {signOutConfirmation}
     </>
   )
 }

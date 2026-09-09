@@ -88,7 +88,7 @@ export default function AdminAnalyticsPanel({ refreshKey = 0 }) {
             <div><strong>{analytics.enrolledStudentCount}</strong><span>Enrolled Students</span></div>
             <div><strong>{analytics.firearmCount}</strong><span>Firearms uploaded</span></div>
             <div>
-              <strong>{analytics.performance.average === null ? '—' : `${analytics.performance.average.toFixed(1)}%`}</strong>
+              <strong>{analytics.performance.average === null ? 'Not available' : `${analytics.performance.average.toFixed(1)}%`}</strong>
               <span>Average assessment score</span>
             </div>
           </div>

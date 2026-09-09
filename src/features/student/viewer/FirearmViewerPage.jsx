@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
+import DashboardLoading from '../../../components/DashboardLoading.jsx'
 import AdminModelViewerPanel from '../../admin/AdminModelViewerPanel.jsx'
+import AdminIcon from '../../admin/AdminIcon.jsx'
 import { supabase } from '../../../lib/supabase.js'
 import { getAssessmentLockKey } from '../assessment/assessment-lock.js'
 import useAuth from '../../../auth/useAuth.js'
@@ -63,7 +65,7 @@ export default function FirearmViewerPage() {
     return () => window.removeEventListener('storage', handleStorage)
   }, [classId, firearmId])
 
-  if (loading) return <main className="page status-page">Loading 3D viewer...</main>
+  if (loading) return <main className="page status-page"><DashboardLoading className="dashboard-loading-route" label="Loading 3D viewer…" /></main>
 
   if (error) {
     return <main className="page"><section className="card"><p className="eyebrow">Viewer unavailable</p><h1>Unable to open firearm</h1><div className="alert alert-error" role="alert">{error}</div><Link className="text-link" to="/student">Back to dashboard</Link></section></main>
@@ -74,7 +76,7 @@ export default function FirearmViewerPage() {
   }
 
   const completed = status?.attempt_status === 'submitted'
-  const headerLeading = <Link className="student-viewer-back" to="/student" aria-label="Back to class">← <span>Back to class</span></Link>
+  const headerLeading = <Link className="student-viewer-back" to="/student" aria-label="Back to class"><AdminIcon name="arrowLeft" /><span>Back to class</span></Link>
   const headerActions = completed ? null : <Link className="student-viewer-assessment" to={`/student/models/${firearmId}/assessment${classQuery}`}>Start Assessment</Link>
 
   return <AdminModelViewerPanel firearms={[firearm]} headerActions={headerActions} headerLeading={headerLeading} initialFirearmId={firearmId} lockSelection />

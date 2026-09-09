@@ -9,6 +9,7 @@ import {
 } from './account-utils.js'
 import { getAccountDraft, saveAccountDraft } from './account-draft.js'
 import useAutoDismissNotice from '../../../components/useAutoDismissNotice.js'
+import DashboardLoading from '../../../components/DashboardLoading.jsx'
 
 const emptyFacultyForm = { fullName: '', email: '', password: '' }
 
@@ -316,7 +317,7 @@ export default function AccountManagementPanel() {
       {notice && <div className="alert alert-success" role="status">{notice}</div>}
 
       {loading ? (
-        <p>Loading accounts...</p>
+        <DashboardLoading label="Loading accounts…" />
       ) : visibleAccounts.length === 0 ? (
         <p>{roleFilter === 'all' ? 'No matching accounts found.' : `No ${roleFilter} accounts found.`}</p>
       ) : (

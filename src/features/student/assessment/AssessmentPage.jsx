@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import DashboardLoading from '../../../components/DashboardLoading.jsx'
+import AdminIcon from '../../admin/AdminIcon.jsx'
 import { supabase } from '../../../lib/supabase.js'
 import useAuth from '../../../auth/useAuth.js'
 import { allQuestionsAnswered, buildSubmission, isAnswered } from './assessment-utils.js'
@@ -14,7 +15,7 @@ import { createQuestionDeadline, secondsUntilDeadline } from './assessment-timer
 import { clearActiveAssessmentSession, markActiveAssessmentSession } from './assessment-session.js'
 
 const QUESTION_TIME_SECONDS = 30
-const TIMED_OUT_ANSWER = '[No answer — time expired]'
+const TIMED_OUT_ANSWER = '[No answer: time expired]'
 const REVIEW_PAGE_SIZE = 5
 
 function readStoredDraft(attemptId) {
@@ -345,7 +346,7 @@ export default function AssessmentPage() {
     const reviewItems = review.slice(reviewStart, reviewStart + REVIEW_PAGE_SIZE)
     return (
       <main className="student-assessment-page student-assessment-complete">
-        <div className="student-assessment-back"><Link onClick={() => localStorage.setItem('trigger3d.student.active-page', 'results')} to="/student">← Back to My Results</Link></div>
+        <div className="student-assessment-back"><Link onClick={() => localStorage.setItem('trigger3d.student.active-page', 'results')} to="/student"><AdminIcon name="arrowLeft" />Back to My Results</Link></div>
         <section className="student-assessment-result">
           <span className="student-assessment-result-icon">✓</span>
           <p className="eyebrow">Assessment complete</p>
@@ -381,10 +382,10 @@ export default function AssessmentPage() {
     const released = status?.is_released
     return (
       <main className="student-assessment-page">
-        <div className="student-assessment-back"><Link to="/student">← Back to class</Link></div>
+        <div className="student-assessment-back"><Link to="/student"><AdminIcon name="arrowLeft" />Back to class</Link></div>
         <section className="student-assessment-intro">
           <header><p className="eyebrow">{classItem?.name || 'Class assessment'}</p><h1>{firearm.name} Component Analysis</h1><span>{firearm.name}</span></header>
-          <div className="student-assessment-facts"><div><strong>{status?.question_count || status?.total_questions || '—'}</strong><span>Questions</span></div><div><strong>{QUESTION_TIME_SECONDS}s</strong><span>Time per question</span></div><div><strong>{status?.question_count ? `~${Math.ceil(status.question_count * QUESTION_TIME_SECONDS / 60)} min` : '—'}</strong><span>Estimated total</span></div></div>
+          <div className="student-assessment-facts"><div><strong>{status?.question_count || status?.total_questions || 'Not available'}</strong><span>Questions</span></div><div><strong>{QUESTION_TIME_SECONDS}s</strong><span>Time per question</span></div><div><strong>{status?.question_count ? `~${Math.ceil(status.question_count * QUESTION_TIME_SECONDS / 60)} min` : 'Not available'}</strong><span>Estimated total</span></div></div>
           <div className="student-assessment-instructions">
             <h2>Before you begin</h2>
             <p><span>○</span> Each question has a {QUESTION_TIME_SECONDS}-second timer and advances automatically when time expires.</p>

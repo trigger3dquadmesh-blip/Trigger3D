@@ -124,7 +124,7 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
         </section>
 
         <section className="admin-overview-insight-card">
-          <header><div><h2>Operational Status</h2><p>Live content and activity indicators</p></div><button onClick={() => onNavigate('audit')} type="button">View audit log <span aria-hidden="true">›</span></button></header>
+          <header><div><h2>System Snapshot</h2><p>Current content and activity counts</p></div><button onClick={() => onNavigate('audit')} type="button">View audit log <span aria-hidden="true">›</span></button></header>
           <dl>
             <div><dt>Firearm components</dt><dd>{loading ? 'Loading…' : data.componentCount}</dd></div>
             <div><dt>Firearms not ready</dt><dd>{loading ? 'Loading…' : draftFirearms}</dd></div>

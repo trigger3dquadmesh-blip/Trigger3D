@@ -353,7 +353,7 @@ export default function FacultyResultsPanel({ selectedClass }) {
                     <span role="cell">{item.firearm_name}</span>
                     <span role="cell">{formatAttemptCount(item.attempt_count)}</span>
                     <strong className="submitted-attempt-score submitted-attempt-score-muted" role="cell">
-                      {item.percentage == null ? '—' : `${Number(item.percentage).toFixed(1)}%`}
+                      {item.percentage == null ? 'Not available' : `${Number(item.percentage).toFixed(1)}%`}
                     </strong>
                     <span className={`submitted-attempt-status ${status.className}`} role="cell">
                       {status.label}

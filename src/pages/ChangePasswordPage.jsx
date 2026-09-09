@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { validatePasswordChange } from '../auth/password.js'
 import useAuth from '../auth/useAuth.js'
+import DashboardLoading from '../components/DashboardLoading.jsx'
 import { getRoleHomePath } from '../config/roles.js'
 import { supabase } from '../lib/supabase.js'
 
@@ -14,7 +15,7 @@ export default function ChangePasswordPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  if (loading) return <main className="page status-page">Loading your account...</main>
+  if (loading) return <main className="page status-page"><DashboardLoading className="dashboard-loading-route" label="Loading your account…" /></main>
   if (!role) return <Navigate to="/account" replace />
 
   async function handleSubmit(event) {

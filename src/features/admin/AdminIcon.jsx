@@ -1,8 +1,11 @@
 const icons = {
   archive: <><path d="M4 7h16v13H4z" /><path d="M3 3h18v4H3zm6 9h6" /></>,
+  arrowLeft: <><path d="m15 18-6-6 6-6" /><path d="M9 12h10" /></>,
   chevronDown: <path d="m6 9 6 6 6-6" />,
+  close: <path d="M6 6l12 12M18 6 6 18" />,
   cube: <><path d="m21 8-9 5-9-5 9-5 9 5Z" /><path d="m3 8 9 5 9-5v8l-9 5-9-5V8Zm9 5v8" /></>,
   eye: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="2.5" /></>,
+  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10h.01" /></>,
   file: <><path d="M6 2h8l4 4v16H6z" /><path d="M14 2v5h5M9 12h6m-6 4h6" /></>,
   more: <><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" /></>,
   panelClose: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16m-4-11-3 3 3 3" /></>,

@@ -101,7 +101,7 @@ export default function FirearmLayoutPanel({ firearms }) {
               <option value="">Select firearm</option>
               {firearms.map((firearm) => (
                 <option value={firearm.id} key={firearm.id}>
-                  {firearm.identifier} — {firearm.name}
+                  {firearm.identifier} · {firearm.name}
                 </option>
               ))}
             </select>

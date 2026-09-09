@@ -47,7 +47,7 @@ export function assessmentStatusDetails(status) {
     submitted: { className: 'active', label: 'Submitted', symbol: '✓' },
     in_progress: { className: 'in-progress', label: 'In progress', symbol: '◐' },
     not_started: { className: 'not-started', label: 'Not started', symbol: '○' },
-    closed: { className: 'removed', label: 'Closed', symbol: '—' },
+    closed: { className: 'removed', label: 'Closed', symbol: '×' },
   }
 
   return details[status] || details.closed

@@ -274,7 +274,7 @@ function LiveStudentDashboard() {
       {activePage === 'overview' && <StudentOverview attempts={attempts} enrollments={enrollments} firearms={firearms} loading={loading} onJoin={() => { setError(''); setJoinOpen(true) }} onNavigate={navigateSection} onOpenClass={openClass} releases={releases} />}
       {activePage === 'classes' && <StudentClasses attempts={attempts} enrollments={enrollments} loading={loading} onOpenClass={openClass} releases={releases} />}
       {activePage === 'class' && loading && <section className="student-reference-page"><DashboardLoading label="Loading class…" /></section>}
-      {activePage === 'class' && !loading && selectedEnrollment && <StudentClassDetail attempts={attempts} components={components} enrollment={selectedEnrollment} firearms={firearms} onBack={() => navigateSection('classes')} onLeft={async () => { await loadEnrollment(); navigateSection('classes') }} releases={releases} studentId={profile?.id} />}
+      {activePage === 'class' && !loading && selectedEnrollment && <StudentClassDetail attempts={attempts} components={components} enrollment={selectedEnrollment} firearms={firearms} onBack={() => navigateSection('classes')} releases={releases} studentId={profile?.id} />}
       {activePage === 'results' && <StudentResults attempts={attempts} enrollments={enrollments} loading={loading} />}
       {joinOpen && <StudentJoinDialog classCode={classCode} error={error} joining={joining} onChange={setClassCode} onClose={() => { setJoinOpen(false); setError('') }} onSubmit={handleJoinClass} />}
 

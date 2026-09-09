@@ -5,7 +5,7 @@ import { getAuditReason } from './audit-log-reasons.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 function formatDate(value) {
-  if (!value) return '—'
+  if (!value) return 'Not available'
   return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
