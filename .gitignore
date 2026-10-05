@@ -8,11 +8,8 @@ dist/
 *.log
 .DS_Store
 .vercel
-supabase/.temp
-supabase/migrations/
-# Keep local Supabase SQL setup, audit, and security scripts out of GitHub.
-# Already tracked legacy SQL files remain tracked unless explicitly removed.
-supabase/*.sql
+# Supabase configuration, functions, migrations, and SQL scripts stay local.
+supabase/
 AGENTS.md
 LANDING_PAGE_DESIGN_STANDARDS.md
 TRIGGER3D_REVISION_ROADMAP.md
