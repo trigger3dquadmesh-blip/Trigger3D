@@ -7,7 +7,7 @@ export function getVerifiedTotpFactors(factors) {
 }
 
 export function needsMfaVerification({ currentLevel, factors, role }) {
-  return role === 'admin'
+  return ['admin', 'faculty'].includes(role)
     && getVerifiedTotpFactors(factors).length > 0
     && currentLevel !== 'aal2'
 }

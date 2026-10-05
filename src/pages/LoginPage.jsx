@@ -262,9 +262,12 @@ export default function LoginPage() {
                 siteKey={turnstileSiteKey}
                 onSuccess={setCaptchaToken}
                 onExpire={() => setCaptchaToken('')}
-                onError={() => {
+                onError={(errorCode) => {
                   setCaptchaToken('')
-                  setError('The security check could not load. Refresh the page and try again.')
+                  const localHint = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+                    ? ' Confirm that this exact site key belongs to the Cloudflare widget where localhost is allowed, then restart the local server.'
+                    : ' Refresh the page and try again.'
+                  setError(`The security check could not load.${localHint}${errorCode ? ` Cloudflare code: ${errorCode}.` : ''}`)
                 }}
                 options={{ theme: 'auto' }}
               />

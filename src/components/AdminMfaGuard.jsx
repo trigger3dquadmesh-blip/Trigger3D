@@ -14,7 +14,7 @@ export default function AdminMfaGuard({ children }) {
 
   useEffect(() => {
     let active = true
-    if (loading || !user || role !== 'admin') {
+    if (loading || !user || !['admin', 'faculty'].includes(role)) {
       // Reset the previous administrator check when the signed-in account changes.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setChecking(false)
@@ -31,7 +31,7 @@ export default function AdminMfaGuard({ children }) {
     ]).then(([factorResult, assuranceResult]) => {
       if (!active) return
       if (factorResult.error || assuranceResult.error) {
-        setError('Administrator security could not be verified. Refresh the page or sign in again.')
+        setError('Account security could not be verified. Refresh the page or sign in again.')
         setChecking(false)
         return
       }
@@ -43,7 +43,7 @@ export default function AdminMfaGuard({ children }) {
       setChecking(false)
     }).catch(() => {
       if (!active) return
-      setError('Administrator security could not be verified. Refresh the page or sign in again.')
+      setError('Account security could not be verified. Refresh the page or sign in again.')
       setChecking(false)
     })
 
@@ -51,7 +51,7 @@ export default function AdminMfaGuard({ children }) {
   }, [loading, role, user])
 
   if (loading || checking) {
-    return <main className="page status-page"><DashboardLoading className="dashboard-loading-route" label="Checking administrator security…" /></main>
+    return <main className="page status-page"><DashboardLoading className="dashboard-loading-route" label="Checking account security…" /></main>
   }
 
   if (error) {

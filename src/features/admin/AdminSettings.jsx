@@ -293,7 +293,7 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
         </form>
       </article>
       <section className="account-settings-page settings-password-card"><h2>Change Password</h2><form className="admin-settings-form" onSubmit={updatePassword}><label>Current Password<input autoComplete="current-password" disabled={passwordSaving} onChange={(event) => setCurrentPassword(event.target.value)} required type="password" value={currentPassword} /></label><div className="settings-password-grid"><label>New Password<input autoComplete="new-password" disabled={passwordSaving} minLength={minimumPasswordLength} onChange={(event) => setNewPassword(event.target.value)} placeholder={`At least ${minimumPasswordLength} characters`} required type="password" value={newPassword} /></label><label>Confirm Password<input autoComplete="new-password" disabled={passwordSaving} minLength={minimumPasswordLength} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Re-enter new password" required type="password" value={confirmPassword} /></label></div>{passwordError && <div className="alert alert-error" role="alert">{passwordError}</div>}{passwordMessage && <div className="alert alert-success" role="status">{passwordMessage}</div>}<div className="settings-save-row"><button className="button" disabled={passwordSaving} type="submit">{passwordSaving ? 'Updating...' : 'Update Password'}</button></div></form></section>
-      {profile?.role === 'admin' && <AdminMfaSettings />}
+      {['admin', 'faculty'].includes(profile?.role) && <AdminMfaSettings roleName={profile.role === 'faculty' ? 'Faculty' : 'Administrator'} />}
       {signOutConfirmation}
     </>
   )

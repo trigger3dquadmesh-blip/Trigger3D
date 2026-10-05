@@ -16,10 +16,12 @@ test('returns only verified TOTP factors', () => {
   assert.deepEqual(factors.map(({ id }) => id), ['verified'])
 })
 
-test('requires a second factor only for an admin with enrolled TOTP below aal2', () => {
+test('requires a second factor for admin and faculty accounts with enrolled TOTP below aal2', () => {
   const factors = { totp: [{ id: 'one', status: 'verified' }] }
   assert.equal(needsMfaVerification({ currentLevel: 'aal1', factors, role: 'admin' }), true)
   assert.equal(needsMfaVerification({ currentLevel: 'aal2', factors, role: 'admin' }), false)
-  assert.equal(needsMfaVerification({ currentLevel: 'aal1', factors, role: 'faculty' }), false)
+  assert.equal(needsMfaVerification({ currentLevel: 'aal1', factors, role: 'faculty' }), true)
+  assert.equal(needsMfaVerification({ currentLevel: 'aal2', factors, role: 'faculty' }), false)
+  assert.equal(needsMfaVerification({ currentLevel: 'aal1', factors, role: 'student' }), false)
   assert.equal(needsMfaVerification({ currentLevel: 'aal1', factors: { totp: [] }, role: 'admin' }), false)
 })

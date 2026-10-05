@@ -23,6 +23,24 @@ import {
 const NO_ANSWER = '[No answer]'
 const TIME_EXPIRED_ANSWER = '[No answer: assessment time expired]'
 const REVIEW_PAGE_SIZE = 5
+const CONNECTION_CHECK_INTERVAL_MS = 8000
+const CONNECTION_CHECK_TIMEOUT_MS = 5000
+
+async function saveCheckpointWithTimeout(payload) {
+  let timeoutId
+  const timeoutResult = new Promise((resolve) => {
+    timeoutId = window.setTimeout(() => resolve({
+      error: new Error('The connection check timed out.'),
+      timedOut: true,
+    }), CONNECTION_CHECK_TIMEOUT_MS)
+  })
+  const result = await Promise.race([
+    supabase.rpc('save_assessment_checkpoint', payload),
+    timeoutResult,
+  ])
+  window.clearTimeout(timeoutId)
+  return result
+}
 
 function readStoredDraft(attemptId) {
   try {
@@ -68,21 +86,32 @@ export default function AssessmentPage() {
   const [durationMinutes, setDurationMinutes] = useState(60)
   const [timeRemaining, setTimeRemaining] = useState(0)
   const [integrityBlocked, setIntegrityBlocked] = useState(null)
+  const [connectionInterrupted, setConnectionInterrupted] = useState(null)
   const [error, setError] = useState('')
   const timeoutSubmittedRef = useRef(false)
   const answersRef = useRef({})
   const integrityViolationRef = useRef(false)
   const assessmentFinishedRef = useRef(false)
   const assessmentPageMountedRef = useRef(false)
+  const connectionInterruptedRef = useRef(false)
+  const connectionReportConfirmedRef = useRef(false)
+  const connectionReportInProgressRef = useRef(false)
+  const currentIndexRef = useRef(0)
+  const timeRemainingRef = useRef(0)
 
   useEffect(() => {
     answersRef.current = answers
   }, [answers])
 
   useEffect(() => {
-    setAssessmentNavigationLock(questions.length > 0 && !result && !integrityBlocked)
+    currentIndexRef.current = currentIndex
+    timeRemainingRef.current = timeRemaining
+  }, [currentIndex, timeRemaining])
+
+  useEffect(() => {
+    setAssessmentNavigationLock(questions.length > 0 && !result && !integrityBlocked && !connectionInterrupted)
     return () => setAssessmentNavigationLock(false)
-  }, [integrityBlocked, questions.length, result])
+  }, [connectionInterrupted, integrityBlocked, questions.length, result])
 
   useEffect(() => {
     let active = true
@@ -136,6 +165,18 @@ export default function AssessmentPage() {
             setError(integrityError.message)
           } else if (integrityStatus?.is_locked) {
             setIntegrityBlocked(integrityStatus)
+          }
+          const { data: checkpoint } = await supabase.rpc('get_my_assessment_checkpoint', {
+            target_attempt_id: statusResult.data.attempt_id,
+          })
+          if (checkpoint?.connection_interrupted_at) {
+            connectionInterruptedRef.current = true
+            setConnectionInterrupted({
+              approved: false,
+              reported: true,
+              questionIndex: checkpoint.question_index,
+              remainingSeconds: checkpoint.remaining_seconds,
+            })
           }
           setAssessmentLock(firearmId, true, classId)
           markActiveAssessmentSession(sessionStorage, user?.id, statusResult.data.attempt_id)
@@ -258,10 +299,13 @@ export default function AssessmentPage() {
         return false
       }
 
-      const { data: refreshedStatus, error: statusError } = await supabase.rpc(
+      const [{ data: refreshedStatus, error: statusError }, { data: checkpoint }] = await Promise.all([
+        supabase.rpc(
         'get_assessment_status',
         { target_class_id: classId, target_firearm_id: firearmId },
-      )
+        ),
+        supabase.rpc('get_my_assessment_checkpoint', { target_attempt_id: data[0].attempt_id }),
+      ])
       const attemptRevision = statusError ? timerStartedAt : refreshedStatus.attempt_started_at
       const maximumSeconds = durationMinutes * 60
       const restoredTime = restoreAssessmentTimeState(
@@ -274,16 +318,26 @@ export default function AssessmentPage() {
             { attemptStartedAt: attemptRevision, questions: data },
           )
         : { answers: {}, currentIndex: 0 }
+      const serverRemaining = Number.isInteger(checkpoint?.remaining_seconds)
+        ? checkpoint.remaining_seconds
+        : null
+      const resumedTime = [restoredTime, serverRemaining]
+        .filter((value) => Number.isInteger(value))
+        .reduce((lowest, value) => Math.min(lowest, value), maximumSeconds)
+      const serverIndex = Math.min(
+        Math.max(Number(checkpoint?.question_index) || 0, 0),
+        Math.max(data.length - 1, 0),
+      )
 
       setQuestions(data)
       setAssessmentLock(firearmId, true, classId)
       markActiveAssessmentSession(sessionStorage, user?.id, data[0].attempt_id)
       setAttemptId(data[0].attempt_id)
       setAttemptStartedAt(attemptRevision)
-      setTimeRemaining(restoredTime ?? maximumSeconds)
+      setTimeRemaining(resumedTime)
       setActivityRecorded(false)
-      setAnswers(draft.answers)
-      setCurrentIndex(draft.currentIndex)
+      setAnswers({ ...(checkpoint?.answers || {}), ...draft.answers })
+      setCurrentIndex(Math.max(draft.currentIndex, serverIndex))
       if (!statusError) setStatus(refreshedStatus)
     }
 
@@ -327,6 +381,11 @@ export default function AssessmentPage() {
       setError(saveError.message)
       return false
     }
+    await supabase.rpc('save_assessment_checkpoint', {
+      target_attempt_id: attemptId,
+      target_question_index: Math.min(currentIndex + 1, Math.max(questions.length - 1, 0)),
+      target_remaining_seconds: timeRemaining,
+    })
     return true
   }
 
@@ -359,7 +418,7 @@ export default function AssessmentPage() {
   }
 
   async function lockAssessmentForIntegrity(reason) {
-    if (!attemptId || integrityViolationRef.current || assessmentFinishedRef.current) return
+    if (!attemptId || integrityViolationRef.current || assessmentFinishedRef.current || connectionInterruptedRef.current) return
     integrityViolationRef.current = true
     const messages = {
       fullscreen_exited: 'Fullscreen mode was exited.',
@@ -399,12 +458,80 @@ export default function AssessmentPage() {
   }, [attemptId])
 
   useEffect(() => {
-    if (!attemptId || !attemptStartedAt || !questions.length || result) return undefined
+    if (!attemptId || !questions.length || result || integrityBlocked) return undefined
+
+    function pauseForConnectionInterruption() {
+      if (connectionInterruptedRef.current) return
+      connectionInterruptedRef.current = true
+      connectionReportConfirmedRef.current = false
+      setConnectionInterrupted({
+        approved: false,
+        reported: false,
+        reporting: false,
+        questionIndex: currentIndexRef.current,
+        remainingSeconds: timeRemainingRef.current,
+        reportError: '',
+      })
+    }
+
+    async function reportInterruption() {
+      if (!connectionInterruptedRef.current || connectionReportConfirmedRef.current || connectionReportInProgressRef.current) return
+      connectionReportInProgressRef.current = true
+      setConnectionInterrupted((current) => current ? { ...current, reporting: true, reportError: '' } : current)
+      const { error: reportError, timedOut } = await Promise.race([
+        supabase.rpc('report_assessment_connection_interruption', {
+          target_attempt_id: attemptId,
+          target_question_index: currentIndexRef.current,
+          target_remaining_seconds: timeRemainingRef.current,
+        }),
+        new Promise((resolve) => window.setTimeout(() => resolve({
+          error: new Error('The request timed out.'),
+          timedOut: true,
+        }), CONNECTION_CHECK_TIMEOUT_MS)),
+      ])
+      connectionReportInProgressRef.current = false
+      connectionReportConfirmedRef.current = !reportError
+      setConnectionInterrupted((current) => current ? {
+        ...current,
+        reported: !reportError,
+        reporting: false,
+        reportError: reportError && !timedOut ? reportError.message : '',
+      } : current)
+    }
+
+    function handleOffline() { pauseForConnectionInterruption() }
+
+    function handleOnline() { void reportInterruption() }
+    const reportRetryTimer = window.setInterval(() => {
+      if (connectionInterruptedRef.current) void reportInterruption()
+    }, 3000)
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('online', handleOnline)
+    return () => {
+      window.clearInterval(reportRetryTimer)
+      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [attemptId, integrityBlocked, questions.length, result])
+
+  useEffect(() => {
+    if (!attemptId || !connectionInterrupted?.reported || connectionInterrupted.approved) return undefined
+    const poll = window.setInterval(async () => {
+      const { data } = await supabase.rpc('get_my_assessment_checkpoint', { target_attempt_id: attemptId })
+      if (data && !data.connection_interrupted_at) {
+        setConnectionInterrupted((current) => current ? { ...current, approved: true } : current)
+      }
+    }, 4000)
+    return () => window.clearInterval(poll)
+  }, [attemptId, connectionInterrupted])
+
+  useEffect(() => {
+    if (!attemptId || !attemptStartedAt || !questions.length || result || connectionInterrupted) return undefined
     const timer = window.setInterval(() => {
       setTimeRemaining((remaining) => Math.max(0, remaining - 1))
     }, 1000)
     return () => window.clearInterval(timer)
-  }, [attemptId, attemptStartedAt, questions.length, result])
+  }, [attemptId, attemptStartedAt, connectionInterrupted, questions.length, result])
 
   useEffect(() => {
     if (!attemptId || !attemptStartedAt || !questions.length || result) return
@@ -417,6 +544,38 @@ export default function AssessmentPage() {
       // Timer recovery is best-effort; Storage restrictions must not block an assessment.
     }
   }, [attemptId, attemptStartedAt, questions.length, result, timeRemaining])
+
+  useEffect(() => {
+    if (!attemptId || !questions.length || result || integrityBlocked || connectionInterrupted) return undefined
+    let checkInProgress = false
+
+    async function verifyConnectionAndSaveCheckpoint() {
+      if (checkInProgress || connectionInterruptedRef.current) return
+      if (!navigator.onLine) {
+        connectionInterruptedRef.current = true
+        setConnectionInterrupted({ approved: false, reported: false, questionIndex: currentIndexRef.current, remainingSeconds: timeRemainingRef.current, reportError: '' })
+        return
+      }
+
+      checkInProgress = true
+      const { error: checkpointError, timedOut } = await saveCheckpointWithTimeout({
+        target_attempt_id: attemptId,
+        target_question_index: currentIndexRef.current,
+        target_remaining_seconds: timeRemainingRef.current,
+      })
+      checkInProgress = false
+      const looksLikeNetworkFailure = timedOut
+        || /failed to fetch|networkerror|network request failed|load failed|err_network/i.test(checkpointError?.message || '')
+      if (!looksLikeNetworkFailure || connectionInterruptedRef.current) return
+      connectionInterruptedRef.current = true
+      setConnectionInterrupted({ approved: false, reported: false, questionIndex: currentIndexRef.current, remainingSeconds: timeRemainingRef.current, reportError: '' })
+    }
+
+    const checkpointTimer = window.setInterval(() => {
+      void verifyConnectionAndSaveCheckpoint()
+    }, CONNECTION_CHECK_INTERVAL_MS)
+    return () => window.clearInterval(checkpointTimer)
+  }, [attemptId, connectionInterrupted, integrityBlocked, questions.length, result])
 
   useEffect(() => {
     if (!attemptId || !questions.length || result || timeRemaining > 0 || timeoutSubmittedRef.current) return
@@ -432,7 +591,7 @@ export default function AssessmentPage() {
   }, [attemptId, questions, result, timeRemaining])
 
   useEffect(() => {
-    if (!attemptId || !questions.length || result || integrityBlocked) return undefined
+    if (!attemptId || !questions.length || result || integrityBlocked || connectionInterrupted) return undefined
 
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) void lockAssessmentForIntegrity('fullscreen_exited')
@@ -454,7 +613,7 @@ export default function AssessmentPage() {
     }
     // Integrity handlers intentionally bind to the active attempt snapshot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attemptId, integrityBlocked, questions.length, result])
+  }, [attemptId, connectionInterrupted, integrityBlocked, questions.length, result])
 
   useEffect(() => {
     if (!attemptId || !questions.length || result) return undefined
@@ -463,7 +622,7 @@ export default function AssessmentPage() {
     return () => {
       assessmentPageMountedRef.current = false
       window.setTimeout(() => {
-        if (assessmentPageMountedRef.current || assessmentFinishedRef.current || integrityViolationRef.current) return
+        if (assessmentPageMountedRef.current || assessmentFinishedRef.current || integrityViolationRef.current || connectionInterruptedRef.current) return
         integrityViolationRef.current = true
         void supabase.rpc('lock_assessment_for_integrity', {
           target_attempt_id: attemptId,
@@ -485,6 +644,33 @@ export default function AssessmentPage() {
         </section>
       </main>
     )
+  }
+
+  if (connectionInterrupted) {
+    async function resumeApprovedAttempt() {
+      try {
+        await document.documentElement.requestFullscreen()
+      } catch {
+        setError('Fullscreen mode is required to resume this assessment.')
+        return
+      }
+      connectionInterruptedRef.current = false
+      connectionReportConfirmedRef.current = false
+      setConnectionInterrupted(null)
+      await startAssessment()
+    }
+
+    const recoveryMessage = connectionInterrupted.approved
+      ? 'Your faculty approved your continuation. Resume when you are ready.'
+      : connectionInterrupted.reported
+        ? `Your continuation request was sent to your faculty. Your saved checkpoint is question ${Number(connectionInterrupted.questionIndex || 0) + 1}.`
+        : !navigator.onLine
+          ? 'Your internet connection is unavailable. Keep this page open while Trigger3D waits to reconnect.'
+          : connectionInterrupted.reporting
+            ? 'Sending your continuation request to your faculty…'
+            : 'Reconnected. Trigger3D is sending your continuation request to your faculty.'
+
+    return <main className="student-assessment-page student-assessment-complete"><section className="student-assessment-result student-assessment-integrity-blocked" role="alert"><span className="student-assessment-result-icon"><AdminIcon name="alertTriangle" /></span><p className="eyebrow">Connection recovery</p><h1>{connectionInterrupted.approved ? 'Continuation approved' : connectionInterrupted.reported ? 'Waiting for faculty approval' : 'Your assessment was paused'}</h1><p>{recoveryMessage}</p><p>Your saved answers, current question, and remaining time are protected. You cannot resume until your faculty approves the request.</p>{connectionInterrupted.reportError && <div className="alert alert-error" role="alert">The request could not be sent yet. Trigger3D will keep retrying automatically.</div>}<footer>{connectionInterrupted.approved ? <button className="primary" onClick={() => void resumeApprovedAttempt()} type="button">Resume in fullscreen</button> : connectionInterrupted.reported ? <Link className="primary" to="/student">Return to student dashboard</Link> : null}</footer></section></main>
   }
 
   if (integrityBlocked) {

@@ -88,7 +88,7 @@ function LiveFacultyDashboard() {
         ? supabase.from('assessment_releases').select('class_id, firearm_id, is_open, updated_at').in('class_id', classIds)
         : Promise.resolve({ data: [] }),
       classIds.length
-        ? supabase.from('assessment_attempts').select('id, class_id, student_id, firearm_id, status, percentage, started_at, submitted_at, has_activity, integrity_locked_at').in('class_id', classIds)
+        ? supabase.from('assessment_attempts').select('id, class_id, student_id, firearm_id, status, percentage, started_at, submitted_at, has_activity, integrity_locked_at, connection_interrupted_at, checkpoint_question_index, checkpoint_remaining_seconds, checkpoint_updated_at').in('class_id', classIds)
         : Promise.resolve({ data: [] }),
       ...classIds.map((classId) => supabase.rpc('get_class_assessment_results', { target_class_id: classId })),
     ])
@@ -274,6 +274,25 @@ function LiveFacultyDashboard() {
     return true
   }
 
+  async function handleResumeInterruptedAttempt(attempt) {
+    setResettingId(attempt.id)
+    setError('')
+    setNotice('')
+    const { error: resumeError } = await supabase.rpc('resume_interrupted_assessment', {
+      target_attempt_id: attempt.id,
+    })
+    if (resumeError) {
+      setError(resumeError.message)
+      setResettingId('')
+      return false
+    }
+    const assessmentName = overviewData.firearms.find((item) => item.id === attempt.firearm_id)?.name || 'Selected assessment'
+    setNotice(`${assessmentName} can now be resumed from the student's saved checkpoint.`)
+    await loadClasses()
+    setResettingId('')
+    return true
+  }
+
   const selectedClass = classes.find((item) => item.id === selectedClassId)
   const filteredEnrollments = useMemo(
     () => filterEnrollmentsByStudentQuery(enrollments, studentSearch),
@@ -300,7 +319,7 @@ function LiveFacultyDashboard() {
 
       {activePage === 'classes' && <FacultyClassesPanel activeTerm={activeTerm} attempts={overviewData.attempts} className={className} classSection={classSection} classes={classes} creating={creating} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onClassNameChange={setClassName} onClassSectionChange={setClassSection} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} releases={overviewData.releases} />}
 
-      {activePage === 'class' && selectedClass && <FacultyClassWorkspace attempts={overviewData.attempts} classItem={selectedClass} enrollments={enrollments} firearms={overviewData.firearms} loading={loading} onArchive={handleArchiveClass} onAssessmentChange={loadClasses} onBack={() => navigateSection('classes')} onResetAttempt={handleResetAttempt} onStatusChange={handleStatusChange} onUpdateDetails={handleUpdateClassDetails} releases={overviewData.releases} resettingId={resettingId} resultRows={overviewData.resultRows} updatingId={updatingId} />}
+      {activePage === 'class' && selectedClass && <FacultyClassWorkspace attempts={overviewData.attempts} classItem={selectedClass} enrollments={enrollments} firearms={overviewData.firearms} loading={loading} onArchive={handleArchiveClass} onAssessmentChange={loadClasses} onBack={() => navigateSection('classes')} onResetAttempt={handleResetAttempt} onResumeInterruptedAttempt={handleResumeInterruptedAttempt} onStatusChange={handleStatusChange} onUpdateDetails={handleUpdateClassDetails} releases={overviewData.releases} resettingId={resettingId} resultRows={overviewData.resultRows} updatingId={updatingId} />}
 
       {activePage === 'students' && loading && <section className="faculty-reference-page"><DashboardLoading label="Loading students…" /></section>}
 

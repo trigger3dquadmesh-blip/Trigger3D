@@ -91,7 +91,7 @@ export default function App() {
         element={
           <ProtectedRoute>
             <RoleProtectedRoute allowedRole={ROLES.FACULTY}>
-              <FacultyDashboard />
+              <AdminMfaGuard><FacultyDashboard /></AdminMfaGuard>
             </RoleProtectedRoute>
           </ProtectedRoute>
         }

@@ -34,13 +34,23 @@ export default function AccountPage() {
 
   return (
     <main className="page account-page">
-      <section className="card">
-        <p className="eyebrow">Account setup required</p>
-        <h1>Role unavailable</h1>
-        <p>{profileError || 'This account does not have a valid Trigger3D role.'}</p>
-        <p className="account-email">{user.email}</p>
+      <section className="account-setup-card">
+        <span className="account-setup-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 9v4m0 3h.01M10.2 4.8 3.4 17a2 2 0 0 0 1.8 3h13.6a2 2 0 0 0 1.8-3L13.8 4.8a2 2 0 0 0-3.6 0Z" /></svg>
+        </span>
+        <p className="account-setup-eyebrow">Account setup required</p>
+        <h1>{profileError ? 'Account access unavailable' : 'Your account needs a role'}</h1>
+        <p className="account-setup-description">
+          {profileError
+            ? 'We could not finish loading your Trigger3D account access. Sign out and try again, or contact an administrator if the problem continues.'
+            : 'An administrator must assign this account a student, faculty, or administrator role before you can continue.'}
+        </p>
+        <div className="account-setup-identity">
+          <span>Signed-in account</span>
+          <strong>{user.email}</strong>
+        </div>
         {signOutError && <div className="alert alert-error" role="alert">{signOutError}</div>}
-        <button className="button" type="button" onClick={handleSignOut} disabled={signingOut}>
+        <button className="account-setup-signout" type="button" onClick={handleSignOut} disabled={signingOut}>
           {signingOut ? 'Signing out...' : 'Sign out'}
         </button>
       </section>
