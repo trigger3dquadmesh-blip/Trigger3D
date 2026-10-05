@@ -30,7 +30,8 @@ function LiveFacultyDashboard() {
   const [enrollments, setEnrollments] = useState([])
   const [studentSearch, setStudentSearch] = useState('')
   const [className, setClassName] = useState('')
-  const [classTerm, setClassTerm] = useState('Current term')
+  const [classSection, setClassSection] = useState('')
+  const [activeTerm, setActiveTerm] = useState(null)
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [updatingId, setUpdatingId] = useState('')
@@ -47,10 +48,23 @@ function LiveFacultyDashboard() {
   useAutoDismissNotice(notice, () => setNotice(''))
 
   const loadClasses = useCallback(async () => {
-    const { data, error: classesError } = await supabase
+    await supabase.rpc('archive_expired_classes')
+    await supabase.rpc('refresh_expired_academic_terms')
+    const activeTermResult = await supabase.from('academic_terms').select('id, academic_year, semester, start_date, end_date, status').eq('status', 'active').maybeSingle()
+    setActiveTerm(activeTermResult.error ? null : activeTermResult.data)
+    let { data, error: classesError } = await supabase
       .from('classes')
-      .select('id, name, code, created_at, archived_at')
+      .select('id, name, subject_name, section, code, term, end_date, academic_term_id, created_at, archived_at')
       .order('created_at', { ascending: false })
+
+    if (classesError && /term|subject_name|section|academic_term_id/i.test(classesError.message || '')) {
+      const legacyResult = await supabase
+        .from('classes')
+        .select('id, name, code, created_at, archived_at')
+        .order('created_at', { ascending: false })
+      data = (legacyResult.data || []).map((item) => ({ ...item, term: 'Current term', end_date: null }))
+      classesError = legacyResult.error
+    }
 
     if (classesError) {
       setError(classesError.message)
@@ -74,7 +88,7 @@ function LiveFacultyDashboard() {
         ? supabase.from('assessment_releases').select('class_id, firearm_id, is_open, updated_at').in('class_id', classIds)
         : Promise.resolve({ data: [] }),
       classIds.length
-        ? supabase.from('assessment_attempts').select('id, class_id, student_id, firearm_id, status, percentage, started_at, submitted_at, has_activity').in('class_id', classIds)
+        ? supabase.from('assessment_attempts').select('id, class_id, student_id, firearm_id, status, percentage, started_at, submitted_at, has_activity, integrity_locked_at').in('class_id', classIds)
         : Promise.resolve({ data: [] }),
       ...classIds.map((classId) => supabase.rpc('get_class_assessment_results', { target_class_id: classId })),
     ])
@@ -130,27 +144,35 @@ function LiveFacultyDashboard() {
     setNotice('')
 
     if (className.trim().length < 2) {
-      setError('Enter a class name containing at least 2 characters.')
+      setError('Enter a subject or course name containing at least 2 characters.')
       return false
     }
-
-    if (classTerm.trim().length < 2) {
-      setError('Enter a semester or term containing at least 2 characters.')
+    if (!classSection.trim()) {
+      setError('Enter the class section.')
+      return false
+    }
+    if (!activeTerm) {
+      setError('No active academic term is available. Ask the administrator to create and activate the semester first.')
       return false
     }
 
     setCreating(true)
-    const { data, error: createError } = await supabase
-      .rpc('create_class', { class_name: className.trim(), class_term: classTerm.trim() })
+    const { data, error: createError } = await supabase.rpc('faculty_create_class_offering', {
+      offering_subject_name: className.trim(),
+      offering_section: classSection.trim(),
+    })
 
     if (createError) {
-      setError(createError.message)
+      const databaseSetupMissing = /faculty_create_class_offering|academic_terms|schema cache/i.test(createError.message || '')
+      setError(databaseSetupMissing
+        ? 'Academic Terms needs its Supabase update. Apply supabase/add-academic-terms.sql in the SQL Editor, then try again.'
+        : createError.message)
       setCreating(false)
       return false
     }
 
     setClassName('')
-    setClassTerm('Current term')
+    setClassSection('')
     setNotice(`Class created. Enrollment code: ${data.code}`)
     setCreating(false)
     await loadClasses()
@@ -192,6 +214,10 @@ function LiveFacultyDashboard() {
 
   async function handleArchiveClass(archiveState) {
     if (!selectedClass) return
+    if (!archiveState && selectedClass.archived_at) {
+      setError('Previous classes are permanent read-only records and cannot be restored or edited.')
+      return
+    }
     setError('')
     setNotice('')
     const { error: archiveError } = await supabase.rpc('set_class_archived', {
@@ -206,11 +232,33 @@ function LiveFacultyDashboard() {
     await loadClasses()
   }
 
+  async function handleUpdateClassDetails(classId, name, term) {
+    const targetClass = classes.find((item) => item.id === classId)
+    if (targetClass?.archived_at) {
+      setError('Previous classes are read-only. Create a new class offering for the new semester.')
+      return false
+    }
+    setError('')
+    setNotice('')
+    const { error: updateError } = await supabase.rpc('update_class_details', {
+      target_class_id: classId,
+      class_name: name.trim(),
+      class_term: term.trim(),
+    })
+    if (updateError) {
+      setError(updateError.message)
+      return false
+    }
+    setNotice('Class details updated.')
+    await loadClasses()
+    return true
+  }
+
   async function handleResetAttempt(attempt) {
     setResettingId(attempt.id)
     setError('')
     setNotice('')
-    const { error: resetError } = await supabase.rpc('reset_student_assessment_attempt', {
+    const { error: resetError } = await supabase.rpc('reset_student_assessment_attempt_with_timer', {
       target_attempt_id: attempt.id,
     })
     if (resetError) {
@@ -218,7 +266,8 @@ function LiveFacultyDashboard() {
       setResettingId('')
       return false
     } else {
-      setNotice('The latest assessment attempt was reset for a retake.')
+      const assessmentName = overviewData.firearms.find((item) => item.id === attempt.firearm_id)?.name || 'Selected assessment'
+      setNotice(`${assessmentName} was reset for this student. No other assessment was changed.`)
       await loadClasses()
     }
     setResettingId('')
@@ -249,9 +298,9 @@ function LiveFacultyDashboard() {
       {pendingPage ? <section className="faculty-reference-page"><DashboardLoading label={facultyLoadingLabels[pendingPage]} /></section> : <>
       {activePage === 'overview' && <FacultyOverviewPanel attempts={overviewData.attempts} classes={classes} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} onNavigate={navigateSection} releases={overviewData.releases} />}
 
-      {activePage === 'classes' && <FacultyClassesPanel attempts={overviewData.attempts} className={className} classTerm={classTerm} classes={classes} creating={creating} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onClassNameChange={setClassName} onClassTermChange={setClassTerm} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} releases={overviewData.releases} />}
+      {activePage === 'classes' && <FacultyClassesPanel activeTerm={activeTerm} attempts={overviewData.attempts} className={className} classSection={classSection} classes={classes} creating={creating} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onClassNameChange={setClassName} onClassSectionChange={setClassSection} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} releases={overviewData.releases} />}
 
-      {activePage === 'class' && selectedClass && <FacultyClassWorkspace attempts={overviewData.attempts} classItem={selectedClass} enrollments={enrollments} firearms={overviewData.firearms} loading={loading} onArchive={handleArchiveClass} onAssessmentChange={loadClasses} onBack={() => navigateSection('classes')} onResetAttempt={handleResetAttempt} onStatusChange={handleStatusChange} releases={overviewData.releases} resettingId={resettingId} resultRows={overviewData.resultRows} updatingId={updatingId} />}
+      {activePage === 'class' && selectedClass && <FacultyClassWorkspace attempts={overviewData.attempts} classItem={selectedClass} enrollments={enrollments} firearms={overviewData.firearms} loading={loading} onArchive={handleArchiveClass} onAssessmentChange={loadClasses} onBack={() => navigateSection('classes')} onResetAttempt={handleResetAttempt} onStatusChange={handleStatusChange} onUpdateDetails={handleUpdateClassDetails} releases={overviewData.releases} resettingId={resettingId} resultRows={overviewData.resultRows} updatingId={updatingId} />}
 
       {activePage === 'students' && loading && <section className="faculty-reference-page"><DashboardLoading label="Loading students…" /></section>}
 

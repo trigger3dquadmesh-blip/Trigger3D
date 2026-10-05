@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { validatePasswordChange } from '../auth/password.js'
+import { minimumPasswordLength, validatePasswordChange } from '../auth/password.js'
 import useAuth from '../auth/useAuth.js'
 import DashboardLoading from '../components/DashboardLoading.jsx'
 import { getRoleHomePath } from '../config/roles.js'
@@ -65,7 +65,7 @@ export default function ChangePasswordPage() {
       <section className="card auth-card change-password-card">
         <p className="eyebrow">Account security</p>
         <h1>Change password</h1>
-        <p>Confirm your current password, then choose a new password containing at least 8 characters.</p>
+        <p>Confirm your current password, then use at least 12 characters with uppercase, lowercase, number, and symbol.</p>
         <p className="account-email">{user.email}</p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -85,7 +85,7 @@ export default function ChangePasswordPage() {
             autoComplete="new-password"
             disabled={submitting}
             id="new-password"
-            minLength="8"
+            minLength={minimumPasswordLength}
             onChange={(event) => setNewPassword(event.target.value)}
             required
             type="password"
@@ -97,7 +97,7 @@ export default function ChangePasswordPage() {
             autoComplete="new-password"
             disabled={submitting}
             id="confirm-new-password"
-            minLength="8"
+            minLength={minimumPasswordLength}
             onChange={(event) => setConfirmPassword(event.target.value)}
             required
             type="password"

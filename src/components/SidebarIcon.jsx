@@ -9,6 +9,7 @@ const paths = {
   results: <><path d="M5 20V10m7 10V4m7 16v-7" /><path d="M3 21h18" /></>,
   upload: <><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5" /><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" /></>,
   audit: <><path d="M4 13h3l2-7 4 13 2-6h5" /><path d="M3 21h18" /></>,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4m10-4v4M3 10h18M7 14h3m4 0h3M7 18h3" /></>,
 }
 
 export default function SidebarIcon({ name }) {

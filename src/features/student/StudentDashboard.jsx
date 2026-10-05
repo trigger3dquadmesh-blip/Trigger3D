@@ -45,15 +45,32 @@ function LiveStudentDashboard() {
   useAutoDismissNotice(notice, () => setNotice(''))
 
   const loadEnrollment = useCallback(async () => {
-    const { data, error: enrollmentError } = await supabase
+    let { data, error: enrollmentError } = await supabase
       .from('enrollments')
       .select(`
         id,
         status,
         enrolled_at,
-        class:classes!enrollments_class_id_fkey(id, name, code, created_at, archived_at, faculty:profiles!classes_faculty_id_fkey(full_name, email))
+        class:classes!enrollments_class_id_fkey(id, name, code, term, created_at, archived_at, faculty:profiles!classes_faculty_id_fkey(full_name, email))
       `)
       .order('enrolled_at', { ascending: false })
+
+    if (enrollmentError && /term/i.test(enrollmentError.message || '')) {
+      const legacyResult = await supabase
+        .from('enrollments')
+        .select(`
+          id,
+          status,
+          enrolled_at,
+          class:classes!enrollments_class_id_fkey(id, name, code, created_at, archived_at, faculty:profiles!classes_faculty_id_fkey(full_name, email))
+        `)
+        .order('enrolled_at', { ascending: false })
+      data = (legacyResult.data || []).map((item) => ({
+        ...item,
+        class: item.class ? { ...item.class, term: 'Current term' } : item.class,
+      }))
+      enrollmentError = legacyResult.error
+    }
 
     if (enrollmentError) {
       setError(enrollmentError.message)

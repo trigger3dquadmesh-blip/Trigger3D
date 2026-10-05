@@ -63,7 +63,11 @@ export default function FirearmLayoutPanel({ firearms }) {
     if (updateError) {
       setError(updateError.message)
     } else {
-      setNotice(`Updated ${updatedCount} component layouts for ${selectedFirearm.name}.`)
+      const { error: auditError } = await supabase.rpc('record_firearm_layout_audit', {
+        target_firearm_id: selectedFirearm.id,
+      })
+      if (auditError) setError(`The layout was updated, but the activity could not be recorded: ${auditError.message}`)
+      else setNotice(`Updated ${updatedCount} component layouts for ${selectedFirearm.name}.`)
     }
 
     setUpdating(false)

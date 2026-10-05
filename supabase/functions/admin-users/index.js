@@ -109,7 +109,17 @@ Deno.serve(async (request) => {
         return jsonResponse({ error: `The Auth user was rolled back because its profile could not be created: ${roleError.message}` }, 500)
       }
 
-      return jsonResponse({ user: profile }, 201)
+      const { error: auditError } = await adminClient.from('audit_events').insert({
+        actor_id: userData.user.id,
+        entity_id: createdData.user.id,
+        entity_type: 'account',
+        event_type: 'Account created',
+        reason: `An ${role} account was created.`,
+        record_label: fullName,
+        details: { operation: 'INSERT', role, email },
+      })
+
+      return jsonResponse({ user: profile, audit_warning: auditError ? `Activity logging failed: ${auditError.message}` : null }, 201)
     }
 
     if (body.action === 'delete_user') {
@@ -117,9 +127,29 @@ Deno.serve(async (request) => {
       if (!targetUserId) return jsonResponse({ error: 'A user ID is required.' }, 400)
       if (targetUserId === userData.user.id) return jsonResponse({ error: 'You cannot delete your own Admin account.' }, 400)
 
+      const { data: targetProfile } = await adminClient
+        .from('profiles')
+        .select('full_name, email, role')
+        .eq('id', targetUserId)
+        .maybeSingle()
+
+      const auditDeletion = async (deletionMode) => {
+        const { error: auditError } = await adminClient.from('audit_events').insert({
+          actor_id: userData.user.id,
+          entity_id: null,
+          entity_type: 'account',
+          event_type: 'Account deleted',
+          reason: 'An administrator permanently deleted this account.',
+          record_label: targetProfile?.full_name || targetProfile?.email || 'Deleted account',
+          details: { operation: 'DELETE', role: targetProfile?.role || null, deletion_mode: deletionMode },
+        })
+        return auditError ? `Activity logging failed: ${auditError.message}` : null
+      }
+
       const { error: deleteError } = await adminClient.auth.admin.deleteUser(targetUserId)
       if (!deleteError) {
-        return jsonResponse({ deleted_user_id: targetUserId, deletion_mode: 'permanent' })
+        const auditWarning = await auditDeletion('permanent')
+        return jsonResponse({ deleted_user_id: targetUserId, deletion_mode: 'permanent', audit_warning: auditWarning })
       }
 
       // Supabase cannot hard-delete Auth users who own Storage objects. Soft-delete
@@ -149,10 +179,12 @@ Deno.serve(async (request) => {
         }, 500)
       }
 
+      const auditWarning = await auditDeletion('anonymized')
       return jsonResponse({
         deleted_user_id: targetUserId,
         deletion_mode: 'anonymized',
         deletion_warning: 'Supabase retained an anonymized Auth tombstone because this user owned a Storage object. The account cannot sign in, and its Trigger3D profile and dependent records were removed.',
+        audit_warning: auditWarning,
       })
     }
 

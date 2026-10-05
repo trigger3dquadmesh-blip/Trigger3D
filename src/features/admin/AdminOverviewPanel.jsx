@@ -57,7 +57,7 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
       </nav>
       <h1 className="mb-6 text-xl font-semibold leading-none tracking-[-0.02em]" id="admin-overview-title">System Overview</h1>
 
-      {error && <div className="mb-5 rounded-[7px] border border-red-300 bg-red-50 px-4 py-3 text-xs text-red-700" role="alert">{error}</div>}
+      {error && <div className="alert alert-error" role="alert">{error}</div>}
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((stat) => (

@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { Turnstile } from '@marsidev/react-turnstile'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { isAllowedStudentEmail, normalizeEmail } from '../auth/email.js'
 import { isValidFullName, normalizeFullName } from '../auth/name.js'
+import { minimumPasswordLength, validateNewPassword } from '../auth/password.js'
 import useAuth from '../auth/useAuth.js'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 import useAutoDismissNotice from '../components/useAutoDismissNotice.js'
@@ -11,6 +13,7 @@ import { supabase } from '../lib/supabase.js'
 const allowedDomain = (
   import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || 'parsu.edu.ph'
 ).replace(/^@/, '')
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() || ''
 
 function getPublicSiteUrl() {
   const configuredUrl = import.meta.env.VITE_PUBLIC_SITE_URL?.trim().replace(/\/$/, '')
@@ -48,6 +51,8 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaKey, setCaptchaKey] = useState(0)
 
   useAutoDismissNotice(notice, () => setNotice(''), 5000)
 
@@ -63,6 +68,8 @@ export default function LoginPage() {
     setConfirmPassword('')
     setShowPassword(false)
     setShowConfirmPassword(false)
+    setCaptchaToken('')
+    setCaptchaKey((key) => key + 1)
   }
 
   async function handleSubmit(event) {
@@ -74,11 +81,6 @@ export default function LoginPage() {
 
     if (!normalizedEmail || (mode !== 'forgot' && !password)) {
       setError(mode === 'forgot' ? 'Enter your email address.' : 'Enter both your email address and password.')
-      return
-    }
-
-    if (mode !== 'forgot' && password.length < 8) {
-      setError('Your password must contain at least 8 characters.')
       return
     }
 
@@ -97,6 +99,17 @@ export default function LoginPage() {
         setError('The passwords do not match.')
         return
       }
+
+      const passwordError = validateNewPassword(password)
+      if (passwordError) {
+        setError(passwordError)
+        return
+      }
+    }
+
+    if (turnstileSiteKey && !captchaToken) {
+      setError('Complete the security check before continuing.')
+      return
     }
 
     setSubmitting(true)
@@ -105,6 +118,7 @@ export default function LoginPage() {
       if (mode === 'forgot') {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
           redirectTo: `${getPublicSiteUrl()}/reset-password`,
+          captchaToken: captchaToken || undefined,
         })
         if (resetError) throw resetError
         setNotice('Password-reset instructions have been sent. Please check your email.')
@@ -113,6 +127,7 @@ export default function LoginPage() {
           email: normalizedEmail,
           password,
           options: {
+            captchaToken: captchaToken || undefined,
             emailRedirectTo: `${getPublicSiteUrl()}/account`,
             data: {
               requested_role: 'student',
@@ -135,6 +150,7 @@ export default function LoginPage() {
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: normalizedEmail,
           password,
+          options: { captchaToken: captchaToken || undefined },
         })
 
         if (signInError) throw signInError
@@ -157,6 +173,8 @@ export default function LoginPage() {
       }
     } catch (authError) {
       setError(authError.message || 'Authentication failed. Please try again.')
+      setCaptchaToken('')
+      setCaptchaKey((key) => key + 1)
     } finally {
       setSubmitting(false)
     }
@@ -215,7 +233,7 @@ export default function LoginPage() {
           </div>
 
           {mode !== 'forgot' && <div className="relative">
-            <input className={`${inputClass} pr-12`} id="password" name="password" placeholder=" " type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength="8" value={password} onChange={(event) => setPassword(event.target.value)} disabled={submitting} required />
+            <input className={`${inputClass} pr-12`} id="password" name="password" placeholder=" " type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'signup' ? minimumPasswordLength : undefined} value={password} onChange={(event) => setPassword(event.target.value)} disabled={submitting} required />
             <label className={labelClass} htmlFor="password">Password</label>
             <button className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-md border-0 bg-transparent text-[var(--auth-muted)] hover:bg-[#109d1a]/10 hover:text-[#109d1a] focus-visible:outline-2 focus-visible:outline-[#109d1a]" type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>
               <svg className="h-5 w-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d={showPassword ? 'M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 4.2A10.8 10.8 0 0 1 12 4c5.2 0 9 5.2 9 8s-3.8 8-9 8a9.7 9.7 0 0 1-5.3-1.6M6.1 6.1C3.9 7.6 3 10 3 12c0 1.1.5 2.3 1.3 3.5' : 'M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z'} /></svg>
@@ -226,7 +244,7 @@ export default function LoginPage() {
 
           {mode === 'signup' && (
             <div className="relative">
-                <input className={`${inputClass} pr-12`} id="confirm-password" name="confirm-password" placeholder=" " type={showConfirmPassword ? 'text' : 'password'} autoComplete="new-password" minLength="8" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} disabled={submitting} required />
+                <input className={`${inputClass} pr-12`} id="confirm-password" name="confirm-password" placeholder=" " type={showConfirmPassword ? 'text' : 'password'} autoComplete="new-password" minLength={minimumPasswordLength} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} disabled={submitting} required />
                 <label className={labelClass} htmlFor="confirm-password">Confirm password</label>
                 <button className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-md border-0 bg-transparent text-[var(--auth-muted)] hover:bg-[#109d1a]/10 hover:text-[#109d1a] focus-visible:outline-2 focus-visible:outline-[#109d1a]" type="button" onClick={() => setShowConfirmPassword((visible) => !visible)} aria-label={showConfirmPassword ? 'Hide password confirmation' : 'Show password confirmation'} aria-pressed={showConfirmPassword}>
                   <svg className="h-5 w-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d={showConfirmPassword ? 'M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 4.2A10.8 10.8 0 0 1 12 4c5.2 0 9 5.2 9 8s-3.8 8-9 8a9.7 9.7 0 0 1-5.3-1.6M6.1 6.1C3.9 7.6 3 10 3 12c0 1.1.5 2.3 1.3 3.5' : 'M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z'} /></svg>
@@ -236,6 +254,22 @@ export default function LoginPage() {
 
           {error && <div className="alert alert-error" role="alert">{error}</div>}
           {notice && <div className="alert alert-success" role="status">{notice}</div>}
+
+          {turnstileSiteKey && (
+            <div className="flex min-h-[65px] justify-center overflow-hidden rounded-lg" aria-label="Security verification">
+              <Turnstile
+                key={`${mode}-${captchaKey}`}
+                siteKey={turnstileSiteKey}
+                onSuccess={setCaptchaToken}
+                onExpire={() => setCaptchaToken('')}
+                onError={() => {
+                  setCaptchaToken('')
+                  setError('The security check could not load. Refresh the page and try again.')
+                }}
+                options={{ theme: 'auto' }}
+              />
+            </div>
+          )}
 
           <button
             className="auth-primary-action mt-1 w-full rounded-lg border-0 bg-[#109d1a] px-5 py-3 font-black text-white transition hover:bg-[#0c7d15] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#109d1a] disabled:cursor-not-allowed disabled:opacity-50"

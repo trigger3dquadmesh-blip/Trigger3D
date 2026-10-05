@@ -133,7 +133,7 @@ export default function FacultyResultsPanel({ selectedClass }) {
     setNotice('')
 
     const { error: requestError } = await supabase.rpc(
-      'reset_student_assessment_attempt',
+      'reset_student_assessment_attempt_with_timer',
       { target_attempt_id: attempt.attempt_id },
     )
 
@@ -397,7 +397,7 @@ export default function FacultyResultsPanel({ selectedClass }) {
             <h2 id="reset-attempt-title">Reset assessment attempt?</h2>
             <p>
               Reset <strong>{resetTarget.student_name}</strong>'s <strong>{resetTarget.firearm_name}</strong> attempt?
-              Their saved score and answers will be removed so they can retake it.
+              Their saved score and answers will be removed so they can retake it. The timer will restart at the full faculty-set duration when they begin again.
             </p>
             {resetError && <div className="alert alert-error" role="alert">{resetError}</div>}
             <div className="confirmation-actions">

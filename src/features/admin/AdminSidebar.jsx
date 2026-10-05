@@ -3,6 +3,7 @@ import useAuth from '../../auth/useAuth.js'
 
 const items = [
   ['overview', 'dashboard', 'Dashboard'],
+  ['terms', 'calendar', 'Academic Terms'],
   ['firearms', 'cube', 'Firearms'],
   ['viewer', 'layers', 'Model Viewer'],
   ['accounts', 'classroom', 'Accounts'],

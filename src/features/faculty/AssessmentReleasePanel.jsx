@@ -9,6 +9,7 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
   const [updatingId, setUpdatingId] = useState('')
   const [error, setError] = useState('')
   const [pendingClose, setPendingClose] = useState(null)
+  const [durationDrafts, setDurationDrafts] = useState({})
 
   const releaseByFirearm = useMemo(
     () => new Map(releases.map((release) => [release.firearm_id, release])),
@@ -28,7 +29,7 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
         .order('created_at'),
       supabase
         .from('assessment_releases')
-        .select('firearm_id, is_open, updated_at')
+        .select('firearm_id, is_open, updated_at, duration_minutes')
         .eq('class_id', selectedClass.id),
     ])
 
@@ -37,6 +38,7 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
     } else {
       setFirearms(firearmResult.data)
       setReleases(releaseResult.data)
+      setDurationDrafts(Object.fromEntries(releaseResult.data.map((release) => [release.firearm_id, release.duration_minutes || 60])))
     }
 
     setLoading(false)
@@ -52,13 +54,19 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
 
   async function toggleRelease(firearm) {
     const isOpen = releaseByFirearm.get(firearm.id)?.is_open ?? false
+    const durationMinutes = Number.parseInt(durationDrafts[firearm.id] ?? 60, 10)
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 480) {
+      setError('Set the total assessment time from 1 to 480 minutes.')
+      return
+    }
     setUpdatingId(firearm.id)
     setError('')
 
-    const { error: updateError } = await supabase.rpc('set_assessment_release', {
+    const { error: updateError } = await supabase.rpc('set_assessment_release_with_duration', {
       target_class_id: selectedClass.id,
       target_firearm_id: firearm.id,
       open_state: !isOpen,
+      assessment_duration_minutes: durationMinutes,
     })
 
     if (updateError) setError(updateError.message)
@@ -89,6 +97,7 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
         <div className="faculty-release-list">
           {firearms.map((firearm) => {
             const isOpen = releaseByFirearm.get(firearm.id)?.is_open ?? false
+            const durationMinutes = durationDrafts[firearm.id] ?? 60
             const activeStudentIds = new Set(enrollments.filter((item) => item.status === 'active').map((item) => item.student?.id || item.student_id))
             const firearmAttempts = attempts.filter((item) => item.class_id === selectedClass.id && item.firearm_id === firearm.id && item.status === 'submitted' && activeStudentIds.has(item.student_id))
             const average = firearmAttempts.length ? firearmAttempts.reduce((sum, item) => sum + Number(item.percentage || 0), 0) / firearmAttempts.length : 0
@@ -96,6 +105,7 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
             return (
               <section className="faculty-release-card" key={firearm.id}>
                 <header><div><h3>{firearm.name} <span className={isOpen ? 'faculty-active-pill' : 'faculty-closed-pill'}>{isOpen ? 'Open' : 'Closed'}</span></h3><p>{firearm.caliber}</p></div><div><button disabled={updatingId === firearm.id} onClick={() => isOpen ? setPendingClose(firearm) : toggleRelease(firearm)} type="button">{updatingId === firearm.id ? 'Saving…' : isOpen ? 'Close Assessment' : 'Open Assessment'}</button>{onViewAnalytics && <button onClick={onViewAnalytics} type="button">View Results</button>}</div></header>
+                <label className="faculty-assessment-duration">Total time for all questions <span><input aria-label={`Total time in minutes for ${firearm.name}`} disabled={isOpen || updatingId === firearm.id} max="480" min="1" onChange={(event) => setDurationDrafts((current) => ({ ...current, [firearm.id]: event.target.value }))} type="number" value={durationMinutes} /> minutes</span><small>{isOpen ? 'Close the assessment before changing its duration.' : 'Students manage this time across the entire assessment.'}</small></label>
                 <dl><div><dt>Attempts</dt><dd>{firearmAttempts.length}</dd></div><div><dt>Avg Score</dt><dd>{average.toFixed(1)}%</dd></div><div><dt>Pass Rate</dt><dd>{Math.round(passing)}%</dd></div><div><dt>Status</dt><dd>{isOpen ? 'Accepting submissions' : 'Not accepting submissions'}</dd></div></dl>
               </section>
             )

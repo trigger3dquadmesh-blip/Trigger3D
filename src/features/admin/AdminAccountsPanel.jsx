@@ -5,6 +5,7 @@ import AdminDesignModal, { AdminBadge, AdminButton, AdminField } from './AdminDe
 import AdminIcon from './AdminIcon.jsx'
 import { isAccountDeleteConfirmed } from './accounts/account-utils.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
+import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
 
 function CreateAccountModal({ onClose, onCreate, open }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'faculty' })
@@ -84,6 +85,8 @@ export default function AdminAccountsPanel({ accounts, dataError, loading, onCha
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  useAutoDismissNotice(notice, () => setNotice(''), 5000)
+  useAutoDismissNotice(error, () => setError(''), 6500)
 
   const filtered = useMemo(() => accounts.filter((account) => (tab === 'archived' ? Boolean(account.disabled_at) : !account.disabled_at) && (role === 'all' || account.role === role) && (!query || ((account.full_name || '') + account.email).toLowerCase().includes(query.toLowerCase()))), [accounts, query, role, tab])
   const selectableAccounts = useMemo(() => filtered.filter((account) => account.id !== user?.id), [filtered, user?.id])
@@ -113,6 +116,7 @@ export default function AdminAccountsPanel({ accounts, dataError, loading, onCha
     if (requestError) setError(await functionErrorMessage(requestError))
     else {
       setNotice((form.role === 'admin' ? 'Administrator' : 'Faculty') + ' account created for ' + data.user.email + '.')
+      if (data.audit_warning) setError(`The account was created, but the activity could not be recorded: ${data.audit_warning}`)
       setTab('active')
       setCreateOpen(false)
       await onChanged()
@@ -150,6 +154,7 @@ export default function AdminAccountsPanel({ accounts, dataError, loading, onCha
     if (requestError) setError(await functionErrorMessage(requestError))
     else {
       setNotice(data.deletion_warning ? `${account.email} was removed. ${data.deletion_warning}` : `${account.email} and its related records were permanently deleted.`)
+      if (data.audit_warning) setError(`The account was deleted, but the activity could not be recorded: ${data.audit_warning}`)
       setTarget(null)
       setDeleteConfirmation('')
       setSelectedAccountIds((current) => current.filter((id) => id !== account.id))
@@ -186,9 +191,9 @@ export default function AdminAccountsPanel({ accounts, dataError, loading, onCha
   return (
     <section className="admin-accounts-page w-full p-6 text-[#172019]">
       <div className="mb-6 flex items-end justify-between gap-4"><div><nav className="mb-2 flex gap-1 text-xs text-[#5f6b63]"><span>Admin</span><span>›</span><span>Accounts</span></nav><h1 className="m-0 text-xl font-semibold">Account Management</h1></div><AdminButton onClick={() => setCreateOpen(true)}><AdminIcon name="userPlus" /> Create Account</AdminButton></div>
-      {dataError && <div className="mb-4 rounded-[7px] border border-red-300 bg-red-50 px-4 py-3 text-xs text-red-700" role="alert">{dataError}</div>}
-      {error && <div className="mb-4 rounded-[7px] border border-red-300 bg-red-50 px-4 py-3 text-xs text-red-700" role="alert">{error}</div>}
-      {notice && <div className="mb-4 rounded-[7px] border border-green-300 bg-green-50 px-4 py-3 text-xs text-green-700" role="status">{notice}</div>}
+      {dataError && <div className="alert alert-error" role="alert">{dataError}</div>}
+      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {notice && <div className="alert alert-success" role="status">{notice}</div>}
       <div className="admin-account-toolbar mb-4 flex flex-col items-end gap-3 sm:flex-row">
         <div className="flex self-stretch border-b border-[#b8c1bb] sm:self-auto">{[['active', 'Active'], ['archived', 'Archived']].map(([id, label]) => <button className={'px-4 py-2.5 text-sm ' + (tab === id ? 'border-b-2 border-[#109d1a] font-medium text-[#109d1a]' : 'text-[#5f6b63]')} key={id} onClick={() => { setTab(id); setSelectedAccountIds([]); setExpandedAccountId(null) }} type="button">{label} <span className="ml-1 rounded-full bg-[#edf0ee] px-1.5 py-0.5 text-[11px]">{count(id)}</span></button>)}</div>
         <div className="admin-account-tools flex gap-2 sm:ml-auto"><label className="admin-account-select-all"><input checked={allVisibleSelected} disabled={selectableAccounts.length === 0} onChange={toggleAllVisible} type="checkbox" /><span>{selectedAccountIds.length ? `${selectedAccountIds.length} selected` : 'Select all'}</span></label>{selectedAccountIds.length > 1 && <><button aria-label={`${tab === 'archived' ? 'Restore' : 'Archive'} ${selectedAccountIds.length} selected accounts`} className="admin-account-bulk-action" disabled={saving} onClick={() => setTarget({ action: tab === 'archived' ? 'restore' : 'archive', accounts: selectableAccounts.filter((account) => selectedAccountIds.includes(account.id)) })} title={`${tab === 'archived' ? 'Restore' : 'Archive'} selected accounts`} type="button"><AdminIcon name={tab === 'archived' ? 'restore' : 'archive'} /><span>{tab === 'archived' ? 'Restore' : 'Archive'}</span></button><button aria-label={`Remove ${selectedAccountIds.length} selected accounts`} className="admin-account-bulk-delete" disabled={saving} onClick={() => { setDeleteConfirmation(''); setTarget({ action: 'bulk-delete', accounts: selectableAccounts.filter((account) => selectedAccountIds.includes(account.id)) }) }} title="Remove selected accounts" type="button"><AdminIcon name="trash" /><span>Remove</span></button></>}<label className="admin-role-filter"><span className="sr-only">Filter accounts by role</span><select className="h-9 rounded-[7px] border border-[#b8c1bb] bg-white px-3 pr-9 text-xs" onChange={(event) => { setRole(event.target.value); setSelectedAccountIds([]); setExpandedAccountId(null) }} value={role}><option value="all">All roles</option><option value="admin">Admin</option><option value="faculty">Faculty</option><option value="student">Student</option></select><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" /></svg></label><label className="admin-search-field"><AdminIcon name="search" /><span className="sr-only">Search accounts</span><input className="h-9 w-56 rounded-[7px] border border-[#b8c1bb] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#109d1a]" onChange={(event) => { setQuery(event.target.value); setSelectedAccountIds([]); setExpandedAccountId(null) }} placeholder="Search name or email..." type="search" value={query} /></label></div>

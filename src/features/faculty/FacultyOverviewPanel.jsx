@@ -87,7 +87,7 @@ export default function FacultyOverviewPanel({ attempts, classes, enrollments, f
             {activeClasses.slice(0, 3).map((item) => {
               const studentCount = activeEnrollments.filter((enrollment) => enrollment.class_id === item.id).length
               const openCount = openReleases.filter((release) => release.class_id === item.id).length
-              return <article key={item.id}><div><h3>{item.name}</h3><span>Active</span></div><p><OverviewIcon name="students" /> {studentCount} {studentCount === 1 ? 'student' : 'students'}</p><footer><small>{openCount > 0 ? `● ${openCount} assessment${openCount === 1 ? '' : 's'} open` : 'No assessments open'}</small><button onClick={() => onManageClass(item.id)} type="button">Manage <span aria-hidden="true">›</span></button></footer></article>
+              return <article key={item.id}><div><h3>{item.name}</h3><span>Active</span></div><small>{item.term || 'Current term'}</small><p><OverviewIcon name="students" /> {studentCount} {studentCount === 1 ? 'student' : 'students'}</p><footer><small>{openCount > 0 ? `● ${openCount} assessment${openCount === 1 ? '' : 's'} open` : 'No assessments open'}</small><button onClick={() => onManageClass(item.id)} type="button">Manage <span aria-hidden="true">›</span></button></footer></article>
             })}
             {!loading && activeClasses.length === 0 && <p className="faculty-empty-state">No active classes yet.</p>}
           </div>

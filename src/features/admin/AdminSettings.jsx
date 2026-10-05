@@ -8,7 +8,7 @@ import AdminIcon from './AdminIcon.jsx'
 import { validatePasswordChange } from '../../auth/password.js'
 import { getAvatarStoragePath } from '../../auth/profile-avatar.js'
 
-export default function AdminSettings({ roleName = 'Administrator', sidebar = false, profileMenu = false, page = false, active = false, standalone = false }) {
+export default function AdminSettings({ roleName = 'Administrator', sidebar = false, profileMenu = false, page = false, active = false, standalone = false, interactionLocked = false }) {
   const { profile, refreshProfile, signOut, user } = useAuth()
   const navigate = useNavigate()
   const [fullName, setFullName] = useState(profile?.full_name || '')
@@ -34,6 +34,14 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
   const [error, setError] = useState('')
 
   useAutoDismissNotice(message, () => setMessage(''))
+
+  useEffect(() => {
+    if (!interactionLocked) return
+    // An assessment lock must immediately close account controls.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProfileMenuOpen(false)
+    setConfirmSignOut(false)
+  }, [interactionLocked])
 
   useEffect(() => {
     if (!profileMenuOpen) return undefined
@@ -236,18 +244,18 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
     const menuPhoto = photo || profile?.avatar_url || ''
     return (
       <>
-        <button aria-current={active ? 'page' : undefined} aria-expanded={profileMenu ? profileMenuOpen : undefined} aria-haspopup={profileMenu ? 'menu' : undefined} aria-label={`Open ${roleName.toLowerCase()} settings`} className={`admin-settings-toggle sidebar-settings-toggle${profileMenu ? ' profile-menu-toggle' : ''}${active ? ' active' : ''}`} onClick={() => profileMenu ? setProfileMenuOpen((value) => !value) : navigate('/settings')} ref={profileMenuButtonRef} title={`${roleName} settings`} type="button">
+        <button aria-current={active ? 'page' : undefined} aria-expanded={profileMenu ? profileMenuOpen : undefined} aria-haspopup={profileMenu ? 'menu' : undefined} aria-label={`Open ${roleName.toLowerCase()} settings`} className={`admin-settings-toggle sidebar-settings-toggle${profileMenu ? ' profile-menu-toggle' : ''}${active ? ' active' : ''}`} disabled={interactionLocked} onClick={() => { if (interactionLocked) return; profileMenu ? setProfileMenuOpen((value) => !value) : navigate('/settings') }} ref={profileMenuButtonRef} title={`${roleName} settings`} type="button">
           {profileMenu ? <><span className="sidebar-menu-more"><AdminIcon name="more" /></span><span className="sidebar-account-avatar">{menuPhoto ? <img alt="" src={menuPhoto} /> : menuInitials}</span></> : <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7.2-3.5a7.4 7.4 0 0 0-.1-1.1l2-1.5-2-3.4-2.4 1a8.2 8.2 0 0 0-1.9-1.1L14.5 3h-4l-.3 2.4a8.2 8.2 0 0 0-1.9 1.1l-2.4-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.2l-2 1.5 2 3.4 2.4-1a8.2 8.2 0 0 0 1.9 1.1l.3 2.4h4l.3-2.4a8.2 8.2 0 0 0 1.9-1.1l2.4 1 2-3.4-2-1.5c.1-.4.1-.7.1-1.1Z" /></svg>}
           <span>Account settings</span>
         </button>
-        {profileMenu && profileMenuOpen && (
+        {profileMenu && profileMenuOpen && !interactionLocked && (
           <div className="admin-profile-options" ref={profileMenuRef} role="menu">
             <button onClick={() => { setProfileMenuOpen(false); navigate('/settings') }} role="menuitem" type="button">Account settings</button>
             <button onClick={toggleTheme} role="menuitem" type="button">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</button>
             <button className="danger" onClick={() => { setProfileMenuOpen(false); setConfirmSignOut(true) }} role="menuitem" type="button">Sign out</button>
           </div>
         )}
-        {profileMenu && signOutConfirmation}
+        {profileMenu && !interactionLocked && signOutConfirmation}
       </>
     )
   }
@@ -270,7 +278,7 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
       <header className="account-settings-title"><p>Settings</p><h1>Account Settings</h1></header>
       <section className="account-settings-page settings-profile-photo">
         <h2>Profile Photo</h2>
-        <div className="settings-photo-row"><div className="settings-photo-avatar-wrap" ref={photoMenuRef}><div className="settings-photo-avatar">{displayPhoto ? <img alt={`${displayName} profile`} src={displayPhoto} /> : <span>{displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'A'}</span>}</div><button aria-expanded={displayPhoto ? photoMenuOpen : undefined} aria-haspopup={displayPhoto ? 'menu' : undefined} aria-label={displayPhoto ? 'Edit profile photo' : 'Choose profile photo'} className="settings-camera-button" disabled={photoRemoving} onClick={handlePhotoEdit} title={displayPhoto ? 'Edit profile photo' : 'Choose profile photo'} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 16-.8 4 4-.8L18.5 7.9l-3.2-3.2L4 16Z" /><path d="m13.8 6.2 3.2 3.2" /></svg></button>{displayPhoto && photoMenuOpen && <div className="settings-photo-menu" role="menu"><button onClick={() => photoInputRef.current?.click()} role="menuitem" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 16V4m-5 5 5-5 5 5" /><path d="M4 15v5h16v-5" /></svg>Upload new photo</button><button className="danger" disabled={photoRemoving} onClick={removePhoto} role="menuitem" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>{photoRemoving ? 'Removing…' : 'Remove photo'}</button></div>}</div><div className="settings-photo-copy"><strong>{displayName}</strong><p>{accountEmail}</p><small>Profile photos may be JPG, PNG, or WebP up to 2 MB.</small></div><input accept="image/png,image/jpeg,image/webp" hidden onChange={updatePhoto} ref={photoInputRef} type="file" /></div>
+        <div className="settings-photo-row"><div className="settings-photo-avatar-wrap" ref={photoMenuRef}><div className="settings-photo-avatar">{displayPhoto ? <img alt={`${displayName} profile`} src={displayPhoto} /> : <span>{displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'A'}</span>}</div><button aria-expanded={displayPhoto ? photoMenuOpen : undefined} aria-haspopup={displayPhoto ? 'menu' : undefined} aria-label={displayPhoto ? 'Edit profile photo' : 'Choose profile photo'} className="settings-camera-button" disabled={photoRemoving} onClick={handlePhotoEdit} title={displayPhoto ? 'Edit profile photo' : 'Choose profile photo'} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h2l1.25-2h4.5l1.25 2h2A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8Z" /><circle cx="12" cy="12.5" r="3.25" /></svg></button>{displayPhoto && photoMenuOpen && <div className="settings-photo-menu" role="menu"><button onClick={() => photoInputRef.current?.click()} role="menuitem" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 16V4m-5 5 5-5 5 5" /><path d="M4 15v5h16v-5" /></svg>Upload new photo</button><button className="danger" disabled={photoRemoving} onClick={removePhoto} role="menuitem" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>{photoRemoving ? 'Removing…' : 'Remove photo'}</button></div>}</div><div className="settings-photo-copy"><strong>{displayName}</strong><p>{accountEmail}</p><small>Profile photos may be JPG, PNG, or WebP up to 2 MB.</small></div><input accept="image/png,image/jpeg,image/webp" hidden onChange={updatePhoto} ref={photoInputRef} type="file" /></div>
       </section>
       <article className={`${standalone ? 'card auth-card' : 'dashboard-card dashboard-card-wide'} account-settings-page`}>
         <div className="settings-heading">

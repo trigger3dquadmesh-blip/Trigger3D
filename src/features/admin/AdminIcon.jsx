@@ -17,6 +17,7 @@ const icons = {
   search: <><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></>,
   trash: <><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6" /></>,
   upload: <><path d="M12 16V4m-5 5 5-5 5 5" /><path d="M4 15v5h16v-5" /></>,
+  alertTriangle: <><path d="M10.3 3.8 2.4 18a2 2 0 0 0 1.8 3h15.6a2 2 0 0 0 1.8-3L13.7 3.8a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4m0 4h.01" /></>,
   userPlus: <><circle cx="9" cy="8" r="4" /><path d="M2 21a7 7 0 0 1 14 0m3-12v6m3-3h-6" /></>,
   explode: <><path d="m12 3 4 2.3-4 2.3-4-2.3L12 3Zm-6 8 4 2.3L6 15.6l-4-2.3L6 11Zm12 0 4 2.3-4 2.3-4-2.3 4-2.3Zm-6 5 4 2.3-4 2.3-4-2.3 4-2.3Z" /></>,
 }

@@ -7,6 +7,7 @@ import AdminDesignModal, { AdminBadge, AdminButton, AdminField } from './AdminDe
 import AdminIcon from './AdminIcon.jsx'
 import { modelCreditHref } from './import/firearm-metadata.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
+import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
 
 function UploadBundleModal({ onClose, onImported, open }) {
   return (
@@ -50,6 +51,8 @@ function UpdateComponentsModal({ firearm, onClose, onUpdated }) {
     const { error: updateError } = await supabase.rpc('update_firearm_component_layout', { model_identifier: firearm.identifier, imported_components: validation.data.components })
     if (updateError) setError(updateError.message)
     else {
+      const { error: auditError } = await supabase.rpc('record_firearm_layout_audit', { target_firearm_id: firearm.id })
+      if (auditError) setError(`The layout was updated, but the activity could not be recorded: ${auditError.message}`)
       await onUpdated()
       onClose()
     }
@@ -74,6 +77,8 @@ export default function AdminFirearmsPanel({ dataError, firearms, loading, onCha
   const [deleting, setDeleting] = useState(false)
   const [actionError, setActionError] = useState('')
   const [notice, setNotice] = useState('')
+  useAutoDismissNotice(notice, () => setNotice(''), 5000)
+  useAutoDismissNotice(actionError, () => setActionError(''), 6500)
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -114,9 +119,9 @@ export default function AdminFirearmsPanel({ dataError, firearms, loading, onCha
   return (
     <section className="admin-firearms-page w-full p-6 text-[#172019]">
       <div className="mb-6 flex items-end justify-between gap-4"><div><nav className="mb-2 flex gap-1 text-xs text-[#5f6b63]"><span>Admin</span><span>›</span><span>Firearms</span></nav><h1 className="m-0 text-xl font-semibold">Firearm Management</h1></div><AdminButton onClick={() => setUploadOpen(true)}><AdminIcon name="upload" /> Upload Bundle</AdminButton></div>
-      {dataError && <div className="mb-4 rounded-[7px] border border-red-300 bg-red-50 px-4 py-3 text-xs text-red-700" role="alert">{dataError}</div>}
-      {actionError && <div className="mb-4 rounded-[7px] border border-red-300 bg-red-50 px-4 py-3 text-xs text-red-700" role="alert">{actionError}</div>}
-      {notice && <div className="mb-4 rounded-[7px] border border-green-300 bg-green-50 px-4 py-3 text-xs text-green-700" role="status">{notice}</div>}
+      {dataError && <div className="alert alert-error" role="alert">{dataError}</div>}
+      {actionError && <div className="alert alert-error" role="alert">{actionError}</div>}
+      {notice && <div className="alert alert-success" role="status">{notice}</div>}
       <div className="mb-4 flex border-b border-[#b8c1bb]"><button className="border-b-2 border-[#109d1a] px-4 py-2.5 text-sm font-medium text-[#109d1a]" type="button">Active Library <span className="ml-1 rounded-full bg-[#edf0ee] px-1.5 py-0.5 text-[11px]">{firearms.length}</span></button></div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {firearms.map((firearm) => (

@@ -1,4 +1,12 @@
 const lockPrefix = 'trigger3d:assessment-lock:'
+export const assessmentNavigationLockEvent = 'trigger3d:assessment-navigation-lock'
+
+export function setAssessmentNavigationLock(locked) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(assessmentNavigationLockEvent, {
+    detail: Boolean(locked),
+  }))
+}
 
 export function getAssessmentLockKey(firearmId, classId = '') {
   return classId

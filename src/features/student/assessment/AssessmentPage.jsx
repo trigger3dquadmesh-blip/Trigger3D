@@ -10,12 +10,18 @@ import {
   getAssessmentDraftKey,
   restoreAssessmentDraft,
 } from './assessment-draft.js'
-import { setAssessmentLock } from './assessment-lock.js'
-import { createQuestionDeadline, secondsUntilDeadline } from './assessment-timer.js'
+import { setAssessmentLock, setAssessmentNavigationLock } from './assessment-lock.js'
 import { clearActiveAssessmentSession, markActiveAssessmentSession } from './assessment-session.js'
+import {
+  createAssessmentTimeState,
+  formatAssessmentTime,
+  getAssessmentTimeStateKey,
+  normalizeAssessmentDuration,
+  restoreAssessmentTimeState,
+} from './assessment-duration.js'
 
-const QUESTION_TIME_SECONDS = 30
-const TIMED_OUT_ANSWER = '[No answer: time expired]'
+const NO_ANSWER = '[No answer]'
+const TIME_EXPIRED_ANSWER = '[No answer: assessment time expired]'
 const REVIEW_PAGE_SIZE = 5
 
 function readStoredDraft(attemptId) {
@@ -57,10 +63,26 @@ export default function AssessmentPage() {
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [timeRemaining, setTimeRemaining] = useState(QUESTION_TIME_SECONDS)
+  const [integrityWarningAccepted, setIntegrityWarningAccepted] = useState(false)
+  const [startConfirmationOpen, setStartConfirmationOpen] = useState(false)
+  const [durationMinutes, setDurationMinutes] = useState(60)
+  const [timeRemaining, setTimeRemaining] = useState(0)
+  const [integrityBlocked, setIntegrityBlocked] = useState(null)
   const [error, setError] = useState('')
-  const handledTimeoutRef = useRef('')
-  const questionDeadlineRef = useRef(0)
+  const timeoutSubmittedRef = useRef(false)
+  const answersRef = useRef({})
+  const integrityViolationRef = useRef(false)
+  const assessmentFinishedRef = useRef(false)
+  const assessmentPageMountedRef = useRef(false)
+
+  useEffect(() => {
+    answersRef.current = answers
+  }, [answers])
+
+  useEffect(() => {
+    setAssessmentNavigationLock(questions.length > 0 && !result && !integrityBlocked)
+    return () => setAssessmentNavigationLock(false)
+  }, [integrityBlocked, questions.length, result])
 
   useEffect(() => {
     let active = true
@@ -71,7 +93,7 @@ export default function AssessmentPage() {
         setLoading(false)
         return
       }
-      const [firearmResult, classResult, statusResult] = await Promise.all([
+      const [firearmResult, classResult, statusResult, releaseResult] = await Promise.all([
         supabase
           .from('firearms')
           .select('id, name, caliber')
@@ -79,21 +101,25 @@ export default function AssessmentPage() {
           .single(),
         supabase.from('classes').select('id, name').eq('id', classId).single(),
         supabase.rpc('get_assessment_status', { target_class_id: classId, target_firearm_id: firearmId }),
+        supabase.from('assessment_releases').select('duration_minutes').eq('class_id', classId).eq('firearm_id', firearmId).single(),
       ])
 
       if (!active) return
 
-      if (firearmResult.error || classResult.error || statusResult.error) {
-        setError(firearmResult.error?.message || classResult.error?.message || statusResult.error.message)
+      if (firearmResult.error || classResult.error || statusResult.error || releaseResult.error) {
+        setError(firearmResult.error?.message || classResult.error?.message || statusResult.error?.message || releaseResult.error.message)
       } else {
         setFirearm(firearmResult.data)
         setClassItem(classResult.data)
         setStatus(statusResult.data)
+        setDurationMinutes(normalizeAssessmentDuration(releaseResult.data.duration_minutes))
         if (statusResult.data.attempt_status === 'submitted') {
+          assessmentFinishedRef.current = true
           setAssessmentLock(firearmId, false, classId)
           if (statusResult.data.attempt_id) {
             clearActiveAssessmentSession(sessionStorage, user?.id, statusResult.data.attempt_id)
             removeStoredDraft(statusResult.data.attempt_id)
+            removeStoredTime(statusResult.data.attempt_id)
             setAttemptId(statusResult.data.attempt_id)
           }
           setResult({
@@ -102,6 +128,15 @@ export default function AssessmentPage() {
             percentage: statusResult.data.percentage,
           })
         } else if (statusResult.data.attempt_status === 'in_progress') {
+          const { data: integrityStatus, error: integrityError } = await supabase.rpc(
+            'get_my_assessment_integrity_status',
+            { target_attempt_id: statusResult.data.attempt_id },
+          )
+          if (integrityError) {
+            setError(integrityError.message)
+          } else if (integrityStatus?.is_locked) {
+            setIntegrityBlocked(integrityStatus)
+          }
           setAssessmentLock(firearmId, true, classId)
           markActiveAssessmentSession(sessionStorage, user?.id, statusResult.data.attempt_id)
         }
@@ -140,7 +175,7 @@ export default function AssessmentPage() {
             label: row.question_id,
             prompt: row.prompt || 'Component identification question',
             correctAnswer: row.component_name || '',
-            studentAnswer: row.student_answer || TIMED_OUT_ANSWER,
+            studentAnswer: row.student_answer || NO_ANSWER,
             isCorrect: Boolean(row.is_correct),
           }
         }).sort((left, right) => String(left.label).localeCompare(String(right.label), undefined, { numeric: true }))
@@ -161,46 +196,6 @@ export default function AssessmentPage() {
   )
 
   useEffect(() => {
-    if (!attemptId || !currentQuestion || result || submitting) return undefined
-    handledTimeoutRef.current = ''
-    questionDeadlineRef.current = createQuestionDeadline(Date.now(), QUESTION_TIME_SECONDS)
-    // Resetting here synchronizes the countdown with the newly displayed question.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTimeRemaining(QUESTION_TIME_SECONDS)
-    const updateCountdown = () => {
-      setTimeRemaining(secondsUntilDeadline(questionDeadlineRef.current, Date.now()))
-    }
-    const timer = window.setInterval(updateCountdown, 250)
-    document.addEventListener('visibilitychange', updateCountdown)
-    window.addEventListener('focus', updateCountdown)
-    return () => {
-      window.clearInterval(timer)
-      document.removeEventListener('visibilitychange', updateCountdown)
-      window.removeEventListener('focus', updateCountdown)
-    }
-  }, [attemptId, currentQuestion, result, submitting])
-
-  useEffect(() => {
-    if (timeRemaining !== 0 || !currentQuestion || submitting || result) return
-    const timeoutKey = `${attemptId}:${currentQuestion.question_record_id}`
-    if (handledTimeoutRef.current === timeoutKey) return
-    handledTimeoutRef.current = timeoutKey
-
-    const nextAnswers = isAnswered(answers[currentQuestion.question_record_id])
-      ? answers
-      : { ...answers, [currentQuestion.question_record_id]: TIMED_OUT_ANSWER }
-    setAnswers(nextAnswers)
-    void saveAnswer(currentQuestion, nextAnswers[currentQuestion.question_record_id])
-
-    // A timeout is the assessment event that advances the active question.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (currentIndex < questions.length - 1) setCurrentIndex((index) => index + 1)
-    else void submitAssessment(nextAnswers)
-    // The submission function consumes the same state already listed above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answers, attemptId, currentIndex, currentQuestion, questions.length, result, submitting, timeRemaining])
-
-  useEffect(() => {
     if (!attemptId || result) return undefined
     const poll = window.setInterval(async () => {
       const { data } = await supabase.rpc('get_assessment_status', {
@@ -208,7 +203,9 @@ export default function AssessmentPage() {
         target_firearm_id: firearmId,
       })
       if (data?.attempt_status !== 'submitted') return
+      assessmentFinishedRef.current = true
       removeStoredDraft(attemptId)
+      removeStoredTime(attemptId)
       setAssessmentLock(firearmId, false, classId)
       clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
       setResult({
@@ -244,18 +241,37 @@ export default function AssessmentPage() {
 
     if (startError) {
       setError(startError.message)
+      setStarting(false)
+      return false
     } else if (!data?.length) {
       setError('No assessment questions are available for this firearm.')
+      setStarting(false)
+      return false
     } else {
+      const { data: timerStartedAt, error: timerError } = await supabase.rpc(
+        'begin_assessment_timer',
+        { target_attempt_id: data[0].attempt_id },
+      )
+      if (timerError || !timerStartedAt) {
+        setError(timerError?.message || 'The assessment timer could not be started.')
+        setStarting(false)
+        return false
+      }
+
       const { data: refreshedStatus, error: statusError } = await supabase.rpc(
         'get_assessment_status',
         { target_class_id: classId, target_firearm_id: firearmId },
       )
-      const revision = statusError ? null : refreshedStatus.attempt_started_at
-      const draft = revision
+      const attemptRevision = statusError ? timerStartedAt : refreshedStatus.attempt_started_at
+      const maximumSeconds = durationMinutes * 60
+      const restoredTime = restoreAssessmentTimeState(
+        readStoredTime(data[0].attempt_id),
+        { attemptStartedAt: attemptRevision, maximumSeconds },
+      )
+      const draft = attemptRevision
         ? restoreAssessmentDraft(
             readStoredDraft(data[0].attempt_id),
-            { attemptStartedAt: revision, questions: data },
+            { attemptStartedAt: attemptRevision, questions: data },
           )
         : { answers: {}, currentIndex: 0 }
 
@@ -263,7 +279,8 @@ export default function AssessmentPage() {
       setAssessmentLock(firearmId, true, classId)
       markActiveAssessmentSession(sessionStorage, user?.id, data[0].attempt_id)
       setAttemptId(data[0].attempt_id)
-      setAttemptStartedAt(revision)
+      setAttemptStartedAt(attemptRevision)
+      setTimeRemaining(restoredTime ?? maximumSeconds)
       setActivityRecorded(false)
       setAnswers(draft.answers)
       setCurrentIndex(draft.currentIndex)
@@ -271,10 +288,12 @@ export default function AssessmentPage() {
     }
 
     setStarting(false)
+    return true
   }
 
   async function submitAssessment(submittedAnswers = answers) {
     if (!allQuestionsAnswered(questions, submittedAnswers) || !attemptId) return
+    timeoutSubmittedRef.current = true
     setSubmitting(true)
     setError('')
 
@@ -285,10 +304,13 @@ export default function AssessmentPage() {
 
     if (submitError) setError(submitError.message)
     else {
+      assessmentFinishedRef.current = true
       removeStoredDraft(attemptId)
+      removeStoredTime(attemptId)
       setAssessmentLock(firearmId, false, classId)
       clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
       setResult(data)
+      if (document.fullscreenElement) void document.exitFullscreen()
     }
 
     setSubmitting(false)
@@ -315,6 +337,52 @@ export default function AssessmentPage() {
     else if (canSubmit) await submitAssessment()
   }
 
+  async function confirmStartAssessment() {
+    setError('')
+    if (!document.fullscreenEnabled) {
+      setStartConfirmationOpen(false)
+      setError('Fullscreen mode is required, but this browser does not currently allow it.')
+      return
+    }
+
+    try {
+      await document.documentElement.requestFullscreen()
+    } catch {
+      setStartConfirmationOpen(false)
+      setError('Fullscreen mode is required to begin this assessment. Please allow fullscreen and try again.')
+      return
+    }
+
+    setStartConfirmationOpen(false)
+    const started = await startAssessment()
+    if (!started && document.fullscreenElement) void document.exitFullscreen()
+  }
+
+  async function lockAssessmentForIntegrity(reason) {
+    if (!attemptId || integrityViolationRef.current || assessmentFinishedRef.current) return
+    integrityViolationRef.current = true
+    const messages = {
+      fullscreen_exited: 'Fullscreen mode was exited.',
+      page_hidden: 'The assessment page was hidden or another tab was opened.',
+      window_blurred: 'Focus moved away from the assessment window.',
+      assessment_page_left: 'The student navigated away from the active assessment page.',
+    }
+    const { error: lockError } = await supabase.rpc('lock_assessment_for_integrity', {
+      target_attempt_id: attemptId,
+      violation_reason: reason,
+    })
+    clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
+    setAssessmentLock(firearmId, false, classId)
+    setIntegrityBlocked({
+      is_locked: true,
+      reason,
+      message: lockError
+        ? `${messages[reason]} The lock could not be confirmed: ${lockError.message}`
+        : messages[reason],
+    })
+    if (document.fullscreenElement) void document.exitFullscreen()
+  }
+
   async function recordAssessmentActivity() {
     if (!attemptId || activityRecorded) return
 
@@ -325,6 +393,86 @@ export default function AssessmentPage() {
     if (!activityError) setActivityRecorded(true)
   }
 
+  useEffect(() => {
+    timeoutSubmittedRef.current = false
+    integrityViolationRef.current = false
+  }, [attemptId])
+
+  useEffect(() => {
+    if (!attemptId || !attemptStartedAt || !questions.length || result) return undefined
+    const timer = window.setInterval(() => {
+      setTimeRemaining((remaining) => Math.max(0, remaining - 1))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [attemptId, attemptStartedAt, questions.length, result])
+
+  useEffect(() => {
+    if (!attemptId || !attemptStartedAt || !questions.length || result) return
+    try {
+      localStorage.setItem(
+        getAssessmentTimeStateKey(attemptId),
+        createAssessmentTimeState({ attemptStartedAt, remainingSeconds: timeRemaining }),
+      )
+    } catch {
+      // Timer recovery is best-effort; Storage restrictions must not block an assessment.
+    }
+  }, [attemptId, attemptStartedAt, questions.length, result, timeRemaining])
+
+  useEffect(() => {
+    if (!attemptId || !questions.length || result || timeRemaining > 0 || timeoutSubmittedRef.current) return
+    timeoutSubmittedRef.current = true
+    const timedAnswers = Object.fromEntries(questions.map((question) => {
+      const answer = answersRef.current[question.question_record_id]
+      return [question.question_record_id, isAnswered(answer) ? answer : TIME_EXPIRED_ANSWER]
+    }))
+    setAnswers(timedAnswers)
+    void submitAssessment(timedAnswers)
+    // Timeout submission consumes the current assessment snapshot and runs only once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attemptId, questions, result, timeRemaining])
+
+  useEffect(() => {
+    if (!attemptId || !questions.length || result || integrityBlocked) return undefined
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) void lockAssessmentForIntegrity('fullscreen_exited')
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') void lockAssessmentForIntegrity('page_hidden')
+    }
+    const handleWindowBlur = () => void lockAssessmentForIntegrity('window_blurred')
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('blur', handleWindowBlur)
+    if (!document.fullscreenElement) void lockAssessmentForIntegrity('fullscreen_exited')
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('blur', handleWindowBlur)
+    }
+    // Integrity handlers intentionally bind to the active attempt snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attemptId, integrityBlocked, questions.length, result])
+
+  useEffect(() => {
+    if (!attemptId || !questions.length || result) return undefined
+    assessmentPageMountedRef.current = true
+
+    return () => {
+      assessmentPageMountedRef.current = false
+      window.setTimeout(() => {
+        if (assessmentPageMountedRef.current || assessmentFinishedRef.current || integrityViolationRef.current) return
+        integrityViolationRef.current = true
+        void supabase.rpc('lock_assessment_for_integrity', {
+          target_attempt_id: attemptId,
+          violation_reason: 'assessment_page_left',
+        })
+      }, 0)
+    }
+  }, [attemptId, questions.length, result])
+
   if (loading) return <main className="page status-page"><DashboardLoading className="dashboard-loading-route" label="Loading assessment…" /></main>
 
   if (error && !firearm) {
@@ -334,6 +482,27 @@ export default function AssessmentPage() {
           <h1>Assessment unavailable</h1>
           <div className="alert alert-error" role="alert">{error}</div>
           <Link to="/student">Back to dashboard</Link>
+        </section>
+      </main>
+    )
+  }
+
+  if (integrityBlocked) {
+    const violationMessage = integrityBlocked.message || {
+      fullscreen_exited: 'Fullscreen mode was exited during the assessment.',
+      page_hidden: 'The assessment page was hidden or another tab was opened.',
+      window_blurred: 'Focus moved away from the assessment window.',
+      assessment_page_left: 'The active assessment page was exited before submission.',
+    }[integrityBlocked.reason] || 'An assessment integrity rule was violated.'
+    return (
+      <main className="student-assessment-page student-assessment-complete">
+        <section className="student-assessment-result student-assessment-integrity-blocked" role="alert">
+          <span className="student-assessment-result-icon"><AdminIcon name="alertTriangle" /></span>
+          <p className="eyebrow">Assessment access locked</p>
+          <h1>You can no longer continue this attempt</h1>
+          <p>{violationMessage}</p>
+          <p>Your faculty instructor must reset the attempt before you can take this assessment again.</p>
+          <footer><Link className="primary" to="/student">Return to student dashboard</Link></footer>
         </section>
       </main>
     )
@@ -385,14 +554,17 @@ export default function AssessmentPage() {
         <div className="student-assessment-back"><Link to="/student"><AdminIcon name="arrowLeft" />Back to class</Link></div>
         <section className="student-assessment-intro">
           <header><p className="eyebrow">{classItem?.name || 'Class assessment'}</p><h1>{firearm.name} Component Analysis</h1><span>{firearm.name}</span></header>
-          <div className="student-assessment-facts"><div><strong>{status?.question_count || status?.total_questions || 'Not available'}</strong><span>Questions</span></div><div><strong>{QUESTION_TIME_SECONDS}s</strong><span>Time per question</span></div><div><strong>{status?.question_count ? `~${Math.ceil(status.question_count * QUESTION_TIME_SECONDS / 60)} min` : 'Not available'}</strong><span>Estimated total</span></div></div>
+          <div className="student-assessment-facts"><div><strong>{status?.question_count || status?.total_questions || 'Not available'}</strong><span>Questions</span></div><div><strong>{durationMinutes} minutes</strong><span>Total time for all questions</span></div></div>
           <div className="student-assessment-instructions">
             <h2>Before you begin</h2>
-            <p><span>○</span> Each question has a {QUESTION_TIME_SECONDS}-second timer and advances automatically when time expires.</p>
+            <p><span>○</span> You have {durationMinutes} minutes for the complete assessment. Manage this time across all questions.</p>
             <p><span>△</span> Review each response before continuing. You cannot return to a previous question.</p>
-            <p><span>◇</span> The timer continues if you switch tabs or minimize the browser window.</p>
             <p><span>◇</span> Access to the 3D model viewer is disabled during an active attempt.</p>
             <p><span>✓</span> Your progress is saved automatically after every question.</p>
+          </div>
+          <div className="student-assessment-integrity-warning" role="alert">
+            <div><AdminIcon name="alertTriangle" /><p><strong>Academic integrity warning</strong><span>Once the assessment begins, opening another tab or window, switching away from this page, or exiting fullscreen mode will ban you from taking this assessment.</span></p></div>
+            <label><input checked={integrityWarningAccepted} onChange={(event) => setIntegrityWarningAccepted(event.target.checked)} type="checkbox" />I understand and agree to remain on this assessment in fullscreen mode.</label>
           </div>
           <div className="student-assessment-passing">Passing score: <strong>75%</strong>. Your result will be available immediately after submission.</div>
           {!released && (
@@ -407,13 +579,26 @@ export default function AssessmentPage() {
               : `/student/models/${firearmId}${classQuery}`}>
               Cancel
             </Link>
-            <button className="student-assessment-primary" type="button" onClick={startAssessment} disabled={!released || starting}>
+            <button className="student-assessment-primary" type="button" onClick={() => setStartConfirmationOpen(true)} disabled={!released || starting || !integrityWarningAccepted}>
               {starting
                 ? 'Loading questions...'
                 : status?.attempt_status === 'in_progress' ? 'Resume Assessment' : 'Begin Assessment'}
             </button>
           </footer>
         </section>
+        {startConfirmationOpen && <div className="confirmation-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !starting) setStartConfirmationOpen(false) }} role="presentation">
+          <section aria-labelledby="assessment-start-confirmation-title" aria-modal="true" className="confirmation-dialog student-assessment-start-dialog" role="dialog">
+            <div className="student-assessment-start-dialog-icon"><AdminIcon name="alertTriangle" /></div>
+            <p className="eyebrow">Final confirmation</p>
+            <h2 id="assessment-start-confirmation-title">Are you ready to begin?</h2>
+            <p>Please confirm that you understand the assessment rules. You will have {durationMinutes} minutes for all questions, and the assessment will submit automatically when time expires.</p>
+            <div className="student-assessment-start-reminder"><strong>Remember:</strong> Opening another tab or window, switching away from this page, or exiting fullscreen will immediately lock this assessment attempt.</div>
+            <div className="confirmation-actions">
+              <button disabled={starting} onClick={() => setStartConfirmationOpen(false)} type="button">Not yet</button>
+              <button className="faculty-primary-action" disabled={starting} onClick={() => void confirmStartAssessment()} type="button">{starting ? 'Starting…' : 'Yes, I’m ready'}</button>
+            </div>
+          </section>
+        </div>}
       </main>
     )
   }
@@ -422,9 +607,9 @@ export default function AssessmentPage() {
 
   return (
     <main className="student-assessment-page student-assessment-active">
-      <div className="student-assessment-progress"><div><span>Question {currentIndex + 1} of {questions.length}</span><strong>{firearm.name}</strong></div><progress value={currentIndex + 1} max={questions.length} /></div>
+      <div className="student-assessment-progress"><div><span>Question {currentIndex + 1} of {questions.length}</span><strong className={timeRemaining <= 60 ? 'ending' : ''} aria-label={`${formatAssessmentTime(timeRemaining)} remaining`}>{formatAssessmentTime(timeRemaining)} remaining</strong></div><progress value={currentIndex + 1} max={questions.length} /></div>
       <section className="student-question-card">
-        <header><p>Question {currentIndex + 1}</p><span className={timeRemaining <= 5 ? 'ending' : ''} aria-label={`${timeRemaining} seconds remaining`}>{timeRemaining}</span></header>
+        <header><p>Question {currentIndex + 1}</p></header>
         <div className="student-question-body">
           <div className="student-question-model"><span>{firearm.name}</span><div><i /> <p>Component highlighted in 3D model</p></div></div>
           {currentQuestion.image_file && <div className="student-question-asset">Question image: {currentQuestion.image_file}</div>}
@@ -438,4 +623,20 @@ export default function AssessmentPage() {
       <p className="student-assessment-draft-note">Do not close or refresh this tab. Your progress is saved automatically.</p>
     </main>
   )
+}
+
+function readStoredTime(attemptId) {
+  try {
+    return localStorage.getItem(getAssessmentTimeStateKey(attemptId))
+  } catch {
+    return null
+  }
+}
+
+function removeStoredTime(attemptId) {
+  try {
+    localStorage.removeItem(getAssessmentTimeStateKey(attemptId))
+  } catch {
+    // Timer cleanup is best-effort in browsers that restrict local Storage.
+  }
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { copyText } from '../../lib/clipboard.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
+import { filterClasses, getClassTerm, getClassTerms } from './class-utils.js'
 
 function SmallIcon({ name }) {
   const paths = {
@@ -23,17 +24,19 @@ function formatActivity(value) {
   return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
-export default function FacultyClassesPanel({ attempts, className, classTerm, classes, creating, enrollments, firearms = [], loading, onClassNameChange, onClassTermChange, onCreateClass, onManageClass, releases }) {
+export default function FacultyClassesPanel({ activeTerm, attempts, className, classSection, classes, creating, enrollments, firearms = [], loading, onClassNameChange, onClassSectionChange, onCreateClass, onManageClass, releases }) {
   const [status, setStatus] = useState('active')
   const [query, setQuery] = useState('')
+  const [term, setTerm] = useState('all')
   const [createOpen, setCreateOpen] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState({ code: '', status: '' })
   const [visibleCodes, setVisibleCodes] = useState(() => new Set())
   const availableAssessmentCount = firearms.filter((firearm) => firearm.status === 'ready').length
-  const visibleClasses = useMemo(() => classes.filter((item) => (
-    (status === 'archived' ? Boolean(item.archived_at) : !item.archived_at)
-    && `${item.name} ${item.code}`.toLowerCase().includes(query.trim().toLowerCase())
-  )), [classes, query, status])
+  const terms = useMemo(() => getClassTerms(classes), [classes])
+  const visibleClasses = useMemo(
+    () => filterClasses(classes, { query, status, term }),
+    [classes, query, status, term],
+  )
 
   async function copyClassCode(code) {
     const copied = await copyText(code)
@@ -54,12 +57,12 @@ export default function FacultyClassesPanel({ attempts, className, classTerm, cl
 
   return (
     <section className="faculty-classes-page">
-      <div className="faculty-page-heading"><div><nav><span>Faculty</span><span>›</span><span>Classes</span></nav><h1>Classes</h1></div><button className="faculty-primary-action" onClick={() => setCreateOpen(true)} type="button"><span>＋</span> New Class</button></div>
+      <div className="faculty-page-heading"><div><nav><span>Faculty</span><span>›</span><span>Classes</span></nav><h1>Classes</h1></div><button className="faculty-primary-action" disabled={!activeTerm} onClick={() => setCreateOpen(true)} title={activeTerm ? 'Create a class in the active term' : 'The administrator must activate a term first'} type="button"><span>＋</span> New Class</button></div>
       <div className="faculty-class-tools">
         <div className="faculty-class-tabs">
-          {['active', 'archived'].map((item) => { const count = classes.filter((entry) => item === 'archived' ? entry.archived_at : !entry.archived_at).length; return <button className={status === item ? 'active' : ''} key={item} onClick={() => setStatus(item)} type="button">{item === 'active' ? 'Active' : 'Archived'} <span>{count}</span></button> })}
+          {['active', 'archived'].map((item) => { const count = classes.filter((entry) => item === 'archived' ? entry.archived_at : !entry.archived_at).length; return <button className={status === item ? 'active' : ''} key={item} onClick={() => setStatus(item)} type="button">{item === 'active' ? 'Active Classes' : 'Previous Classes'} <span>{count}</span></button> })}
         </div>
-        <label className="faculty-search"><SmallIcon name="search" /><input aria-label="Search classes" onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or code..." type="search" value={query} /></label>
+        <div className="faculty-class-filters"><label className="faculty-term-filter"><span className="faculty-sr-only">Filter by semester or term</span><select aria-label="Semester or term" onChange={(event) => setTerm(event.target.value)} value={term}><option value="all">All semesters / terms</option>{terms.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="faculty-search"><SmallIcon name="search" /><input aria-label="Search classes" onChange={(event) => setQuery(event.target.value)} placeholder="Search name, code, or term..." type="search" value={query} /></label></div>
       </div>
       <div className="faculty-class-table-wrap faculty-class-desktop-table">
         <table className="faculty-class-table"><thead><tr><th>Class</th><th>Code</th><th>Students</th><th>Assessments</th><th>Completion</th><th>Last Activity</th><th aria-label="Actions" /></tr></thead><tbody>
@@ -74,10 +77,10 @@ export default function FacultyClassesPanel({ attempts, className, classTerm, cl
             const lastActivity = activeAttempts.map((entry) => entry.submitted_at || entry.started_at).filter(Boolean).sort().at(-1)
             const feedback = copyFeedback.code === item.code ? copyFeedback.status : ''
             const codeVisible = visibleCodes.has(item.id)
-            return <tr key={item.id}><td><strong>{item.name}</strong><small>{item.archived_at ? 'Archived class' : 'Active class'}</small></td><td><div className="faculty-code-controls"><button aria-label={`Copy class code for ${item.name}`} className={`faculty-code-pill${feedback ? ` ${feedback}` : ''}`} onClick={() => copyClassCode(item.code)} title={feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Copy failed' : 'Copy class code'} type="button"><SmallIcon name="copy" /> <span>{feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Try again' : codeVisible ? item.code : '••••••••'}</span></button><button aria-label={`${codeVisible ? 'Hide' : 'Show'} class code for ${item.name}`} aria-pressed={codeVisible} className="faculty-code-visibility" onClick={() => toggleClassCode(item.id)} title={`${codeVisible ? 'Hide' : 'Show'} class code`} type="button"><SmallIcon name={codeVisible ? 'eyeOff' : 'eye'} /></button></div></td><td><span className="faculty-table-count"><SmallIcon name="students" /> {students.length}</span></td><td><span className="faculty-table-count" title={`${classReleases.length} configured for this class`}><SmallIcon name="assessment" /> {availableAssessmentCount}</span></td><td><div className="faculty-completion"><i><span style={{ width: `${completion}%` }} /></i><span>{completion}%</span></div></td><td>{formatActivity(lastActivity)}</td><td><button className="faculty-manage-class" onClick={() => onManageClass(item.id)} type="button">Manage students <span aria-hidden="true">›</span></button></td></tr>
+            return <tr key={item.id}><td><strong>{item.name}</strong><small>{getClassTerm(item)} · {item.archived_at ? 'Archived' : 'Active'}</small></td><td><div className="faculty-code-controls"><button aria-label={`Copy class code for ${item.name}`} className={`faculty-code-pill${feedback ? ` ${feedback}` : ''}`} onClick={() => copyClassCode(item.code)} title={feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Copy failed' : 'Copy class code'} type="button"><SmallIcon name="copy" /> <span>{feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Try again' : codeVisible ? item.code : '••••••••'}</span></button><button aria-label={`${codeVisible ? 'Hide' : 'Show'} class code for ${item.name}`} aria-pressed={codeVisible} className="faculty-code-visibility" onClick={() => toggleClassCode(item.id)} title={`${codeVisible ? 'Hide' : 'Show'} class code`} type="button"><SmallIcon name={codeVisible ? 'eyeOff' : 'eye'} /></button></div></td><td><span className="faculty-table-count"><SmallIcon name="students" /> {students.length}</span></td><td><span className="faculty-table-count" title={`${classReleases.length} configured for this class`}><SmallIcon name="assessment" /> {availableAssessmentCount}</span></td><td><div className="faculty-completion"><i><span style={{ width: `${completion}%` }} /></i><span>{completion}%</span></div></td><td>{formatActivity(lastActivity)}</td><td><button className="faculty-manage-class" onClick={() => onManageClass(item.id)} type="button">Manage students <span aria-hidden="true">›</span></button></td></tr>
           })}
         </tbody></table>
-        {!loading && visibleClasses.length === 0 && (status === 'archived' && !query.trim() ? <div className="faculty-class-history-empty"><HistoryIcon /><strong>No archived classes yet</strong><p>Classes you archive will appear here and can be restored whenever needed.</p></div> : <p className="faculty-empty-state">No {status} classes match your search.</p>)}
+        {!loading && visibleClasses.length === 0 && (status === 'archived' && !query.trim() ? <div className="faculty-class-history-empty"><HistoryIcon /><strong>No previous classes yet</strong><p>Finished classes will appear here as permanent read-only records.</p></div> : <p className="faculty-empty-state">No {status} classes match your search.</p>)}
       </div>
       <div className="faculty-class-card-grid">
           {visibleClasses.map((item) => {
@@ -92,7 +95,7 @@ export default function FacultyClassesPanel({ attempts, className, classTerm, cl
             const feedback = copyFeedback.code === item.code ? copyFeedback.status : ''
             const codeVisible = visibleCodes.has(item.id)
             return <article className="faculty-class-card" key={item.id}>
-              <header><h2>{item.name}</h2><span>{item.archived_at ? 'Archived class' : 'Active class'}</span></header>
+              <header><h2>{item.name}</h2><span>{getClassTerm(item)} · {item.archived_at ? 'Archived' : 'Active'}</span></header>
               <div className="faculty-class-card-code"><span>Class code</span><div className="faculty-code-controls"><button aria-label={`Copy class code for ${item.name}`} className={`faculty-code-pill${feedback ? ` ${feedback}` : ''}`} onClick={() => copyClassCode(item.code)} title={feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Copy failed' : 'Copy class code'} type="button"><SmallIcon name="copy" /><span>{feedback === 'copied' ? 'Copied!' : feedback === 'error' ? 'Try again' : codeVisible ? item.code : '••••••••'}</span></button><button aria-label={`${codeVisible ? 'Hide' : 'Show'} class code for ${item.name}`} aria-pressed={codeVisible} className="faculty-code-visibility" onClick={() => toggleClassCode(item.id)} type="button"><SmallIcon name={codeVisible ? 'eyeOff' : 'eye'} /></button></div></div>
               <dl><div><dt>Students</dt><dd><SmallIcon name="students" />{students.length}</dd></div><div><dt>Assessments</dt><dd title={`${classReleases.length} configured for this class`}><SmallIcon name="assessment" />{classReleases.length}</dd></div></dl>
               <div className="faculty-class-card-progress"><span>Completion <strong>{completion}%</strong></span><progress aria-label={`Assessment completion for ${item.name}`} max="100" value={completion} /></div>
@@ -100,10 +103,10 @@ export default function FacultyClassesPanel({ attempts, className, classTerm, cl
               <footer><button className="faculty-manage-class" onClick={() => onManageClass(item.id)} type="button">Open class <span aria-hidden="true">›</span></button></footer>
             </article>
           })}
-        {!loading && visibleClasses.length === 0 && (status === 'archived' && !query.trim() ? <div className="faculty-class-history-empty"><HistoryIcon /><strong>No archived classes yet</strong><p>Classes you archive will appear here and can be restored whenever needed.</p></div> : <p className="faculty-empty-state">No {status} classes match your search.</p>)}
+        {!loading && visibleClasses.length === 0 && (status === 'archived' && !query.trim() ? <div className="faculty-class-history-empty"><HistoryIcon /><strong>No previous classes yet</strong><p>Finished classes will appear here as permanent read-only records.</p></div> : <p className="faculty-empty-state">No {status} classes match your search.</p>)}
       </div>
 
-      {createOpen && <div className="confirmation-backdrop" role="presentation"><section aria-labelledby="create-class-title" aria-modal="true" className="faculty-create-class-dialog" role="dialog"><header><div><h2 id="create-class-title">Create New Class</h2><p>Students join with the generated class code after creation.</p></div><button aria-label="Close create class dialog" onClick={() => setCreateOpen(false)} type="button">×</button></header><form onSubmit={async (event) => { if (await onCreateClass(event)) setCreateOpen(false) }}><label>Class Name<input autoFocus disabled={creating} maxLength="100" minLength="2" onChange={(event) => onClassNameChange(event.target.value)} placeholder="e.g. Introduction to Forensic Ballistics" required value={className} /></label><label>Semester / Term<input disabled={creating} maxLength="60" minLength="2" onChange={(event) => onClassTermChange(event.target.value)} placeholder="e.g. First Semester 2026-2027" required value={classTerm} /></label><p className="faculty-create-note">A unique class code will be generated automatically. You can share it with students after creating the class.</p><footer><button disabled={creating} onClick={() => setCreateOpen(false)} type="button">Cancel</button><button className="faculty-primary-action" disabled={creating} type="submit">{creating ? 'Creating...' : 'Create Class'}</button></footer></form></section></div>}
+      {createOpen && <div className="confirmation-backdrop" role="presentation"><section aria-labelledby="create-class-title" aria-modal="true" className="faculty-create-class-dialog" role="dialog"><header><div><h2 id="create-class-title">Create New Class</h2><p>This class will have a new blank roster and assessment record.</p></div><button aria-label="Close create class dialog" onClick={() => setCreateOpen(false)} type="button">×</button></header><form onSubmit={async (event) => { if (await onCreateClass(event)) setCreateOpen(false) }}><div className="faculty-active-term-summary"><span>Active academic term</span><strong>{activeTerm?.semester}, AY {activeTerm?.academic_year}</strong><small>Ends {activeTerm?.end_date ? new Date(`${activeTerm.end_date}T00:00:00`).toLocaleDateString('en', { dateStyle: 'medium' }) : 'on the administrator-set date'}</small></div><label>Subject / Course<input autoFocus disabled={creating} maxLength="100" minLength="2" onChange={(event) => onClassNameChange(event.target.value)} placeholder="e.g. M2" required value={className} /></label><label>Section<input disabled={creating} maxLength="40" onChange={(event) => onClassSectionChange(event.target.value)} placeholder="e.g. BSCRIM 4A" required value={classSection} /></label><p className="faculty-create-note">The semester and academic year are controlled by the administrator. Students, attempts, and scores from earlier terms will not be copied into this class.</p><footer><button disabled={creating} onClick={() => setCreateOpen(false)} type="button">Cancel</button><button className="faculty-primary-action" disabled={creating} type="submit">{creating ? 'Creating...' : 'Create Class'}</button></footer></form></section></div>}
     </section>
   )
 }
