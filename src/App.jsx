@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import RoleProtectedRoute from './components/RoleProtectedRoute.jsx'
+import AdminMfaGuard from './components/AdminMfaGuard.jsx'
 import { ROLES } from './config/roles.js'
 import ThemeToggle from './components/ThemeToggle.jsx'
 import DashboardLoading from './components/DashboardLoading.jsx'
@@ -12,6 +13,7 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'))
 const AccountPage = lazy(() => import('./pages/AccountPage.jsx'))
 const ChangePasswordPage = lazy(() => import('./pages/ChangePasswordPage.jsx'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'))
+const MfaVerificationPage = lazy(() => import('./pages/MfaVerificationPage.jsx'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'))
 const AdminDashboard = lazy(() => import('./features/admin/AdminDashboard.jsx'))
 const FacultyDashboard = lazy(() => import('./features/faculty/FacultyDashboard.jsx'))
@@ -43,6 +45,14 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route
+        path="/mfa/verify"
+        element={
+          <ProtectedRoute>
+            <MfaVerificationPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/account"
         element={
           <ProtectedRoute>
@@ -62,7 +72,7 @@ export default function App() {
         path="/settings"
         element={
           <ProtectedRoute>
-            <SettingsPage />
+            <AdminMfaGuard><SettingsPage /></AdminMfaGuard>
           </ProtectedRoute>
         }
       />
@@ -71,7 +81,7 @@ export default function App() {
         element={
           <ProtectedRoute>
             <RoleProtectedRoute allowedRole={ROLES.ADMIN}>
-              <AdminDashboard />
+              <AdminMfaGuard><AdminDashboard /></AdminMfaGuard>
             </RoleProtectedRoute>
           </ProtectedRoute>
         }

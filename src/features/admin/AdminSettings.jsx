@@ -5,8 +5,9 @@ import useAuth from '../../auth/useAuth.js'
 import { supabase } from '../../lib/supabase.js'
 import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
 import AdminIcon from './AdminIcon.jsx'
-import { validatePasswordChange } from '../../auth/password.js'
+import { minimumPasswordLength, validatePasswordChange } from '../../auth/password.js'
 import { getAvatarStoragePath } from '../../auth/profile-avatar.js'
+import AdminMfaSettings from './AdminMfaSettings.jsx'
 
 export default function AdminSettings({ roleName = 'Administrator', sidebar = false, profileMenu = false, page = false, active = false, standalone = false, interactionLocked = false }) {
   const { profile, refreshProfile, signOut, user } = useAuth()
@@ -291,7 +292,8 @@ export default function AdminSettings({ roleName = 'Administrator', sidebar = fa
           {nameChanged && <div className="settings-save-row"><button className="button" disabled={saving || fullName.trim().length < 2} type="submit">{saving ? 'Saving...' : 'Save Changes'}</button></div>}
         </form>
       </article>
-      <section className="account-settings-page settings-password-card"><h2>Change Password</h2><form className="admin-settings-form" onSubmit={updatePassword}><label>Current Password<input autoComplete="current-password" disabled={passwordSaving} onChange={(event) => setCurrentPassword(event.target.value)} required type="password" value={currentPassword} /></label><div className="settings-password-grid"><label>New Password<input autoComplete="new-password" disabled={passwordSaving} minLength="8" onChange={(event) => setNewPassword(event.target.value)} placeholder="At least 8 characters" required type="password" value={newPassword} /></label><label>Confirm Password<input autoComplete="new-password" disabled={passwordSaving} minLength="8" onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Re-enter new password" required type="password" value={confirmPassword} /></label></div>{passwordError && <div className="alert alert-error" role="alert">{passwordError}</div>}{passwordMessage && <div className="alert alert-success" role="status">{passwordMessage}</div>}<div className="settings-save-row"><button className="button" disabled={passwordSaving} type="submit">{passwordSaving ? 'Updating...' : 'Update Password'}</button></div></form></section>
+      <section className="account-settings-page settings-password-card"><h2>Change Password</h2><form className="admin-settings-form" onSubmit={updatePassword}><label>Current Password<input autoComplete="current-password" disabled={passwordSaving} onChange={(event) => setCurrentPassword(event.target.value)} required type="password" value={currentPassword} /></label><div className="settings-password-grid"><label>New Password<input autoComplete="new-password" disabled={passwordSaving} minLength={minimumPasswordLength} onChange={(event) => setNewPassword(event.target.value)} placeholder={`At least ${minimumPasswordLength} characters`} required type="password" value={newPassword} /></label><label>Confirm Password<input autoComplete="new-password" disabled={passwordSaving} minLength={minimumPasswordLength} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Re-enter new password" required type="password" value={confirmPassword} /></label></div>{passwordError && <div className="alert alert-error" role="alert">{passwordError}</div>}{passwordMessage && <div className="alert alert-success" role="status">{passwordMessage}</div>}<div className="settings-save-row"><button className="button" disabled={passwordSaving} type="submit">{passwordSaving ? 'Updating...' : 'Update Password'}</button></div></form></section>
+      {profile?.role === 'admin' && <AdminMfaSettings />}
       {signOutConfirmation}
     </>
   )
