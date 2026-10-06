@@ -797,7 +797,6 @@ export default function AssessmentPage() {
       <section className="student-question-card">
         <header><p>Question {currentIndex + 1}</p></header>
         <div className="student-question-body">
-          <div className="student-question-model"><span>{firearm.name}</span><div><i /> <p>Component highlighted in 3D model</p></div></div>
           {currentQuestion.image_file && <div className="student-question-asset">Question image: {currentQuestion.image_file}</div>}
           <h1>{currentQuestion.prompt}</h1>
           <label className="student-question-answer">Your answer<input value={currentAnswer} onChange={(event) => { setAnswers((current) => ({ ...current, [currentQuestion.question_record_id]: event.target.value })); void recordAssessmentActivity() }} onKeyDown={(event) => { if (event.key !== 'Enter' || !isAnswered(currentAnswer) || submitting) return; event.preventDefault(); void advanceQuestion() }} placeholder="Type the component name..." autoFocus autoComplete="off" disabled={submitting} /></label>

@@ -3,8 +3,10 @@ import { supabase } from '../../lib/supabase.js'
 import AdminIcon from './AdminIcon.jsx'
 import { modelCreditHref } from './import/firearm-metadata.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
+import { getFirearmModelUrl } from '../shared/firearm-model-url.js'
 
-const FirearmCanvas = lazy(() => import('../student/viewer/FirearmCanvas.jsx'))
+const loadFirearmCanvas = () => import('../student/viewer/FirearmCanvas.jsx')
+const FirearmCanvas = lazy(loadFirearmCanvas)
 
 export default function AdminModelViewerPanel({ dataLoading = false, firearms, headerActions = null, headerLeading = null, initialFirearmId = '', lockSelection = false }) {
   const [firearmId, setFirearmId] = useState(initialFirearmId)
@@ -21,6 +23,7 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
   const [error, setError] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const activeFirearmId = firearmId || initialFirearmId || firearms[0]?.id || ''
+  const suppliedFirearm = firearms.find((item) => item.id === activeFirearmId)
 
   useEffect(() => {
     if (!activeFirearmId) return undefined
@@ -29,8 +32,15 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
       setLoading(true)
       setError('')
       setSelectedName(null)
+      setModelUrl('')
+      void loadFirearmCanvas()
+      const suppliedModelUrl = suppliedFirearm?.glb_storage_path
+        ? getFirearmModelUrl(suppliedFirearm.glb_storage_path)
+        : null
       const [firearmResult, componentsResult] = await Promise.all([
-        supabase.from('firearms').select('id, identifier, name, caliber, description, firearm_type, tutorial_url, model_credit, status, created_at, glb_storage_path').eq('id', activeFirearmId).single(),
+        suppliedFirearm?.glb_storage_path
+          ? Promise.resolve({ data: suppliedFirearm, error: null })
+          : supabase.from('firearms').select('id, identifier, name, caliber, description, firearm_type, tutorial_url, model_credit, status, created_at, glb_storage_path').eq('id', activeFirearmId).single(),
         supabase.from('firearm_components').select('id, mesh_name, category, purpose, description, display_order, explode_x, explode_y, explode_z, explode_order, assembly_group').eq('firearm_id', activeFirearmId).order('display_order'),
       ])
       if (!current) return
@@ -39,19 +49,20 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
         setLoading(false)
         return
       }
-      const signedResult = await supabase.storage.from('firearm-models').createSignedUrl(firearmResult.data.glb_storage_path, 3600)
-      if (!current) return
-      if (signedResult.error) setError(signedResult.error.message)
-      else {
+      try {
+        const signedUrl = await (suppliedModelUrl || getFirearmModelUrl(firearmResult.data.glb_storage_path))
+        if (!current) return
         setDetails(firearmResult.data)
         setComponents(componentsResult.data ?? [])
-        setModelUrl(signedResult.data.signedUrl)
+        setModelUrl(signedUrl)
+      } catch (loadError) {
+        if (current) setError(loadError.message)
       }
-      setLoading(false)
+      if (current) setLoading(false)
     }
     void load()
     return () => { current = false }
-  }, [activeFirearmId])
+  }, [activeFirearmId, suppliedFirearm])
 
   const selected = components.find((item) => item.mesh_name === selectedName)
   const visible = components.filter((item) => item.mesh_name.replaceAll('_', ' ').toLowerCase().includes(query.toLowerCase()))

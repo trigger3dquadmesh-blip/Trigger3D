@@ -1033,11 +1033,6 @@ button:disabled, [role='button'][aria-disabled='true'] { cursor: not-allowed; }
 .student-question-card > header { display: flex; min-height: 108px; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid var(--admin-border); }
 .student-question-card > header p { margin: 0; color: var(--admin-muted); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; }
 .student-question-body { padding: 22px; }
-.student-question-model { position: relative; display: grid; min-height: 195px; margin-bottom: 24px; place-items: center; overflow: hidden; border: 1px solid var(--admin-border); border-radius: 10px; background: linear-gradient(135deg, var(--admin-muted-surface), var(--admin-card)); }
-.student-question-model > span { position: absolute; top: 13px; right: 13px; padding: 5px 10px; border: 1px solid var(--admin-border); border-radius: 99px; color: var(--admin-muted); background: var(--admin-card); font-size: 0.62rem; }
-.student-question-model > div { display: grid; justify-items: center; gap: 8px; color: var(--admin-muted); font-size: 0.7rem; }
-.student-question-model i { width: 12px; height: 12px; border-radius: 50%; background: #109d1a; box-shadow: 0 0 0 18px rgb(16 157 26 / 9%); }
-.student-question-model p { margin: 8px 0 0; }
 .student-question-asset { margin-bottom: 16px; padding: 10px 12px; border-radius: 7px; color: var(--admin-muted); background: var(--admin-muted-surface); font-size: 0.7rem; }
 .student-question-body h1 { margin: 0 0 20px; font-size: 0.9rem; }
 .student-question-answer { display: grid; gap: 8px; font-size: 0.72rem; font-weight: 650; }
@@ -2518,7 +2513,13 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .admin-term-form > button,
 .admin-selected-term button { min-height: 38px; padding: 8px 14px; border: 1px solid #109d1a; border-radius: 8px; color: #fff; background: #109d1a; font: inherit; font-size: 0.75rem; font-weight: 700; cursor: pointer; }
 .admin-term-form > button { justify-self: start; }
-.admin-selected-term button.danger { border-color: #dc2626; background: #dc2626; }
+.admin-selected-term button { border-color: var(--admin-border); color: var(--admin-text); background: var(--admin-input); transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease; }
+.admin-selected-term button:not(.danger):hover,
+.admin-selected-term button:not(.danger):focus-visible { border-color: #109d1a; color: #fff; background: #109d1a; }
+.admin-selected-term button.danger:hover,
+.admin-selected-term button.danger:focus-visible { border-color: #dc2626; color: #fff; background: #dc2626; }
+.admin-selected-term button:focus-visible { outline: 3px solid rgb(16 157 26 / 18%); outline-offset: 2px; }
+.admin-selected-term button.danger:focus-visible { outline-color: rgb(220 38 38 / 18%); }
 .admin-selected-term > div:last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .admin-term-edit-form { margin: 16px 18px 0; padding: 16px; border: 1px solid var(--admin-border); border-radius: 8px; background: var(--admin-muted-surface); }
 .admin-term-form .admin-term-edit-note { grid-column: 1 / -1; margin: 0; color: var(--admin-muted); font-size: 0.68rem; line-height: 1.5; }
@@ -2548,9 +2549,14 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   .admin-terms-page { padding: 16px 12px; }
   .admin-terms-layout { grid-template-columns: 1fr; }
   .admin-term-form { grid-template-columns: 1fr; }
+  .admin-selected-term { align-items: flex-start; }
+  .admin-selected-term > div:first-child { min-width: 0; }
   .admin-offerings-list article { grid-template-columns: 1fr; gap: 8px; }
 }
 @media (max-width: 620px) {
+  .admin-selected-term { align-items: stretch; flex-direction: column; }
+  .admin-selected-term > div:last-child { width: 100%; justify-content: stretch; }
+  .admin-selected-term > div:last-child button { flex: 1 1 120px; }
   .student-reference-page { padding: 18px 14px; }
   .student-page-heading { align-items: stretch; flex-direction: column; }
   .student-metrics { grid-template-columns: 1fr; }
@@ -3743,7 +3749,6 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   .student-assessment-passing { margin: 0 18px 16px; }
   .student-assessment-integrity-warning { margin: 0 18px 16px; }
   .student-question-card > header { min-height: 84px; padding: 14px 18px; }
-  .student-question-model { min-height: 165px; }
   .student-assessment-progress > div { align-items: flex-start; flex-direction: column; gap: 4px; }
   .student-assessment-result > footer { align-items: stretch; flex-direction: column; }
   .student-assessment-result > footer a { width: 100%; text-align: center; }

@@ -31,7 +31,7 @@ export default function FirearmViewerPage() {
       }
 
       const [firearmResult, statusResult] = await Promise.all([
-        supabase.from('firearms').select('id, identifier, name, caliber, description, firearm_type, tutorial_url, model_credit, status').eq('id', firearmId).single(),
+        supabase.from('firearms').select('id, identifier, name, caliber, description, firearm_type, tutorial_url, model_credit, status, created_at, glb_storage_path').eq('id', firearmId).single(),
         supabase.rpc('get_assessment_status', { target_class_id: classId, target_firearm_id: firearmId }),
       ])
 
