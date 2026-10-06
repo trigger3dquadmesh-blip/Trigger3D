@@ -2393,7 +2393,8 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .admin-audit-heading h1 { margin: 0; font-size: 1.25rem; font-weight: 650; }
 .admin-audit-heading p { margin: 6px 0 0; color: var(--admin-muted); font-size: 0.75rem; }
 .admin-audit-heading > span { padding: 6px 10px; border: 1px solid #a8ddb0; border-radius: 999px; color: #0b7f14; background: #e8f7ea; font-size: 0.68rem; font-weight: 700; white-space: nowrap; }
-.admin-audit-term-filters { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px; padding: 14px; border: 1px solid var(--admin-border); border-radius: 10px; background: var(--admin-card); }
+.admin-audit-term-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; padding: 14px; overflow: visible; border: 1px solid var(--admin-border); border-radius: 10px; background: var(--admin-card); }
+.admin-audit-term-filters > * { min-width: 0; }
 .admin-audit-term-filters label,
 .admin-audit-term-filter { display: grid; gap: 6px; color: var(--admin-muted); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.035em; text-transform: uppercase; }
 .admin-audit-term-filters select { width: 100%; min-height: 40px; padding: 0 40px 0 11px; border: 1px solid var(--admin-border); border-radius: 8px; color: var(--admin-text); background-color: var(--admin-input); font: inherit; font-size: 0.73rem; font-weight: 600; letter-spacing: 0; text-transform: none; }
@@ -2428,9 +2429,15 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 :root:not([data-theme='light']) .admin-audit-scope-menu > div > p.admin-audit-search-status { color: #c7f5cf; background: rgb(16 157 26 / 16%); }
 :root:not([data-theme='light']) .admin-audit-heading > span { color: #c7f5cf; background: rgb(16 157 26 / 16%); }
 
+@media (max-width: 1100px) {
+  .admin-audit-term-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-audit-term-filters > label:last-child { grid-column: 1 / -1; }
+}
+
 @media (max-width: 800px) {
   .admin-audit-heading { align-items: flex-start; flex-direction: column; }
   .admin-audit-term-filters { grid-template-columns: 1fr; }
+  .admin-audit-term-filters > label:last-child { grid-column: auto; }
 }
 
 /* Academic-term administration and faculty term context. */

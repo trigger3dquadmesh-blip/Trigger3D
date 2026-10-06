@@ -25,6 +25,7 @@ export default function AdminAcademicTermsPanel() {
   const [termQuery, setTermQuery] = useState('')
   const [termForm, setTermForm] = useState({ academicYear: '', semester: '1st Semester', startDate: '', endDate: '', makeActive: true })
   const [editForm, setEditForm] = useState(null)
+  const [createConfirmationOpen, setCreateConfirmationOpen] = useState(false)
   const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false)
   useAutoDismissNotice(notice, () => setNotice(''), 5000)
   useAutoDismissNotice(error, () => setError(''), 6500)
@@ -68,8 +69,7 @@ export default function AdminAcademicTermsPanel() {
     })
   }, [termQuery, termTab, terms])
 
-  async function createTerm(event) {
-    event.preventDefault()
+  async function createTerm() {
     setSaving(true); setError(''); setNotice('')
     const { error: requestError } = await supabase.rpc('admin_create_academic_term', {
       term_academic_year: termForm.academicYear,
@@ -84,6 +84,7 @@ export default function AdminAcademicTermsPanel() {
       setTermForm({ academicYear: '', semester: '1st Semester', startDate: '', endDate: '', makeActive: false })
       await loadData()
     }
+    setCreateConfirmationOpen(false)
     setSaving(false)
   }
 
@@ -165,7 +166,7 @@ export default function AdminAcademicTermsPanel() {
         </div>
       </aside>
       <div className="admin-terms-content">
-        <section className="admin-term-card"><header><div><h2>Create academic term</h2><p>The administrator controls which semester is current.</p></div></header><form className="admin-term-form" onSubmit={createTerm}><label>Academic Year<input disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, academicYear: event.target.value }))} pattern="\d{4}-\d{4}" placeholder="2026-2027" required value={termForm.academicYear} /></label><label>Semester<select disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, semester: event.target.value }))} value={termForm.semester}><option>1st Semester</option><option>2nd Semester</option></select></label><label>Start Date<input disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, startDate: event.target.value }))} required type="date" value={termForm.startDate} /></label><label>End Date<input disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, endDate: event.target.value }))} required type="date" value={termForm.endDate} /></label><label className="admin-term-checkbox"><input checked={termForm.makeActive} disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, makeActive: event.target.checked }))} type="checkbox" />Make this the active term</label><button disabled={saving} type="submit">{saving ? 'Saving…' : 'Create Term'}</button></form></section>
+        <section className="admin-term-card"><header><div><h2>Create academic term</h2><p>The administrator controls which semester is current.</p></div></header><form className="admin-term-form" onSubmit={(event) => { event.preventDefault(); setCreateConfirmationOpen(true) }}><label>Academic Year<input disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, academicYear: event.target.value }))} pattern="\d{4}-\d{4}" placeholder="2026-2027" required value={termForm.academicYear} /></label><label>Semester<select disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, semester: event.target.value }))} value={termForm.semester}><option>1st Semester</option><option>2nd Semester</option></select></label><label>Start Date<input disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, startDate: event.target.value }))} required type="date" value={termForm.startDate} /></label><label>End Date<input disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, endDate: event.target.value }))} required type="date" value={termForm.endDate} /></label><label className="admin-term-checkbox"><input checked={termForm.makeActive} disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, makeActive: event.target.checked }))} type="checkbox" />Make this the active term</label><button disabled={saving} type="submit">{saving ? 'Saving…' : 'Create Term'}</button></form></section>
         {selectedTerm && <section className="admin-term-card"><header className="admin-selected-term"><div><h2>{termLabel(selectedTerm)}</h2><p>{selectedTerm.status === 'closed' ? 'Historical term · class records remain read-only' : `${formatDate(selectedTerm.start_date)} – ${formatDate(selectedTerm.end_date)}`}</p></div><div><button disabled={saving} onClick={beginEditTerm} type="button">Edit Term</button>{selectedTerm.status !== 'active' && selectedTerm.status !== 'closed' && <button disabled={saving} onClick={() => void setTermStatus('active')} type="button">Set Active</button>}{selectedTerm.status === 'active' && <button className="danger" disabled={saving} onClick={() => setCloseConfirmationOpen(true)} type="button">Close Term</button>}</div></header>
           {editForm && <form className="admin-term-form admin-term-edit-form" onSubmit={updateTerm}>
             <label>Academic Year<input disabled={saving} onChange={(event) => setEditForm((current) => ({ ...current, academicYear: event.target.value, confirmLinkedClasses: false }))} pattern="\d{4}-\d{4}" required value={editForm.academicYear} /></label>
@@ -179,6 +180,25 @@ export default function AdminAcademicTermsPanel() {
           {selectedTerm.status === 'active' && <p className="admin-term-faculty-note">Faculty members can now create their own subjects and sections under this active term. Every new class starts with a blank roster, attempts, and scores.</p>}<div className="admin-offerings-list"><h3>Faculty-created classes <span>{selectedOfferings.length}</span></h3>{selectedOfferings.map((item) => <article key={item.id}><div><strong>{item.subject_name || item.name}</strong><span>{item.section || 'Legacy class'}</span></div><div><strong>{item.faculty?.full_name || item.faculty?.email || 'Unassigned'}</strong><span>{item.code}</span></div></article>)}{selectedOfferings.length === 0 && <p>No faculty has created a class in this term yet.</p>}</div></section>}
       </div>
     </div>
+    <AdminDesignModal
+      description="Review the academic term details before adding it to the system."
+      footer={<><AdminButton disabled={saving} kind="ghost" onClick={() => setCreateConfirmationOpen(false)}>Cancel</AdminButton><AdminButton disabled={saving} onClick={() => void createTerm()}>{saving ? 'Creating…' : 'Confirm & Create'}</AdminButton></>}
+      onClose={() => { if (!saving) setCreateConfirmationOpen(false) }}
+      open={createConfirmationOpen}
+      title={`Create ${termForm.semester}, AY ${termForm.academicYear}?`}
+    >
+      <div className="grid gap-4">
+        <div className="admin-confirmation-note success">
+          <strong>{termForm.makeActive ? 'This will become the active term' : 'This will be added as an upcoming term'}</strong>
+          <span>{termForm.makeActive ? 'Faculty members will be able to create new classes under this term after confirmation.' : 'The term will be available for review but will not replace the currently active term.'}</span>
+        </div>
+        <dl className="grid gap-2 text-xs leading-5 text-[var(--admin-muted)]">
+          <div className="flex justify-between gap-4"><dt>Academic term</dt><dd className="text-right font-semibold text-[var(--admin-text)]">{termForm.semester}, AY {termForm.academicYear}</dd></div>
+          <div className="flex justify-between gap-4"><dt>Start date</dt><dd className="text-right font-semibold text-[var(--admin-text)]">{formatDate(termForm.startDate)}</dd></div>
+          <div className="flex justify-between gap-4"><dt>End date</dt><dd className="text-right font-semibold text-[var(--admin-text)]">{formatDate(termForm.endDate)}</dd></div>
+        </dl>
+      </div>
+    </AdminDesignModal>
     <AdminDesignModal
       description="Review the effect of closing this academic term before continuing."
       footer={<><AdminButton disabled={saving} kind="ghost" onClick={() => setCloseConfirmationOpen(false)}>Cancel</AdminButton><AdminButton disabled={saving} kind="danger" onClick={() => void setTermStatus('closed')}>{saving ? 'Closing…' : 'Close Term'}</AdminButton></>}

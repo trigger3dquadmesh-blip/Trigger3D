@@ -128,7 +128,7 @@ export default function AdminAuditLogPanel({ academicTerms = [], auditEvents = [
 
   function changeAcademicScope(nextScope) {
     setAcademicYear(nextScope)
-    setSemester(nextScope === 'activity' || nextScope === 'system' || nextScope === 'unassigned' ? 'all' : 'current')
+    setSemester(['activity', 'all', 'system', 'unassigned'].includes(nextScope) ? 'all' : 'current')
     setClassId('all')
     setPage(1)
     setExpandedId(null)
