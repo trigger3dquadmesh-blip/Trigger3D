@@ -37,3 +37,6 @@ coverage/
 tmp/
 temp/
 ADMIN_DATA_INTEGRATION_BACKLOG.md
+
+SECURITY_DEPLOYMENT.md
+supabase/migrations/
