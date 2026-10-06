@@ -585,6 +585,10 @@ button:disabled, [role='button'][aria-disabled='true'] { cursor: not-allowed; }
 .role-sidebar-logo { position: relative; display: inline-block; width: 10rem; height: 3.2rem; overflow: hidden; }
 .role-sidebar-logo img { position: absolute; top: -5.25rem; left: -1.15rem; width: 13.2rem; max-width: none; }
 .role-dashboard-redesign.sidebar-collapsed .role-sidebar-logo { display: none; }
+.landing-brand-logo img { position: absolute; inset: 0; }
+.landing-brand-logo-dark { display: none; }
+:root[data-theme='dark'] .landing-brand-logo-light { display: none; }
+:root[data-theme='dark'] .landing-brand-logo-dark { display: block; }
 .role-dashboard-redesign .admin-profile-card { order: 3; margin-top: auto; padding-block: 1rem; border-top: 1px solid var(--border); }
 .role-dashboard-redesign .admin-navigation { order: 2; border-top: 0; }
 .role-dashboard-redesign .sidebar-settings { order: 4; margin-top: 0; }

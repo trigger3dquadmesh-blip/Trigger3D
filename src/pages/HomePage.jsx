@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import useAuth from '../auth/useAuth.js'
 import LandingFirearm from '../components/LandingFirearm.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
-import brandLogo from '../assets/landing/brand-logo.png'
+import brandLogoLight from '../assets/landing/brand-logo-light.png'
+import brandLogoDark from '../assets/landing/brand-logo-dark.png'
 import sdg04 from '../assets/landing/sdg-04.png'
 import sdg09 from '../assets/landing/sdg-09.png'
 import sdg10 from '../assets/landing/sdg-10.png'
@@ -52,11 +53,17 @@ function FeatureIcon({ name }) {
 
 function Brand({ large = false }) {
   return (
-    <span className={`${large ? 'h-12 w-52' : 'h-10 w-36'} relative inline-block shrink-0 overflow-hidden`}>
+    <span className={`${large ? 'h-14 w-56' : 'h-11 w-40'} landing-brand-logo relative inline-block shrink-0`}>
       <img
-        className={`${large ? 'left-[-23px] top-[-102px] h-[255px] w-[255px]' : 'left-[-16px] top-[-70px] h-[177px] w-[177px]'} pointer-events-none absolute max-w-none select-none`}
-        src={brandLogo}
+        className="landing-brand-logo-light pointer-events-none h-full w-full object-contain object-left select-none"
+        src={brandLogoLight}
         alt="Trigger3D - QuadMeshIT"
+      />
+      <img
+        aria-hidden="true"
+        className="landing-brand-logo-dark pointer-events-none h-full w-full object-contain object-left select-none"
+        src={brandLogoDark}
+        alt=""
       />
     </span>
   )
