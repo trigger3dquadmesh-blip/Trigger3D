@@ -1,10 +1,9 @@
 import { lazy, Suspense } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import RoleProtectedRoute from './components/RoleProtectedRoute.jsx'
 import AdminMfaGuard from './components/AdminMfaGuard.jsx'
 import { ROLES } from './config/roles.js'
-import ThemeToggle from './components/ThemeToggle.jsx'
 import DashboardLoading from './components/DashboardLoading.jsx'
 
 const HomePage = lazy(() => import('./pages/HomePage.jsx'))
@@ -31,14 +30,8 @@ function RouteLoading() {
 }
 
 export default function App() {
-  const location = useLocation()
-  const dashboardOwnsThemeToggle = ['/account', '/admin', '/faculty', '/settings'].includes(location.pathname) || location.pathname.startsWith('/student')
-
   return (
     <>
-      {!['/', '/login', '/reset-password'].includes(location.pathname) && !dashboardOwnsThemeToggle && (
-        <ThemeToggle compact={location.pathname.startsWith('/admin') || location.pathname === '/settings'} />
-      )}
       <Suspense fallback={<RouteLoading />}>
       <Routes>
       <Route path="/" element={<HomePage />} />

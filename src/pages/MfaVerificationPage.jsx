@@ -4,6 +4,7 @@ import { getVerifiedTotpFactors, normalizeMfaCode } from '../auth/mfa.js'
 import useAuth from '../auth/useAuth.js'
 import { getRoleHomePath } from '../config/roles.js'
 import { supabase } from '../lib/supabase.js'
+import ThemeToggle from '../components/ThemeToggle.jsx'
 
 export default function MfaVerificationPage() {
   const { role, signOut, user } = useAuth()
@@ -55,7 +56,8 @@ export default function MfaVerificationPage() {
 
   return (
     <main className="auth-screen grid min-h-screen place-items-center bg-[var(--auth-bg)] px-4 py-5 text-[var(--auth-text)]">
-      <section className="w-full max-w-[28rem] rounded-2xl border border-[var(--auth-border)] bg-[var(--auth-card)] p-5 shadow-[0_24px_70px_rgb(0_0_0/0.24)] sm:p-6">
+      <section className="relative w-full max-w-[28rem] rounded-2xl border border-[var(--auth-border)] bg-[var(--auth-card)] p-5 pt-16 shadow-[0_24px_70px_rgb(0_0_0/0.24)] sm:p-6 sm:pt-16">
+        <div className="absolute right-5 top-5 sm:right-6 sm:top-6"><ThemeToggle compact /></div>
         <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-[#109d1a]">{roleLabel} security</p>
         <h1 className="m-0 text-3xl font-black leading-none tracking-tight">Verify your identity</h1>
         <p className="mb-5 mt-3 text-sm leading-6 text-[var(--auth-muted)]">Enter the six-digit code from your authenticator app to open your {roleLabel.toLowerCase()} account.</p>
