@@ -366,6 +366,49 @@ button, input { font: inherit; }
   transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease, opacity 150ms ease;
 }
 
+@media (max-width: 1100px) {
+  .faculty-class-workspace .faculty-student-action-menu {
+    align-items: center;
+  }
+
+  .faculty-class-workspace .faculty-student-action-popover {
+    top: auto;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: min(210px, calc(100vw - 48px));
+    padding: 6px;
+    transform: none;
+  }
+
+  .faculty-class-workspace .faculty-student-action-popover button {
+    width: 100%;
+    min-height: 40px;
+    padding: 9px 11px;
+  }
+}
+
+/* Tablet placement for the student actions menu. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .faculty-class-workspace .faculty-student-action-menu {
+    align-items: center;
+  }
+
+  .faculty-class-workspace .faculty-student-action-popover {
+    top: auto;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: 210px;
+    padding: 6px;
+    transform: none;
+  }
+
+  .faculty-class-workspace .faculty-student-action-popover button {
+    width: 100%;
+    min-height: 40px;
+    padding: 9px 11px;
+  }
+}
+
 .button:disabled { cursor: not-allowed; opacity: 0.45; }
 button:not(:disabled), [role='button']:not([aria-disabled='true']) { cursor: pointer; }
 button:disabled, [role='button'][aria-disabled='true'] { cursor: not-allowed; }
@@ -2164,6 +2207,189 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   .student-resource-grid { grid-template-columns: 1fr; }
 }
 
+/* Final faculty workspace overrides: keep compact controls together on narrow screens. */
+@media (max-width: 760px) {
+  .faculty-students-tab .faculty-student-tools {
+    display: flex;
+    width: 100%;
+    align-items: stretch;
+    justify-content: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .faculty-students-tab .faculty-student-tools > label {
+    width: 100%;
+    min-height: 0;
+    flex: 0 0 auto;
+  }
+
+  .faculty-students-tab .faculty-student-tools > label > svg {
+    top: 50%;
+  }
+
+  .faculty-students-tab .faculty-student-tools input,
+  .faculty-students-tab .faculty-student-tools > button {
+    width: 100%;
+    min-height: 44px;
+    flex: 0 0 auto;
+  }
+}
+
+@media (min-width: 481px) and (max-width: 760px) {
+  .faculty-class-workspace .faculty-class-tabs-nav {
+    overflow-x: visible;
+    scrollbar-width: none;
+  }
+
+  .faculty-class-workspace .faculty-class-tabs-nav::-webkit-scrollbar { display: none; }
+
+  .faculty-class-workspace .faculty-class-tabs-nav > button {
+    min-width: 0;
+    flex: 1 1 0;
+    justify-content: center;
+    padding-inline: 6px;
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+}
+
+/* Responsive layout hardening for tablet and mobile dashboard views. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .faculty-class-tools {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .faculty-class-tabs {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .faculty-class-tabs button {
+    flex: 1 0 auto;
+  }
+
+  .faculty-class-filters {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1.2fr);
+  }
+
+  .faculty-term-filter,
+  .faculty-search,
+  .faculty-term-filter select,
+  .faculty-search input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .faculty-student-tools {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .faculty-student-tools label,
+  .faculty-student-tools input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .faculty-student-table-wrap { overflow: visible; border: 0; background: transparent; }
+  .faculty-student-table { display: block; width: 100%; min-width: 0; }
+  .faculty-student-table thead { display: none; }
+  .faculty-student-table tbody { display: grid; gap: 10px; }
+  .faculty-student-table tr { display: grid; overflow: hidden; border: 1px solid var(--admin-border); border-radius: 10px; background: var(--admin-card); }
+  .faculty-student-table td { display: flex; min-width: 0 !important; height: auto; min-height: 40px; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 13px; border-top: 1px solid var(--admin-border); white-space: normal; text-align: right; }
+  .faculty-student-table td:first-child { border-top: 0; }
+  .faculty-student-table td::before { flex: 0 0 auto; color: var(--admin-muted); font-size: 0.61rem; font-weight: 700; text-transform: uppercase; }
+  .faculty-student-table td:nth-child(1)::before { content: 'Student'; }
+  .faculty-student-table td:nth-child(2)::before { content: 'Student ID'; }
+  .faculty-student-table td:nth-child(3)::before { content: 'Completed'; }
+  .faculty-student-table td:nth-child(4)::before { content: 'Average'; }
+  .faculty-student-table td:nth-child(5)::before { content: 'Last score'; }
+  .faculty-student-table td:nth-child(6)::before { content: 'Joined'; }
+  .faculty-student-table td:nth-child(7)::before { content: 'Actions'; }
+  .faculty-student-identity { min-width: 0; margin-left: auto; text-align: left; }
+  .faculty-student-actions { margin-left: auto; }
+}
+
+@media (max-width: 760px) {
+  .faculty-class-tools,
+  .faculty-class-filters,
+  .faculty-student-tools,
+  .account-table-tools,
+  .account-search-tools {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .faculty-class-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .faculty-term-filter,
+  .faculty-search,
+  .faculty-term-filter select,
+  .faculty-search input,
+  .faculty-student-tools label,
+  .faculty-student-tools input,
+  .account-search-tools label,
+  .account-search-tools input,
+  .account-search-tools select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .faculty-student-tools > button {
+    width: 100%;
+  }
+
+  .faculty-student-tools label { flex: 0 0 auto; }
+  .faculty-student-tools { justify-content: flex-start; }
+
+  .faculty-class-card,
+  .faculty-reference-card,
+  .student-card,
+  .account-settings-page,
+  .settings-password-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .confirmation-dialog,
+  .admin-design-modal,
+  .faculty-create-class-dialog {
+    max-width: calc(100vw - 24px);
+  }
+}
+
+@media (min-width: 481px) and (max-width: 760px) {
+  .faculty-class-tabs-nav { overflow-x: visible; }
+  .faculty-class-tabs-nav button { min-width: 0; flex: 1 1 auto; justify-content: center; padding-inline: 8px; font-size: 0.72rem; white-space: nowrap; }
+}
+
+.admin-reference-shell .dashboard-page,
+.admin-reference-shell .dashboard-grid,
+.admin-reference-shell .admin-reference-page,
+.admin-reference-shell .faculty-reference-page,
+.admin-reference-shell .student-reference-page {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-reference-shell table,
+.admin-reference-shell input,
+.admin-reference-shell select,
+.admin-reference-shell textarea {
+  max-width: 100%;
+}
+
 .admin-audit-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
 .admin-audit-heading h1 { margin: 0; font-size: 1.25rem; font-weight: 650; }
 .admin-audit-heading p { margin: 6px 0 0; color: var(--admin-muted); font-size: 0.75rem; }
@@ -3501,9 +3727,9 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 
   .student-assessment-page { min-height: calc(100dvh - 54px); padding: 18px 12px 26px; }
   .student-assessment-complete { padding-block: 18px; }
-  .student-assessment-facts { grid-template-columns: 1fr; }
-  .student-assessment-facts > div { min-height: 70px; }
-  .student-assessment-facts > div + div { border-top: 1px solid var(--admin-border); border-left: 0; }
+  .student-assessment-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .student-assessment-facts > div { min-width: 0; min-height: 76px; padding: 10px; }
+  .student-assessment-facts > div + div { border-top: 0; border-left: 1px solid var(--admin-border); }
   .student-assessment-intro > header,
   .student-assessment-instructions,
   .student-question-body { padding: 18px; }
@@ -3904,4 +4130,108 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   .student-review-controls > span { display: none; }
   .student-review-controls button { width: 100%; }
   .student-review-list article { min-height: 0; }
+}
+
+/* Keep the student action menu visible and aligned on tablets. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .faculty-class-workspace .faculty-student-action-menu { align-items: center; }
+  .faculty-class-workspace .faculty-student-action-popover {
+    top: auto;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: 210px;
+    padding: 6px;
+    transform: none;
+  }
+  .faculty-class-workspace .faculty-student-action-popover button {
+    width: 100%;
+    min-height: 40px;
+    padding: 9px 11px;
+  }
+}
+
+/* Keep faculty class controls compact after all shared responsive rules. */
+@media (max-width: 760px) {
+  .faculty-class-workspace .faculty-class-tabs-nav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: 100%;
+    overflow: visible;
+    border: 1px solid var(--admin-border);
+    border-radius: 8px;
+    scrollbar-width: none;
+  }
+
+  .faculty-class-workspace .faculty-class-tabs-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .faculty-class-workspace .faculty-class-tabs-nav > button {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 10px 3px;
+    justify-content: center;
+    border-bottom: 2px solid transparent;
+    font-size: clamp(0.68rem, 1.8vw, 0.78rem);
+    white-space: nowrap;
+  }
+
+  .faculty-class-workspace .faculty-class-tabs-nav > button .count-badge {
+    min-width: 18px;
+    height: 18px;
+    padding-inline: 4px;
+    font-size: 0.65rem;
+  }
+
+  .faculty-class-workspace .faculty-class-tabs-nav > button.active {
+    border-bottom-color: var(--admin-accent);
+  }
+
+  .faculty-class-workspace .faculty-students-tab .faculty-student-tools {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    gap: 10px;
+    margin-bottom: 16px;
+    align-items: start;
+  }
+
+  .faculty-class-workspace .faculty-students-tab .faculty-student-tools > label {
+    width: 100%;
+    height: auto;
+    min-height: 44px !important;
+    flex: none !important;
+  }
+
+  .faculty-class-workspace .faculty-students-tab .faculty-student-tools > label > svg {
+    top: 50%;
+  }
+
+  .faculty-class-workspace .faculty-students-tab .faculty-student-tools input,
+  .faculty-class-workspace .faculty-students-tab .faculty-student-tools > button {
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    flex: none;
+  }
+
+  .faculty-class-workspace .faculty-student-action-menu {
+    align-items: center;
+  }
+
+  .faculty-class-workspace .faculty-student-action-popover {
+    top: auto;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: min(210px, calc(100vw - 48px));
+    padding: 6px;
+    transform: none;
+  }
+
+  .faculty-class-workspace .faculty-student-action-popover button {
+    width: 100%;
+    min-height: 40px;
+    padding: 9px 11px;
+  }
 }
