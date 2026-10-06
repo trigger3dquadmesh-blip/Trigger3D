@@ -15,7 +15,8 @@ function CreateAccountModal({ onClose, onCreate, open }) {
     const nextErrors = {}
     if (!form.name.trim()) nextErrors.name = 'Name is required.'
     if (!form.email.trim()) nextErrors.email = 'Email is required.'
-    if (form.password.length < 8) nextErrors.password = 'Use at least 8 characters.'
+    if (form.password.length < 12) nextErrors.password = 'Use at least 12 characters.'
+    else if (!/[a-z]/.test(form.password) || !/[A-Z]/.test(form.password) || !/\d/.test(form.password) || !/[^A-Za-z0-9]/.test(form.password)) nextErrors.password = 'Include uppercase, lowercase, number, and symbol.'
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
     onCreate(form)
@@ -28,7 +29,7 @@ function CreateAccountModal({ onClose, onCreate, open }) {
       <form className="grid gap-4" onSubmit={(event) => { event.preventDefault(); submit() }}>
         <AdminField error={errors.name} label="Full Name"><input className={inputClass} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Dr. Maria Santos" value={form.name} /></AdminField>
         <AdminField error={errors.email} label="Institutional Email"><input className={inputClass} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="user@institution.edu.ph" type="email" value={form.email} /></AdminField>
-        <AdminField error={errors.password} label="Temporary Password"><input className={inputClass} minLength="8" onChange={(event) => setForm({ ...form, password: event.target.value })} type="password" value={form.password} /></AdminField>
+        <AdminField error={errors.password} label="Temporary Password"><input autoComplete="new-password" className={inputClass} minLength="12" onChange={(event) => setForm({ ...form, password: event.target.value })} type="password" value={form.password} /></AdminField>
         <AdminField label="Role"><select className={inputClass} onChange={(event) => setForm({ ...form, role: event.target.value })} value={form.role}><option value="faculty">Faculty</option><option value="admin">Administrator</option></select></AdminField>
         <p className="m-0 rounded-[6px] bg-[#edf0ee] px-3 py-2 text-[11px] leading-4 text-[#5f6b63]">Student accounts are created through public registration. Faculty and Administrator accounts can be provisioned here.</p>
       </form>

@@ -3,6 +3,7 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 import { AuthContext } from './auth-context.js'
 import { resolveProfileAvatar } from './profile-avatar.js'
 import { hasActiveAssessmentSession } from '../features/student/assessment/assessment-session.js'
+import { privilegedIdleTimeoutMs, requiresPrivilegedIdleTimeout } from './session-security.js'
 
 const awayTimestampKey = 'trigger3d.auth.away-at'
 const awaySignOutDelay = 30_000
@@ -153,6 +154,27 @@ export default function AuthProvider({ children }) {
       authListener.subscription.unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    if (!session?.user || !requiresPrivilegedIdleTimeout(profile?.role)) return undefined
+
+    let timeoutId
+    const expireSession = () => {
+      void supabase.auth.signOut()
+    }
+    const scheduleExpiration = () => {
+      window.clearTimeout(timeoutId)
+      timeoutId = window.setTimeout(expireSession, privilegedIdleTimeoutMs)
+    }
+    const activityEvents = ['pointerdown', 'keydown', 'touchstart', 'scroll']
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, scheduleExpiration, { passive: true }))
+    scheduleExpiration()
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, scheduleExpiration))
+    }
+  }, [profile?.role, session?.user])
 
   const refreshProfile = useCallback(async () => {
     if (!session?.user) return { data: null, error: null }
