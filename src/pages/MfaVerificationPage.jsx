@@ -22,11 +22,15 @@ export default function MfaVerificationPage() {
       if (!active) return
       const factors = getVerifiedTotpFactors(data)
       setFactor(factors[0] || null)
-      setError(factorError?.message || (!factors.length ? 'No verified authenticator is available for this account.' : ''))
+      if (!factorError && factors.length === 0) {
+        navigate('/settings', { replace: true, state: { mfaEnrollmentRequired: true } })
+        return
+      }
+      setError(factorError?.message || '')
       setLoading(false)
     })
     return () => { active = false }
-  }, [])
+  }, [navigate])
 
   if (!user) return <Navigate replace to="/login" />
   if (!['admin', 'faculty'].includes(role)) return <Navigate replace to={getRoleHomePath(role)} />

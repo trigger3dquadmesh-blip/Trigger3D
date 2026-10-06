@@ -49,7 +49,7 @@ export default function App() {
         path="/account"
         element={
           <ProtectedRoute>
-            <AccountPage />
+            <AdminMfaGuard><AccountPage /></AdminMfaGuard>
           </ProtectedRoute>
         }
       />
@@ -57,7 +57,7 @@ export default function App() {
         path="/change-password"
         element={
           <ProtectedRoute>
-            <ChangePasswordPage />
+            <AdminMfaGuard><ChangePasswordPage /></AdminMfaGuard>
           </ProtectedRoute>
         }
       />
@@ -65,7 +65,7 @@ export default function App() {
         path="/settings"
         element={
           <ProtectedRoute>
-            <AdminMfaGuard><SettingsPage /></AdminMfaGuard>
+            <AdminMfaGuard allowEnrollment><SettingsPage /></AdminMfaGuard>
           </ProtectedRoute>
         }
       />

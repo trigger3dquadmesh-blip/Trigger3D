@@ -8,8 +8,19 @@ dist/
 *.log
 .DS_Store
 .vercel
-# Supabase configuration, functions, migrations, and SQL scripts stay local.
-supabase/
+# Keep local Supabase state private, but version deployable security code.
+supabase/*
+!supabase/functions/
+supabase/functions/*
+!supabase/functions/admin-users/
+!supabase/functions/admin-users/index.js
+!supabase/functions/admin-firearms/
+!supabase/functions/admin-firearms/index.js
+!supabase/functions/_shared/
+!supabase/functions/_shared/security.js
+!supabase/migrations/
+supabase/migrations/*
+!supabase/migrations/202610070001_enforce_privileged_mfa.sql
 AGENTS.md
 LANDING_PAGE_DESIGN_STANDARDS.md
 TRIGGER3D_REVISION_ROADMAP.md

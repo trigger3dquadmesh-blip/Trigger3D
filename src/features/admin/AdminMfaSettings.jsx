@@ -55,6 +55,7 @@ export default function AdminMfaSettings({ roleName = 'Administrator' }) {
       return
     }
     await supabase.auth.refreshSession()
+    await supabase.rpc('record_my_security_event', { event_name: 'MFA authenticator added' })
     setPendingFactor(null)
     setCode('')
     setMessage(`Authenticator enabled. It will be required the next time this ${roleName.toLowerCase()} signs in.`)
@@ -70,12 +71,18 @@ export default function AdminMfaSettings({ roleName = 'Administrator' }) {
   }
 
   async function removeFactor(factorId) {
+    if (factors.length <= 1) {
+      setFactorPendingRemoval(null)
+      setError('Admin and faculty accounts must keep at least one authenticator. Add a backup authenticator before removing this one.')
+      return
+    }
     setWorking(true)
     setError('')
     setMessage('')
     const { error: removalError } = await supabase.auth.mfa.unenroll({ factorId })
     if (removalError) setError(removalError.message)
     else {
+      await supabase.rpc('record_my_security_event', { event_name: 'MFA authenticator removed' })
       setMessage('Authenticator removed.')
       setFactorPendingRemoval(null)
       await loadFactors()
@@ -97,6 +104,12 @@ export default function AdminMfaSettings({ roleName = 'Administrator' }) {
 
       {error && <div className="alert alert-error" role="alert">{error}</div>}
       {message && <div className="alert alert-success" role="status">{message}</div>}
+      {!loading && factors.length === 0 && !pendingFactor && (
+        <div className="admin-mfa-recovery-note" role="alert">
+          <strong>Setup required</strong>
+          <p>Two-factor authentication is required before this {roleName.toLowerCase()} account can open protected system pages.</p>
+        </div>
+      )}
 
       {loading ? (
         <p className="admin-mfa-loading">Checking connected authenticators…</p>
@@ -201,10 +214,10 @@ export default function AdminMfaSettings({ roleName = 'Administrator' }) {
                 <p><strong>{factorPendingRemoval.displayName}</strong> will no longer generate valid verification codes for this {roleName.toLowerCase()} account.</p>
               </div>
             </div>
-            {factors.length === 1 && <div className="admin-mfa-removal-warning">This is your only connected authenticator. Removing it will disable two-factor authentication for this account.</div>}
+            {factors.length === 1 && <div className="admin-mfa-removal-warning">This is your only connected authenticator. Add a backup authenticator before removing it so this protected account cannot lose two-factor authentication.</div>}
             <div className="confirmation-actions">
               <button disabled={working} onClick={() => setFactorPendingRemoval(null)} type="button">Keep authenticator</button>
-              <button className="danger-action" disabled={working} onClick={() => removeFactor(factorPendingRemoval.id)} type="button">{working ? 'Removing…' : 'Remove authenticator'}</button>
+              <button className="danger-action" disabled={working || factors.length === 1} onClick={() => removeFactor(factorPendingRemoval.id)} type="button">{working ? 'Removing…' : factors.length === 1 ? 'Backup required' : 'Remove authenticator'}</button>
             </div>
           </section>
         </div>,

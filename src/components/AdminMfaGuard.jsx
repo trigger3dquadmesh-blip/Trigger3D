@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import useAuth from '../auth/useAuth.js'
-import { needsMfaVerification } from '../auth/mfa.js'
+import { getMfaRequirement } from '../auth/mfa.js'
 import { supabase } from '../lib/supabase.js'
 import DashboardLoading from './DashboardLoading.jsx'
 
-export default function AdminMfaGuard({ children }) {
+export default function AdminMfaGuard({ allowEnrollment = false, children }) {
   const { loading, role, user } = useAuth()
   const location = useLocation()
   const [checking, setChecking] = useState(true)
-  const [requiresVerification, setRequiresVerification] = useState(false)
+  const [requirement, setRequirement] = useState('not-required')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -18,7 +18,7 @@ export default function AdminMfaGuard({ children }) {
       // Reset the previous administrator check when the signed-in account changes.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setChecking(false)
-      setRequiresVerification(false)
+      setRequirement('not-required')
       return undefined
     }
 
@@ -35,7 +35,7 @@ export default function AdminMfaGuard({ children }) {
         setChecking(false)
         return
       }
-      setRequiresVerification(needsMfaVerification({
+      setRequirement(getMfaRequirement({
         currentLevel: assuranceResult.data?.currentLevel,
         factors: factorResult.data,
         role,
@@ -58,8 +58,12 @@ export default function AdminMfaGuard({ children }) {
     return <main className="page status-page"><section className="card auth-card"><h1>Security check unavailable</h1><p>{error}</p><button className="button" onClick={() => window.location.reload()} type="button">Try again</button></section></main>
   }
 
-  if (requiresVerification) {
+  if (requirement === 'verification-required') {
     return <Navigate replace state={{ from: location.pathname }} to="/mfa/verify" />
+  }
+
+  if (requirement === 'enrollment-required' && !allowEnrollment) {
+    return <Navigate replace state={{ mfaEnrollmentRequired: true }} to="/settings" />
   }
 
   return children

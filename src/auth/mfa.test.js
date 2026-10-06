@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getVerifiedTotpFactors, needsMfaVerification, normalizeMfaCode } from './mfa.js'
+import { getMfaRequirement, getVerifiedTotpFactors, needsMfaVerification, normalizeMfaCode } from './mfa.js'
 
 test('normalizes an MFA code to six digits', () => {
   assert.equal(normalizeMfaCode('12a 34-567'), '123456')
@@ -24,4 +24,8 @@ test('requires a second factor for admin and faculty accounts with enrolled TOTP
   assert.equal(needsMfaVerification({ currentLevel: 'aal2', factors, role: 'faculty' }), false)
   assert.equal(needsMfaVerification({ currentLevel: 'aal1', factors, role: 'student' }), false)
   assert.equal(needsMfaVerification({ currentLevel: 'aal1', factors: { totp: [] }, role: 'admin' }), false)
+  assert.equal(getMfaRequirement({ currentLevel: 'aal1', factors: { totp: [] }, role: 'admin' }), 'enrollment-required')
+  assert.equal(getMfaRequirement({ currentLevel: 'aal1', factors, role: 'admin' }), 'verification-required')
+  assert.equal(getMfaRequirement({ currentLevel: 'aal2', factors, role: 'faculty' }), 'satisfied')
+  assert.equal(getMfaRequirement({ currentLevel: 'aal1', factors: { totp: [] }, role: 'student' }), 'not-required')
 })
