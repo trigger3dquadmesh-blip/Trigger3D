@@ -33,13 +33,15 @@ export default function FirearmCardPreview({ firearm }) {
 
   useEffect(() => {
     let active = true
-    if (!nearViewport || !firearm.glb_storage_path) return undefined
+    if (!nearViewport) return undefined
+    setModelUrl('')
+    setFailed(false)
     void loadFirearmCanvas()
-    getFirearmModelUrl(firearm.glb_storage_path)
+    getFirearmModelUrl(firearm.glb_storage_path, firearm.identifier, firearm.name)
       .then((url) => { if (active) setModelUrl(url) })
       .catch(() => { if (active) setFailed(true) })
     return () => { active = false }
-  }, [firearm.glb_storage_path, nearViewport])
+  }, [firearm.glb_storage_path, firearm.identifier, firearm.name, nearViewport])
 
   return (
     <div aria-label={`${firearm.name} model preview`} className="admin-firearm-card-preview" ref={previewRef}>

@@ -56,6 +56,19 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
   const model = useMemo(() => {
     const copy = scene.clone(true)
 
+    // Some imported firearm models (including the bundled M1911) use Z as
+    // their vertical axis. The viewer camera looks along Z, so those models
+    // otherwise appear edge-on and effectively invisible. Rotate only models
+    // whose Y dimension is exceptionally thin; normally oriented uploads are
+    // left untouched.
+    copy.updateWorldMatrix(true, true)
+    const sourceSize = new Box3().setFromObject(copy).getSize(new Vector3())
+    const largestDimension = Math.max(sourceSize.x, sourceSize.y, sourceSize.z)
+    if (largestDimension > 0 && sourceSize.y <= largestDimension * 0.01 && sourceSize.z > sourceSize.y) {
+      copy.rotation.x = Math.PI / 2
+      copy.updateWorldMatrix(true, true)
+    }
+
     copy.traverse((object) => {
       if (!object.isMesh) return
       object.material = cloneMaterial(object.material)
@@ -263,6 +276,13 @@ export default function FirearmCanvas({
           </Bounds>
         </Canvas>
       </ViewerErrorBoundary>
+      {!loaded && !timedOut && (
+        <div className="viewer-model-loading" role="status" aria-live="polite" aria-label="Loading 3D model">
+          <span className="viewer-model-loading-spinner" aria-hidden="true" />
+          <strong>Loading 3D model…</strong>
+          <span>Please wait while the model is prepared.</span>
+        </div>
+      )}
       {!loaded && timedOut && <div className="viewer-load-timeout" role="alert"><strong>The 3D model is taking too long to load.</strong><span>Check your connection, then try downloading the model again.</span><button onClick={retryModel} type="button">Retry model</button></div>}
     </div>
   )

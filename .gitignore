@@ -40,3 +40,7 @@ ADMIN_DATA_INTEGRATION_BACKLOG.md
 
 SECURITY_DEPLOYMENT.md
 supabase/migrations/
+
+# Local firearm model fixtures are uploaded through the application, not GitHub.
+/public/models/gun_a.glb
+/public/models/gun_a_components.csv

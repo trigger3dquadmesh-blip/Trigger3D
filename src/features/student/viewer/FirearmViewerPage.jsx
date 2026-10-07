@@ -4,7 +4,7 @@ import DashboardLoading from '../../../components/DashboardLoading.jsx'
 import AdminModelViewerPanel from '../../admin/AdminModelViewerPanel.jsx'
 import AdminIcon from '../../admin/AdminIcon.jsx'
 import { supabase } from '../../../lib/supabase.js'
-import { getAssessmentLockKey } from '../assessment/assessment-lock.js'
+import { assessmentAttemptHasStarted, getAssessmentLockKey } from '../assessment/assessment-lock.js'
 import useAuth from '../../../auth/useAuth.js'
 import { markFirearmViewed } from './viewed-firearms.js'
 
@@ -30,19 +30,21 @@ export default function FirearmViewerPage() {
         return
       }
 
-      const [firearmResult, statusResult] = await Promise.all([
+      const [firearmResult, statusResult, attemptResult] = await Promise.all([
         supabase.from('firearms').select('id, identifier, name, caliber, description, firearm_type, tutorial_url, model_credit, status, created_at, glb_storage_path').eq('id', firearmId).single(),
         supabase.rpc('get_assessment_status', { target_class_id: classId, target_firearm_id: firearmId }),
+        supabase.from('assessment_attempts').select('status, timer_started_at, has_activity').eq('class_id', classId).eq('firearm_id', firearmId).maybeSingle(),
       ])
 
       if (!active) return
-      if (firearmResult.error || statusResult.error) {
-        setError(firearmResult.error?.message || statusResult.error.message)
+      if (firearmResult.error || statusResult.error || attemptResult.error) {
+        setError(firearmResult.error?.message || statusResult.error?.message || attemptResult.error.message)
       } else {
+        const assessmentStarted = assessmentAttemptHasStarted(attemptResult.data)
         setFirearm(firearmResult.data)
         setStatus(statusResult.data)
-        setLocked(statusResult.data.attempt_status === 'in_progress')
-        if (statusResult.data.attempt_status !== 'in_progress') {
+        setLocked(assessmentStarted)
+        if (!assessmentStarted) {
           markFirearmViewed(localStorage, profile?.id, classId, firearmId)
           if (profile?.id) {
             void supabase.from('student_firearm_views').upsert({ student_id: profile.id, class_id: classId, firearm_id: firearmId, viewed_at: new Date().toISOString() })

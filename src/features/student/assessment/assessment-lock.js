@@ -30,3 +30,8 @@ export function getStudentFirearmDestination(firearmId, assessmentInProgress, cl
     ? `/student/models/${firearmId}/assessment${classQuery}`
     : `/student/models/${firearmId}${classQuery}`
 }
+
+export function assessmentAttemptHasStarted(attempt) {
+  return attempt?.status === 'in_progress'
+    && Boolean(attempt.timer_started_at || attempt.has_activity)
+}

@@ -4,6 +4,7 @@ import AdminIcon from './AdminIcon.jsx'
 import { modelCreditHref } from './import/firearm-metadata.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
 import { getFirearmModelUrl } from '../shared/firearm-model-url.js'
+import { getBundledFirearmComponents } from '../shared/bundled-firearm-components.js'
 
 const loadFirearmCanvas = () => import('../student/viewer/FirearmCanvas.jsx')
 const FirearmCanvas = lazy(loadFirearmCanvas)
@@ -34,26 +35,30 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
       setSelectedName(null)
       setModelUrl('')
       void loadFirearmCanvas()
-      const suppliedModelUrl = suppliedFirearm?.glb_storage_path
-        ? getFirearmModelUrl(suppliedFirearm.glb_storage_path)
+      const suppliedModelUrl = suppliedFirearm
+        ? getFirearmModelUrl(suppliedFirearm.glb_storage_path, suppliedFirearm.identifier, suppliedFirearm.name)
         : null
       const [firearmResult, componentsResult] = await Promise.all([
-        suppliedFirearm?.glb_storage_path
+        suppliedFirearm
           ? Promise.resolve({ data: suppliedFirearm, error: null })
           : supabase.from('firearms').select('id, identifier, name, caliber, description, firearm_type, tutorial_url, model_credit, status, created_at, glb_storage_path').eq('id', activeFirearmId).single(),
         supabase.from('firearm_components').select('id, mesh_name, category, purpose, description, display_order, explode_x, explode_y, explode_z, explode_order, assembly_group').eq('firearm_id', activeFirearmId).order('display_order'),
       ])
       if (!current) return
-      if (firearmResult.error || componentsResult.error) {
-        setError(firearmResult.error?.message || componentsResult.error.message)
+      if (firearmResult.error) {
+        setError(firearmResult.error.message)
         setLoading(false)
         return
       }
       try {
-        const signedUrl = await (suppliedModelUrl || getFirearmModelUrl(firearmResult.data.glb_storage_path))
+        const databaseComponents = componentsResult.error ? [] : (componentsResult.data ?? [])
+        const resolvedComponents = databaseComponents.length
+          ? databaseComponents
+          : await getBundledFirearmComponents(firearmResult.data.identifier, firearmResult.data.name)
+        const signedUrl = await (suppliedModelUrl || getFirearmModelUrl(firearmResult.data.glb_storage_path, firearmResult.data.identifier, firearmResult.data.name))
         if (!current) return
         setDetails(firearmResult.data)
-        setComponents(componentsResult.data ?? [])
+        setComponents(resolvedComponents)
         setModelUrl(signedUrl)
       } catch (loadError) {
         if (current) setError(loadError.message)
@@ -85,7 +90,7 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
       </header>
       {!activeFirearmId ? <div className="grid flex-1 place-items-center border border-[#b8c1bb] bg-[#171717] text-sm text-[#aeb8b2]">No uploaded firearm models are available.</div> : error ? <div className="grid flex-1 place-items-center border border-red-300 bg-red-50 p-6 text-sm text-red-700">{error}</div> : <div className="flex min-h-0 flex-1 border-x border-b border-[#b8c1bb]">
         <div className="relative min-w-0 flex-1 overflow-hidden bg-[#171717]">
-          {loading || !modelUrl ? <div className="grid h-full place-items-center text-sm text-[#aeb8b2]">Loading {details?.name || '3D model'}...</div> : <div className="admin-live-viewer-canvas h-full"><Suspense fallback={<div className="grid h-full place-items-center text-sm text-[#aeb8b2]">Preparing 3D viewer...</div>}><FirearmCanvas components={components} exploded={exploded} modelUrl={modelUrl} onSelect={(name) => name ? choose(name) : setSelectedName(null)} resetKey={resetKey} selectedName={selectedName} /></Suspense></div>}
+          {loading || !modelUrl ? <DashboardLoading className="viewer-model-preparing" label={`Loading ${details?.name || '3D model'}…`} /> : <div className="admin-live-viewer-canvas h-full"><Suspense fallback={<DashboardLoading className="viewer-model-preparing" label="Preparing 3D viewer…" />}><FirearmCanvas components={components} exploded={exploded} modelUrl={modelUrl} onSelect={(name) => name ? choose(name) : setSelectedName(null)} resetKey={resetKey} selectedName={selectedName} /></Suspense></div>}
           <div className="absolute right-3 top-1/2 z-10 flex -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-[#aab3ae] bg-[#d7dad8]/90 p-1.5 text-[#46534c] shadow"><button aria-label="Toggle exploded view" className={'grid h-10 w-10 place-items-center rounded-lg hover:bg-white/70 ' + (exploded ? 'bg-[#109d1a] text-white' : '')} onClick={() => setExploded((value) => !value)} title={exploded ? 'Reassemble model' : 'Exploded view'} type="button"><AdminIcon className="h-[18px] w-[18px]" name="explode" /></button><button aria-label="Reset model view" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/70" onClick={() => { setExploded(false); setSelectedName(null); setResetKey((value) => value + 1) }} title="Reset view" type="button"><AdminIcon className="h-[18px] w-[18px]" name="reset" /></button></div>
         </div>
         <aside className={'min-h-0 shrink-0 overflow-hidden bg-white transition-[width] ' + (panelOpen ? 'w-[300px] border-l border-[#b8c1bb]' : 'w-0')}>

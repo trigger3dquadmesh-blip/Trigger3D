@@ -130,7 +130,14 @@ export default function AssessmentPage() {
           .single(),
         supabase.from('classes').select('id, name').eq('id', classId).single(),
         supabase.rpc('get_assessment_status', { target_class_id: classId, target_firearm_id: firearmId }),
-        supabase.from('assessment_releases').select('duration_minutes').eq('class_id', classId).eq('firearm_id', firearmId).single(),
+        supabase
+          .from('assessment_releases')
+          .select('duration_minutes, updated_at')
+          .eq('class_id', classId)
+          .eq('firearm_id', firearmId)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ])
 
       if (!active) return
@@ -141,7 +148,7 @@ export default function AssessmentPage() {
         setFirearm(firearmResult.data)
         setClassItem(classResult.data)
         setStatus(statusResult.data)
-        setDurationMinutes(normalizeAssessmentDuration(releaseResult.data.duration_minutes))
+        setDurationMinutes(normalizeAssessmentDuration(releaseResult.data?.duration_minutes))
         if (statusResult.data.attempt_status === 'submitted') {
           assessmentFinishedRef.current = true
           setAssessmentLock(firearmId, false, classId)
@@ -636,11 +643,13 @@ export default function AssessmentPage() {
 
   if (error && !firearm) {
     return (
-      <main className="page">
-        <section className="card">
+      <main className="student-assessment-page student-assessment-complete assessment-unavailable-page">
+        <section className="student-assessment-result student-assessment-integrity-blocked assessment-unavailable-card" role="alert">
+          <span className="student-assessment-result-icon"><AdminIcon name="alertTriangle" /></span>
+          <p className="eyebrow">Assessment access</p>
           <h1>Assessment unavailable</h1>
-          <div className="alert alert-error" role="alert">{error}</div>
-          <Link to="/student">Back to dashboard</Link>
+          <p>This assessment could not be opened. Return to your class and confirm that the assessment is currently available.</p>
+          <footer><Link className="primary" to="/student">Return to student dashboard</Link></footer>
         </section>
       </main>
     )

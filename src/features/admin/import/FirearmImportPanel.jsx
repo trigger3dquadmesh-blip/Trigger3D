@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/supabase.js'
 import AdminIcon from '../AdminIcon.jsx'
 import { validateGunBundle } from './validation.js'
 import { normalizeModelCredit, normalizeTutorialUrl, validateFirearmMetadata } from './firearm-metadata.js'
+import { clearFirearmImportDraft, getFirearmImportDraft, saveFirearmImportDraft } from './firearm-import-draft.js'
 
 function FilePicker({ accept, file, hint, icon, label, onChange }) {
   return (
@@ -16,12 +17,23 @@ function FilePicker({ accept, file, hint, icon, label, onChange }) {
 }
 
 export default function FirearmImportPanel({ onImported }) {
-  const [name, setName] = useState('')
-  const [caliber, setCaliber] = useState('')
-  const [description, setDescription] = useState('')
-  const [firearmType, setFirearmType] = useState('')
-  const [tutorialUrl, setTutorialUrl] = useState('')
-  const [modelCredit, setModelCredit] = useState('')
+  const [initialDraft] = useState(() => {
+    const durableDraft = getFirearmImportDraft(localStorage)
+    if (durableDraft) return durableDraft
+
+    const temporaryDraft = getFirearmImportDraft(sessionStorage)
+    if (temporaryDraft) {
+      saveFirearmImportDraft(localStorage, temporaryDraft)
+      clearFirearmImportDraft(sessionStorage)
+    }
+    return temporaryDraft ?? {}
+  })
+  const [name, setName] = useState(initialDraft.name ?? '')
+  const [caliber, setCaliber] = useState(initialDraft.caliber ?? '')
+  const [description, setDescription] = useState(initialDraft.description ?? '')
+  const [firearmType, setFirearmType] = useState(initialDraft.firearmType ?? '')
+  const [tutorialUrl, setTutorialUrl] = useState(initialDraft.tutorialUrl ?? '')
+  const [modelCredit, setModelCredit] = useState(initialDraft.modelCredit ?? '')
   const [glbFile, setGlbFile] = useState(null)
   const [componentsFile, setComponentsFile] = useState(null)
   const [questionsFile, setQuestionsFile] = useState(null)
@@ -29,6 +41,25 @@ export default function FirearmImportPanel({ onImported }) {
   const [validating, setValidating] = useState(false)
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    saveFirearmImportDraft(localStorage, { name, caliber, description, firearmType, tutorialUrl, modelCredit })
+  }, [name, caliber, description, firearmType, tutorialUrl, modelCredit])
+
+  function clearCompletedImport() {
+    clearFirearmImportDraft(localStorage)
+    clearFirearmImportDraft(sessionStorage)
+    setName('')
+    setCaliber('')
+    setDescription('')
+    setFirearmType('')
+    setTutorialUrl('')
+    setModelCredit('')
+    setGlbFile(null)
+    setComponentsFile(null)
+    setQuestionsFile(null)
+    setValidation(null)
+  }
 
   function clearValidation() {
     setValidation(null)
@@ -84,10 +115,12 @@ export default function FirearmImportPanel({ onImported }) {
     if (metadataSaveError) {
       setError(`The bundle was imported, but its classification, tutorial link, and model credits could not be saved: ${metadataSaveError.message}`)
       setImporting(false)
+      clearCompletedImport()
       await onImported?.(data)
       return
     }
     setImporting(false)
+    clearCompletedImport()
     await onImported?.(data)
   }
 

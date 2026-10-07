@@ -104,6 +104,8 @@ function LiveStudentDashboard() {
             correct_count,
             total_questions,
             percentage,
+            timer_started_at,
+            has_activity,
             submitted_at,
             firearm:firearms!assessment_attempts_firearm_id_fkey(name, caliber)
           `)
@@ -163,6 +165,8 @@ function LiveStudentDashboard() {
               correct_count,
               total_questions,
               percentage,
+              timer_started_at,
+              has_activity,
               submitted_at,
               firearm:firearms!assessment_attempts_firearm_id_fkey(name, caliber)
             `)
