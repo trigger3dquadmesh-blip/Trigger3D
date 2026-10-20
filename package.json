@@ -11,7 +11,7 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@marsidev/react-turnstile": "^1.6.1",
+    "@marsidev/react-turnstile": "^1.6.2",
     "@react-three/drei": "latest",
     "@react-three/fiber": "latest",
     "@supabase/supabase-js": "latest",
