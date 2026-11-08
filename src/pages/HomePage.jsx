@@ -39,13 +39,13 @@ const tutorials = [
   {
     audience: 'Student',
     description: 'Learn how to join a class, explore firearm resources, use the interactive 3D viewer, take assessments, and review results.',
-    streamUrl: 'https://drive.usercontent.google.com/download?id=1VUuj2aeSmW5ubBDIqWv8S19HqMpWnwpp&export=download',
+    streamUrl: '/tutorial-videos/student.mp4',
     viewUrl: 'https://drive.google.com/file/d/1VUuj2aeSmW5ubBDIqWv8S19HqMpWnwpp/view?usp=sharing',
   },
   {
     audience: 'Faculty',
     description: 'Learn how to create and manage classes, monitor students, control assessments, and review or download results.',
-    streamUrl: 'https://drive.usercontent.google.com/download?id=1xPCNI0M-J3Ox4ZAZEWY2Q8jP1e0ezCwR&export=download',
+    streamUrl: '/tutorial-videos/faculty.mp4',
     viewUrl: 'https://drive.google.com/file/d/1xPCNI0M-J3Ox4ZAZEWY2Q8jP1e0ezCwR/view?usp=sharing',
   },
 ]
@@ -113,7 +113,6 @@ function TutorialCard({ audience, description, streamUrl, viewUrl }) {
           ? <video
               className="absolute inset-0 block h-full w-full bg-black object-contain"
               controls
-              crossOrigin="anonymous"
               playsInline
               preload="metadata"
               src={streamUrl}

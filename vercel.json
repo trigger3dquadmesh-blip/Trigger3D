@@ -6,7 +6,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; media-src 'self' blob: https://*.supabase.co https://drive.usercontent.google.com; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; media-src 'self' blob: https://*.supabase.co; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"
         },
         {
           "key": "X-Content-Type-Options",
@@ -41,9 +41,30 @@
           "value": "off"
         }
       ]
+    },
+    {
+      "source": "/tutorial-videos/(.*)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "video/mp4"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "inline"
+        }
+      ]
     }
   ],
   "rewrites": [
+    {
+      "source": "/tutorial-videos/student.mp4",
+      "destination": "https://drive.usercontent.google.com/download?id=1VUuj2aeSmW5ubBDIqWv8S19HqMpWnwpp&export=download"
+    },
+    {
+      "source": "/tutorial-videos/faculty.mp4",
+      "destination": "https://drive.usercontent.google.com/download?id=1xPCNI0M-J3Ox4ZAZEWY2Q8jP1e0ezCwR&export=download"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
