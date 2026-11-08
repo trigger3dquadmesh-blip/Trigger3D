@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import DashboardLoading from '../../../components/DashboardLoading.jsx'
 import AdminIcon from '../../admin/AdminIcon.jsx'
 import { supabase } from '../../../lib/supabase.js'
 import useAuth from '../../../auth/useAuth.js'
-import { allQuestionsAnswered, buildSubmission, isAnswered } from './assessment-utils.js'
+import {
+  allQuestionsAnswered,
+  buildSubmission,
+  firstUnansweredQuestionIndex,
+  isAnswered,
+  safeAssessmentQuestionIndex,
+} from './assessment-utils.js'
 import {
   createAssessmentDraft,
   getAssessmentDraftKey,
@@ -84,6 +90,7 @@ export default function AssessmentPage() {
   const [integrityWarningAccepted, setIntegrityWarningAccepted] = useState(false)
   const [startConfirmationOpen, setStartConfirmationOpen] = useState(false)
   const [durationMinutes, setDurationMinutes] = useState(60)
+  const [questionCount, setQuestionCount] = useState(null)
   const [timeRemaining, setTimeRemaining] = useState(0)
   const [integrityBlocked, setIntegrityBlocked] = useState(null)
   const [connectionInterrupted, setConnectionInterrupted] = useState(null)
@@ -96,6 +103,9 @@ export default function AssessmentPage() {
   const connectionInterruptedRef = useRef(false)
   const connectionReportConfirmedRef = useRef(false)
   const connectionReportInProgressRef = useRef(false)
+  const connectionDetectedAtRef = useRef(null)
+  const advancingQuestionRef = useRef(false)
+  const startingAssessmentRef = useRef(false)
   const currentIndexRef = useRef(0)
   const timeRemainingRef = useRef(0)
 
@@ -109,9 +119,15 @@ export default function AssessmentPage() {
   }, [currentIndex, timeRemaining])
 
   useEffect(() => {
-    setAssessmentNavigationLock(questions.length > 0 && !result && !integrityBlocked && !connectionInterrupted)
-    return () => setAssessmentNavigationLock(false)
+    const navigationLocked = !result && (
+      questions.length > 0
+      || Boolean(integrityBlocked)
+      || Boolean(connectionInterrupted)
+    )
+    setAssessmentNavigationLock(navigationLocked)
   }, [connectionInterrupted, integrityBlocked, questions.length, result])
+
+  useEffect(() => () => setAssessmentNavigationLock(false), [])
 
   useEffect(() => {
     let active = true
@@ -122,7 +138,7 @@ export default function AssessmentPage() {
         setLoading(false)
         return
       }
-      const [firearmResult, classResult, statusResult, releaseResult] = await Promise.all([
+      const [firearmResult, classResult, statusResult, releaseResult, questionCountResult] = await Promise.all([
         supabase
           .from('firearms')
           .select('id, name, caliber')
@@ -138,6 +154,10 @@ export default function AssessmentPage() {
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
+        supabase.rpc('get_assessment_question_count', {
+          target_class_id: classId,
+          target_firearm_id: firearmId,
+        }),
       ])
 
       if (!active) return
@@ -148,6 +168,9 @@ export default function AssessmentPage() {
         setFirearm(firearmResult.data)
         setClassItem(classResult.data)
         setStatus(statusResult.data)
+        setQuestionCount(questionCountResult.error
+          ? Number(statusResult.data.question_count || statusResult.data.total_questions) || null
+          : Number(questionCountResult.data) || null)
         setDurationMinutes(normalizeAssessmentDuration(releaseResult.data?.duration_minutes))
         if (statusResult.data.attempt_status === 'submitted') {
           assessmentFinishedRef.current = true
@@ -178,9 +201,11 @@ export default function AssessmentPage() {
           })
           if (checkpoint?.connection_interrupted_at) {
             connectionInterruptedRef.current = true
+            connectionDetectedAtRef.current = checkpoint.connection_interrupted_at
             setConnectionInterrupted({
               approved: false,
               reported: true,
+              detectedAt: checkpoint.connection_interrupted_at,
               questionIndex: checkpoint.question_index,
               remainingSeconds: checkpoint.remaining_seconds,
             })
@@ -238,11 +263,6 @@ export default function AssessmentPage() {
   }, [attemptId, result])
 
   const currentQuestion = questions[currentIndex] ?? null
-  const canSubmit = useMemo(
-    () => allQuestionsAnswered(questions, answers),
-    [answers, questions],
-  )
-
   useEffect(() => {
     if (!attemptId || result) return undefined
     const poll = window.setInterval(async () => {
@@ -279,6 +299,8 @@ export default function AssessmentPage() {
   }, [answers, attemptId, attemptStartedAt, currentIndex, questions, result])
 
   async function startAssessment() {
+    if (startingAssessmentRef.current) return false
+    startingAssessmentRef.current = true
     setStarting(true)
     setError('')
 
@@ -290,10 +312,12 @@ export default function AssessmentPage() {
     if (startError) {
       setError(startError.message)
       setStarting(false)
+      startingAssessmentRef.current = false
       return false
     } else if (!data?.length) {
       setError('No assessment questions are available for this firearm.')
       setStarting(false)
+      startingAssessmentRef.current = false
       return false
     } else {
       const { data: timerStartedAt, error: timerError } = await supabase.rpc(
@@ -303,6 +327,7 @@ export default function AssessmentPage() {
       if (timerError || !timerStartedAt) {
         setError(timerError?.message || 'The assessment timer could not be started.')
         setStarting(false)
+        startingAssessmentRef.current = false
         return false
       }
 
@@ -336,45 +361,81 @@ export default function AssessmentPage() {
         Math.max(data.length - 1, 0),
       )
 
+      const restoredAnswers = { ...(checkpoint?.answers || {}), ...draft.answers }
+      const restoredIndex = safeAssessmentQuestionIndex(
+        data,
+        restoredAnswers,
+        Math.max(draft.currentIndex, serverIndex),
+      )
+
       setQuestions(data)
+      setQuestionCount(data.length)
       setAssessmentLock(firearmId, true, classId)
       markActiveAssessmentSession(sessionStorage, user?.id, data[0].attempt_id)
       setAttemptId(data[0].attempt_id)
       setAttemptStartedAt(attemptRevision)
       setTimeRemaining(resumedTime)
       setActivityRecorded(false)
-      setAnswers({ ...(checkpoint?.answers || {}), ...draft.answers })
-      setCurrentIndex(Math.max(draft.currentIndex, serverIndex))
+      answersRef.current = restoredAnswers
+      setAnswers(restoredAnswers)
+      setCurrentIndex(restoredIndex)
       if (!statusError) setStatus(refreshedStatus)
     }
 
     setStarting(false)
+    startingAssessmentRef.current = false
     return true
   }
 
-  async function submitAssessment(submittedAnswers = answers) {
-    if (!allQuestionsAnswered(questions, submittedAnswers) || !attemptId) return
+  async function submitAssessment(submittedAnswers = answersRef.current) {
+    if (!attemptId) {
+      setError('This assessment attempt is not ready. Refresh the page and resume the assessment before submitting.')
+      return false
+    }
+    if (!allQuestionsAnswered(questions, submittedAnswers)) {
+      const missingIndex = firstUnansweredQuestionIndex(questions, submittedAnswers)
+      if (missingIndex >= 0) setCurrentIndex(missingIndex)
+      setError(`Question ${missingIndex + 1} still needs an answer. Complete it before submitting your assessment.`)
+      return false
+    }
     timeoutSubmittedRef.current = true
     setSubmitting(true)
     setError('')
 
-    const { data, error: submitError } = await supabase.rpc('submit_assessment', {
-      target_attempt_id: attemptId,
-      submitted_answers: buildSubmission(questions, submittedAnswers),
-    })
+    try {
+      const { data, error: submitError } = await supabase.rpc('submit_assessment', {
+        target_attempt_id: attemptId,
+        submitted_answers: buildSubmission(questions, submittedAnswers),
+      })
 
-    if (submitError) setError(submitError.message)
-    else {
+      if (submitError) {
+        timeoutSubmittedRef.current = false
+        setError(`Your assessment could not be submitted. ${submitError.message}`)
+        return false
+      }
+
+      const submittedResult = Array.isArray(data) ? data[0] : data
+      if (!submittedResult) {
+        timeoutSubmittedRef.current = false
+        setError('The server did not confirm the submission. Please try again before leaving this page.')
+        return false
+      }
+
       assessmentFinishedRef.current = true
       removeStoredDraft(attemptId)
       removeStoredTime(attemptId)
       setAssessmentLock(firearmId, false, classId)
       clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
-      setResult(data)
+      setResult(submittedResult)
       if (document.fullscreenElement) void document.exitFullscreen()
+      return true
+    } catch (submissionError) {
+      timeoutSubmittedRef.current = false
+      setError(`Your assessment could not be submitted. ${submissionError instanceof Error ? submissionError.message : 'Check your connection and try again.'}`)
+      return false
+    } finally {
+      setSubmitting(false)
     }
-
-    setSubmitting(false)
   }
 
   async function saveAnswer(question, answer) {
@@ -397,10 +458,21 @@ export default function AssessmentPage() {
   }
 
   async function advanceQuestion() {
-    if (!currentQuestion || !isAnswered(currentAnswer) || submitting) return
-    if (!await saveAnswer(currentQuestion, currentAnswer)) return
-    if (currentIndex < questions.length - 1) setCurrentIndex((index) => index + 1)
-    else if (canSubmit) await submitAssessment()
+    if (!currentQuestion || !isAnswered(currentAnswer) || submitting || advancingQuestionRef.current) return
+    advancingQuestionRef.current = true
+    try {
+      const latestAnswers = {
+        ...answersRef.current,
+        [currentQuestion.question_record_id]: currentAnswer,
+      }
+      answersRef.current = latestAnswers
+      setAnswers(latestAnswers)
+      if (!await saveAnswer(currentQuestion, currentAnswer)) return
+      if (currentIndex < questions.length - 1) setCurrentIndex((index) => index + 1)
+      else await submitAssessment(latestAnswers)
+    } finally {
+      advancingQuestionRef.current = false
+    }
   }
 
   async function confirmStartAssessment() {
@@ -469,12 +541,15 @@ export default function AssessmentPage() {
 
     function pauseForConnectionInterruption() {
       if (connectionInterruptedRef.current) return
+      const detectedAt = new Date().toISOString()
       connectionInterruptedRef.current = true
+      connectionDetectedAtRef.current = detectedAt
       connectionReportConfirmedRef.current = false
       setConnectionInterrupted({
         approved: false,
         reported: false,
         reporting: false,
+        detectedAt,
         questionIndex: currentIndexRef.current,
         remainingSeconds: timeRemainingRef.current,
         reportError: '',
@@ -485,6 +560,27 @@ export default function AssessmentPage() {
       if (!connectionInterruptedRef.current || connectionReportConfirmedRef.current || connectionReportInProgressRef.current) return
       connectionReportInProgressRef.current = true
       setConnectionInterrupted((current) => current ? { ...current, reporting: true, reportError: '' } : current)
+
+      const { data: latestCheckpoint } = await supabase.rpc('get_my_assessment_checkpoint', {
+        target_attempt_id: attemptId,
+      })
+      const restoredAt = Date.parse(latestCheckpoint?.connection_restored_at || '')
+      const detectedAt = Date.parse(connectionDetectedAtRef.current || '')
+      if (!latestCheckpoint?.connection_interrupted_at
+        && Number.isFinite(restoredAt)
+        && Number.isFinite(detectedAt)
+        && restoredAt >= detectedAt) {
+        connectionReportInProgressRef.current = false
+        connectionReportConfirmedRef.current = true
+        setConnectionInterrupted((current) => current ? {
+          ...current,
+          approved: true,
+          reported: true,
+          reporting: false,
+        } : current)
+        return
+      }
+
       const { error: reportError, timedOut } = await Promise.race([
         supabase.rpc('report_assessment_connection_interruption', {
           target_attempt_id: attemptId,
@@ -559,8 +655,10 @@ export default function AssessmentPage() {
     async function verifyConnectionAndSaveCheckpoint() {
       if (checkInProgress || connectionInterruptedRef.current) return
       if (!navigator.onLine) {
+        const detectedAt = new Date().toISOString()
         connectionInterruptedRef.current = true
-        setConnectionInterrupted({ approved: false, reported: false, questionIndex: currentIndexRef.current, remainingSeconds: timeRemainingRef.current, reportError: '' })
+        connectionDetectedAtRef.current = detectedAt
+        setConnectionInterrupted({ approved: false, reported: false, detectedAt, questionIndex: currentIndexRef.current, remainingSeconds: timeRemainingRef.current, reportError: '' })
         return
       }
 
@@ -574,8 +672,10 @@ export default function AssessmentPage() {
       const looksLikeNetworkFailure = timedOut
         || /failed to fetch|networkerror|network request failed|load failed|err_network/i.test(checkpointError?.message || '')
       if (!looksLikeNetworkFailure || connectionInterruptedRef.current) return
+      const detectedAt = new Date().toISOString()
       connectionInterruptedRef.current = true
-      setConnectionInterrupted({ approved: false, reported: false, questionIndex: currentIndexRef.current, remainingSeconds: timeRemainingRef.current, reportError: '' })
+      connectionDetectedAtRef.current = detectedAt
+      setConnectionInterrupted({ approved: false, reported: false, detectedAt, questionIndex: currentIndexRef.current, remainingSeconds: timeRemainingRef.current, reportError: '' })
     }
 
     const checkpointTimer = window.setInterval(() => {
@@ -679,7 +779,7 @@ export default function AssessmentPage() {
             ? 'Sending your continuation request to your faculty…'
             : 'Reconnected. Trigger3D is sending your continuation request to your faculty.'
 
-    return <main className="student-assessment-page student-assessment-complete"><section className="student-assessment-result student-assessment-integrity-blocked" role="alert"><span className="student-assessment-result-icon"><AdminIcon name="alertTriangle" /></span><p className="eyebrow">Connection recovery</p><h1>{connectionInterrupted.approved ? 'Continuation approved' : connectionInterrupted.reported ? 'Waiting for faculty approval' : 'Your assessment was paused'}</h1><p>{recoveryMessage}</p><p>Your saved answers, current question, and remaining time are protected. You cannot resume until your faculty approves the request.</p>{connectionInterrupted.reportError && <div className="alert alert-error" role="alert">The request could not be sent yet. Trigger3D will keep retrying automatically.</div>}<footer>{connectionInterrupted.approved ? <button className="primary" onClick={() => void resumeApprovedAttempt()} type="button">Resume in fullscreen</button> : connectionInterrupted.reported ? <Link className="primary" to="/student">Return to student dashboard</Link> : null}</footer></section></main>
+    return <main className="student-assessment-page student-assessment-complete"><section className="student-assessment-result student-assessment-integrity-blocked" role="alert"><span className="student-assessment-result-icon"><AdminIcon name="alertTriangle" /></span><p className="eyebrow">Connection recovery</p><h1>{connectionInterrupted.approved ? 'Continuation approved' : connectionInterrupted.reported ? 'Waiting for faculty approval' : 'Your assessment was paused'}</h1><p>{recoveryMessage}</p><p>Your saved answers, current question, and remaining time are protected. You may leave fullscreen or return to your dashboard while the assessment is paused. Fullscreen is required again when you resume answering.</p>{connectionInterrupted.reportError && <div className="alert alert-error" role="alert">The request could not be sent yet. Trigger3D will keep retrying automatically.</div>}<footer>{connectionInterrupted.approved ? <button className="primary" onClick={() => void resumeApprovedAttempt()} type="button">Resume in fullscreen</button> : <Link className="primary" to="/student">Return to student dashboard</Link>}</footer></section></main>
   }
 
   if (integrityBlocked) {
@@ -749,7 +849,7 @@ export default function AssessmentPage() {
         <div className="student-assessment-back"><Link to="/student"><AdminIcon name="arrowLeft" />Back to class</Link></div>
         <section className="student-assessment-intro">
           <header><p className="eyebrow">{classItem?.name || 'Class assessment'}</p><h1>{firearm.name} Component Analysis</h1><span>{firearm.name}</span></header>
-          <div className="student-assessment-facts"><div><strong>{status?.question_count || status?.total_questions || 'Not available'}</strong><span>Questions</span></div><div><strong>{durationMinutes} minutes</strong><span>Total time for all questions</span></div></div>
+          <div className="student-assessment-facts"><div><strong>{questionCount || 'Not available'}</strong><span>Questions</span></div><div><strong>{durationMinutes} minutes</strong><span>Total time for all questions</span></div></div>
           <div className="student-assessment-instructions">
             <h2>Before you begin</h2>
             <p><span>○</span> You have {durationMinutes} minutes for the complete assessment. Manage this time across all questions.</p>
@@ -808,7 +908,7 @@ export default function AssessmentPage() {
         <div className="student-question-body">
           {currentQuestion.image_file && <div className="student-question-asset">Question image: {currentQuestion.image_file}</div>}
           <h1>{currentQuestion.prompt}</h1>
-          <label className="student-question-answer">Your answer<input value={currentAnswer} onChange={(event) => { setAnswers((current) => ({ ...current, [currentQuestion.question_record_id]: event.target.value })); void recordAssessmentActivity() }} onKeyDown={(event) => { if (event.key !== 'Enter' || !isAnswered(currentAnswer) || submitting) return; event.preventDefault(); void advanceQuestion() }} placeholder="Type the component name..." autoFocus autoComplete="off" disabled={submitting} /></label>
+          <label className="student-question-answer">Your answer<input value={currentAnswer} onChange={(event) => { const nextAnswers = { ...answersRef.current, [currentQuestion.question_record_id]: event.target.value }; answersRef.current = nextAnswers; setAnswers(nextAnswers); void recordAssessmentActivity() }} onKeyDown={(event) => { if (event.key !== 'Enter' || !isAnswered(currentAnswer) || submitting) return; event.preventDefault(); void advanceQuestion() }} placeholder="Type the component name..." autoFocus autoComplete="off" disabled={submitting} /></label>
           <small>Press Enter or select Submit &amp; Next to continue.</small>
           {error && <div className="alert alert-error" role="alert">{error}</div>}
         </div>

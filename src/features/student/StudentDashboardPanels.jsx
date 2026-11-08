@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
 import { assessmentAttemptHasStarted, getStudentFirearmDestination } from './assessment/assessment-lock.js'
-import { hasViewedFirearm } from './viewer/viewed-firearms.js'
+import { hasSubmittedFirearmAssessment, hasViewedFirearm } from './viewer/viewed-firearms.js'
 import { getBundledFirearmComponentCount } from '../shared/bundled-firearm-components.js'
 import { supabase } from '../../lib/supabase.js'
 
@@ -130,7 +130,11 @@ export function StudentClassDetail({ attempts, components, enrollment, firearms,
     })
     return () => { active = false }
   }, [classId, studentId])
-  const firearmViewed = (firearmId) => viewedFirearmIds.has(firearmId) || hasViewedFirearm(localStorage, studentId, classId, firearmId)
+  const firearmViewed = (firearmId) => (
+    viewedFirearmIds.has(firearmId)
+    || hasViewedFirearm(localStorage, studentId, classId, firearmId)
+    || hasSubmittedFirearmAssessment(attempts, classId, firearmId)
+  )
   const viewedCount = resources.filter((firearm) => firearmViewed(firearm.id)).length
   const visibleResources = firearmFilter === 'all' ? resources : resources.filter((firearm) => firearmViewed(firearm.id) === (firearmFilter === 'viewed'))
 

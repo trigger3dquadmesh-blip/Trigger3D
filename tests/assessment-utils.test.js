@@ -3,7 +3,9 @@ import assert from 'node:assert/strict'
 import {
   allQuestionsAnswered,
   buildSubmission,
+  firstUnansweredQuestionIndex,
   isAnswered,
+  safeAssessmentQuestionIndex,
 } from '../src/features/student/assessment/assessment-utils.js'
 
 const questions = [
@@ -22,6 +24,27 @@ test('requires every randomized question to be answered', () => {
     'question-2': 'Barrel',
     'question-1': 'Slide',
   }), true)
+})
+
+test('finds the first unanswered question in the assigned display order', () => {
+  assert.equal(firstUnansweredQuestionIndex(questions, {
+    'question-2': 'Barrel',
+  }), 1)
+  assert.equal(firstUnansweredQuestionIndex(questions, {
+    'question-2': 'Barrel',
+    'question-1': 'Slide',
+  }), -1)
+})
+
+test('recovery cannot skip an unanswered question even when its checkpoint is ahead', () => {
+  assert.equal(safeAssessmentQuestionIndex(questions, {}, 1), 0)
+  assert.equal(safeAssessmentQuestionIndex(questions, {
+    'question-2': 'Barrel',
+  }, 1), 1)
+  assert.equal(safeAssessmentQuestionIndex(questions, {
+    'question-2': 'Barrel',
+    'question-1': 'Slide',
+  }, 1), 1)
 })
 
 test('builds a trimmed submission while preserving assigned order', () => {

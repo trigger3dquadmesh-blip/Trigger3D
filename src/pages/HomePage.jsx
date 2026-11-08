@@ -35,10 +35,26 @@ const teamMembers = [
   [member4, 'Kristine Marie P. Fuentebella', 'Project Lead'],
 ]
 
+const tutorials = [
+  {
+    audience: 'Student',
+    description: 'Learn how to join a class, explore firearm resources, use the interactive 3D viewer, take assessments, and review results.',
+    previewUrl: 'https://drive.google.com/file/d/1VUuj2aeSmW5ubBDIqWv8S19HqMpWnwpp/preview',
+    viewUrl: 'https://drive.google.com/file/d/1VUuj2aeSmW5ubBDIqWv8S19HqMpWnwpp/view?usp=sharing',
+  },
+  {
+    audience: 'Faculty',
+    description: 'Learn how to create and manage classes, monitor students, control assessments, and review or download results.',
+    previewUrl: 'https://drive.google.com/file/d/1xPCNI0M-J3Ox4ZAZEWY2Q8jP1e0ezCwR/preview',
+    viewUrl: 'https://drive.google.com/file/d/1xPCNI0M-J3Ox4ZAZEWY2Q8jP1e0ezCwR/view?usp=sharing',
+  },
+]
+
 const navigationLinks = [
   ['Home', '#top'],
   ['About', '#about'],
   ['Features', '#features'],
+  ['Tutorials', '#tutorials'],
   ['Team', '#team'],
   ['Contact', '#contact'],
 ]
@@ -71,6 +87,47 @@ function Brand({ large = false }) {
 
 function SectionTitle({ id, children }) {
   return <h2 id={id} className="mb-12 text-center text-xl font-black uppercase tracking-[0.34em] md:text-2xl">{children}</h2>
+}
+
+function TutorialCard({ audience, description, previewUrl, viewUrl }) {
+  const playerRef = useRef(null)
+  const [playerVisible, setPlayerVisible] = useState(() => !('IntersectionObserver' in window))
+
+  useEffect(() => {
+    const player = playerRef.current
+    if (!player) return undefined
+    if (!('IntersectionObserver' in window)) return undefined
+
+    const observer = new IntersectionObserver(([entry]) => {
+      setPlayerVisible(entry.isIntersecting && entry.intersectionRatio >= 0.5)
+    }, { threshold: [0, 0.5] })
+
+    observer.observe(player)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <article className="min-w-0 overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-card)] shadow-md transition duration-200 hover:border-[#109d1a] md:hover:-translate-y-0.5 md:hover:shadow-[0_12px_24px_rgb(0_0_0/0.28)]">
+      <div className="landing-tutorial-player relative aspect-video w-full overflow-hidden border-b border-[var(--landing-border)] bg-black" ref={playerRef}>
+        {playerVisible
+          ? <iframe
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+              allowFullScreen
+              className="absolute inset-0 block h-full w-full border-0"
+              referrerPolicy="strict-origin-when-cross-origin"
+              src={previewUrl}
+              title={`${audience} tutorial video`}
+            />
+          : <div aria-hidden="true" className="absolute inset-0 grid place-items-center bg-[#111] text-white"><span className="grid h-14 w-14 place-items-center rounded-full bg-white/15 text-2xl">▶</span></div>}
+      </div>
+      <div className="p-5 sm:p-6 md:p-5 lg:p-8">
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-[#109d1a]">For {audience}</p>
+        <h3 className="mt-2 text-lg font-black sm:text-xl">{audience} Tutorial</h3>
+        <p className="mt-3 text-sm leading-6 text-[var(--landing-muted)] sm:text-base sm:leading-7 md:text-sm md:leading-6 lg:text-base lg:leading-7">{description}</p>
+        <a className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#109d1a]/60 px-4 py-2.5 text-center text-sm font-black text-[#109d1a] transition-colors duration-200 hover:border-[#109d1a] hover:bg-[#109d1a] hover:text-white focus-visible:bg-[#109d1a] focus-visible:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a] sm:w-auto md:w-full lg:w-auto" href={viewUrl} rel="noreferrer" target="_blank">Open video in Google Drive <span aria-hidden="true">↗</span></a>
+      </div>
+    </article>
+  )
 }
 
 const primaryButton = 'landing-primary-action rounded bg-[#109d1a] px-8 py-3 text-sm font-black text-white transition hover:bg-[#0c7d15] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]'
@@ -126,7 +183,7 @@ export default function HomePage() {
     const subject = String(form.get('subject') || 'Trigger3D inquiry')
     const message = String(form.get('message') || '')
     const sender = String(form.get('email') || '')
-    window.location.href = `mailto:trigger3d.quadmeshit@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`${message}\n\nReply to: ${sender}`)}`
+    window.location.href = `mailto:trigger3d.quadmesh@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`${message}\n\nReply to: ${sender}`)}`
     setContactStatus('Your email application should open with the message prepared.')
   }
 
@@ -228,6 +285,14 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section id="tutorials" className="landing-snap mx-auto flex w-[94%] max-w-[1500px] scroll-mt-16 flex-col justify-start py-10 sm:py-12 md:min-h-[calc(100vh-4rem)] md:py-[clamp(2rem,4vh,3.5rem)]" aria-labelledby="tutorial-heading">
+        <SectionTitle id="tutorial-heading">Video Tutorials</SectionTitle>
+        <p className="mx-auto -mt-7 mb-7 max-w-3xl px-2 text-center text-base leading-7 text-[var(--landing-muted)] sm:mb-8 md:text-[clamp(1rem,1.2vw,1.125rem)]">Choose the guide for your role and learn how to use Trigger3D step by step.</p>
+        <div className="grid min-w-0 gap-6 md:grid-cols-2 md:gap-5 lg:gap-7">
+          {tutorials.map((tutorial) => <TutorialCard key={tutorial.audience} {...tutorial} />)}
+        </div>
+      </section>
+
       <section id="team" className="landing-snap mx-auto flex w-[94%] max-w-[1500px] scroll-mt-16 flex-col justify-center py-[clamp(2rem,5vh,4rem)] md:min-h-[calc(100vh-4rem)]" aria-labelledby="team-heading">
         <SectionTitle id="team-heading">Meet the Team</SectionTitle>
         <p className="mx-auto -mt-5 mb-5 max-w-4xl text-center text-lg leading-7 text-[var(--landing-muted)]"><strong className="text-[var(--landing-text)]">Trigger3D</strong> is developed by <strong className="text-[var(--landing-text)]">Team QuadMeshIT</strong>, a group of student developers creating an interactive learning tool for Criminology education.</p>
@@ -253,7 +318,7 @@ export default function HomePage() {
         <SectionTitle id="contact-heading">Contact Us</SectionTitle>
         <p className="mx-auto -mt-5 mb-14 max-w-4xl text-center text-lg leading-7 text-[var(--landing-muted)]">Have questions, feedback, or concerns about Trigger3D? Send us a message and our team will get back to you as soon as possible.</p>
         <div className="mx-auto grid w-full max-w-6xl gap-[clamp(2rem,5vw,5rem)] lg:grid-cols-[0.75fr_1.25fr]">
-          <div><Brand large /><h3 className="mt-10 text-sm font-black">Contact Information</h3><a className="mt-6 inline-flex max-w-full items-center gap-2 text-sm text-[var(--landing-muted)] transition-colors hover:text-[#109d1a] focus-visible:text-[#109d1a] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]" href="mailto:trigger3d.quadmeshit@gmail.com"><svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><rect height="14" rx="2" width="18" x="3" y="5" /><path d="m4 7 8 6 8-6" /></svg><span className="break-all">trigger3d.quadmeshit@gmail.com</span></a></div>
+          <div><Brand large /><h3 className="mt-10 text-sm font-black">Contact Information</h3><a className="mt-6 inline-flex max-w-full items-center gap-2 text-sm text-[var(--landing-muted)] transition-colors hover:text-[#109d1a] focus-visible:text-[#109d1a] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#109d1a]" href="mailto:trigger3d.quadmesh@gmail.com"><svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24"><rect height="14" rx="2" width="18" x="3" y="5" /><path d="m4 7 8 6 8-6" /></svg><span className="break-all">trigger3d.quadmesh@gmail.com</span></a></div>
           <form className="grid gap-5" onSubmit={handleContact}>
             <h3 className="text-sm font-black">Send Us a Message</h3>
             <div className="grid gap-5 md:grid-cols-2"><label className="sr-only" htmlFor="contact-name">Name</label><input className={fieldClass} id="contact-name" name="name" placeholder="Enter name here..." required /><label className="sr-only" htmlFor="contact-email">Email address</label><input className={fieldClass} id="contact-email" name="email" type="email" placeholder="Email Address" required /></div>

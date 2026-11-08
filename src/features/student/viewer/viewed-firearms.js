@@ -11,3 +11,11 @@ export function markFirearmViewed(storage, studentId, classId, firearmId) {
   if (!studentId || !classId || !firearmId) return
   storage.setItem(getViewedFirearmKey(studentId, classId, firearmId), new Date().toISOString())
 }
+
+export function hasSubmittedFirearmAssessment(attempts, classId, firearmId) {
+  return attempts.some((attempt) => (
+    attempt.class_id === classId
+    && attempt.firearm_id === firearmId
+    && attempt.status === 'submitted'
+  ))
+}

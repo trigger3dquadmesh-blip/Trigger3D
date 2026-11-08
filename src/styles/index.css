@@ -77,6 +77,20 @@ body { background: var(--page-bg); }
   border-color: var(--landing-border);
   box-shadow: 0 8px 20px rgb(0 0 0 / 12%);
 }
+
+.landing-tutorial-player {
+  container-type: inline-size;
+}
+
+@container (max-width: 40rem) {
+  .landing-tutorial-player iframe {
+    width: 160%;
+    height: 160%;
+    transform: scale(0.625);
+    transform-origin: top left;
+  }
+}
+
 .landing-page nav a:not(.landing-primary-action):focus-visible {
   border-radius: 0.25rem;
   outline: 2px solid #109d1a;

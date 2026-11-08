@@ -19,6 +19,7 @@ import DashboardLoading from '../../components/DashboardLoading.jsx'
 const facultyPages = ['overview', 'classes', 'class', 'students', 'assessments', 'results']
 const facultyDashboardPageKey = 'trigger3d.faculty.active-page'
 const facultyLoadingLabels = { overview: 'Loading dashboard…', classes: 'Loading classes…', class: 'Loading class…', students: 'Loading students…', assessments: 'Loading assessments…', results: 'Loading results…' }
+const facultyAttemptFields = 'id, class_id, student_id, firearm_id, status, percentage, started_at, submitted_at, has_activity, integrity_locked_at, connection_interrupted_at, checkpoint_question_index, checkpoint_remaining_seconds, checkpoint_updated_at'
 
 export default function FacultyDashboard() {
   return <LiveFacultyDashboard />
@@ -50,6 +51,7 @@ function LiveFacultyDashboard() {
   const loadClasses = useCallback(async () => {
     await supabase.rpc('archive_expired_classes')
     await supabase.rpc('refresh_expired_academic_terms')
+    await supabase.rpc('mark_stale_assessment_connections')
     const activeTermResult = await supabase.from('academic_terms').select('id, academic_year, semester, start_date, end_date, status').eq('status', 'active').maybeSingle()
     setActiveTerm(activeTermResult.error ? null : activeTermResult.data)
     let { data, error: classesError } = await supabase
@@ -88,7 +90,7 @@ function LiveFacultyDashboard() {
         ? supabase.from('assessment_releases').select('class_id, firearm_id, is_open, updated_at').in('class_id', classIds)
         : Promise.resolve({ data: [] }),
       classIds.length
-        ? supabase.from('assessment_attempts').select('id, class_id, student_id, firearm_id, status, percentage, started_at, submitted_at, has_activity, integrity_locked_at, connection_interrupted_at, checkpoint_question_index, checkpoint_remaining_seconds, checkpoint_updated_at').in('class_id', classIds)
+        ? supabase.from('assessment_attempts').select(facultyAttemptFields).in('class_id', classIds)
         : Promise.resolve({ data: [] }),
       ...classIds.map((classId) => supabase.rpc('get_class_assessment_results', { target_class_id: classId })),
     ])
@@ -129,6 +131,31 @@ function LiveFacultyDashboard() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadClasses()
   }, [loadClasses])
+
+  useEffect(() => {
+    const classIds = classes.map((item) => item.id)
+    if (!classIds.length) return undefined
+    let active = true
+
+    async function refreshAssessmentConnections() {
+      await supabase.rpc('mark_stale_assessment_connections')
+      const { data, error: attemptError } = await supabase
+        .from('assessment_attempts')
+        .select(facultyAttemptFields)
+        .in('class_id', classIds)
+      if (!active || attemptError) return
+      setOverviewData((current) => ({ ...current, attempts: data ?? [] }))
+    }
+
+    const connectionPoll = window.setInterval(() => {
+      void refreshAssessmentConnections()
+    }, 10000)
+    void refreshAssessmentConnections()
+    return () => {
+      active = false
+      window.clearInterval(connectionPoll)
+    }
+  }, [classes])
 
   useEffect(() => {
     if (selectedClassId) {

@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase.js'
 
 const modelUrlCache = new Map()
 const CACHE_LIFETIME_MS = 50 * 60 * 1000
+const SIGNED_URL_RETRY_DELAY_MS = 350
 
 function normalizeStoragePath(storagePath) {
   let path = String(storagePath || '').trim()
@@ -33,36 +34,57 @@ export function getBundledFirearmModelUrl(identifier, name = '') {
   return ''
 }
 
-export function getFirearmModelUrl(storagePath, identifier = '', name = '') {
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+}
+
+async function createModelSignedUrl(storagePath) {
+  let lastError = null
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { data, error } = await supabase.storage
+      .from('firearm-models')
+      .createSignedUrl(storagePath, 3600)
+
+    if (!error && data?.signedUrl) return data.signedUrl
+    lastError = error || new Error('The model link could not be created.')
+    if (attempt === 0) await wait(SIGNED_URL_RETRY_DELAY_MS)
+  }
+  throw lastError
+}
+
+export async function getFirearmModelUrl(storagePath, identifier = '', name = '') {
   const bundledUrl = getBundledFirearmModelUrl(identifier, name)
-  if (bundledUrl) return Promise.resolve(bundledUrl)
+  if (bundledUrl) return bundledUrl
 
   const normalizedStoragePath = normalizeStoragePath(storagePath)
   if (!normalizedStoragePath) {
-    return Promise.reject(new Error('This firearm does not have a model file.'))
+    throw new Error('This firearm does not have a model file.')
   }
 
-  const cached = modelUrlCache.get(normalizedStoragePath)
-  if (cached?.promise) return cached.promise
-  if (cached?.url && cached.expiresAt > Date.now()) return Promise.resolve(cached.url)
+  const { data: sessionData } = await supabase.auth.getSession()
+  const viewerId = sessionData.session?.user?.id || 'anonymous'
+  const cacheKey = `${viewerId}:${normalizedStoragePath}`
 
-  const promise = supabase.storage
-    .from('firearm-models')
-    .createSignedUrl(normalizedStoragePath, 3600)
-    .then(({ data, error }) => {
-      if (error) throw error
-      if (!data?.signedUrl) throw new Error('The model link could not be created.')
-      modelUrlCache.set(normalizedStoragePath, {
-        url: data.signedUrl,
+  const cached = modelUrlCache.get(cacheKey)
+  if (cached?.promise) return cached.promise
+  if (cached?.url && cached.expiresAt > Date.now()) return cached.url
+
+  const promise = createModelSignedUrl(normalizedStoragePath)
+    .then((signedUrl) => {
+      modelUrlCache.set(cacheKey, {
+        url: signedUrl,
         expiresAt: Date.now() + CACHE_LIFETIME_MS,
       })
-      return data.signedUrl
+      return signedUrl
     })
     .catch((error) => {
-      modelUrlCache.delete(normalizedStoragePath)
-      throw error
+      modelUrlCache.delete(cacheKey)
+      const inaccessible = /not found|does not exist|permission|policy|unauthorized/i.test(error?.message || '')
+      throw new Error(inaccessible
+        ? 'The 3D model file could not be accessed. Please retry. If the problem continues, the firearm Storage access policy must be updated.'
+        : error?.message || 'The model link could not be created.')
     })
 
-  modelUrlCache.set(normalizedStoragePath, { promise })
+  modelUrlCache.set(cacheKey, { promise })
   return promise
 }
