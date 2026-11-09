@@ -108,7 +108,7 @@ function TutorialCard({ audience, description, embedUrl, viewUrl }) {
 
   return (
     <article className="min-w-0 overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-card)] shadow-md transition duration-200 hover:border-[#109d1a] md:hover:-translate-y-0.5 md:hover:shadow-[0_12px_24px_rgb(0_0_0/0.28)]">
-      <div className="landing-tutorial-player relative aspect-video w-full overflow-hidden border-b border-[var(--landing-border)] bg-black" ref={playerRef}>
+      <div className="landing-tutorial-player relative w-full overflow-hidden border-b border-[var(--landing-border)] bg-black" ref={playerRef}>
         {playerVisible
           ? <iframe
               allow="autoplay; fullscreen"
