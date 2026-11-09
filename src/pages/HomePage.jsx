@@ -120,6 +120,7 @@ function TutorialCard({ audience, description, embedUrl, viewUrl }) {
               title={`${audience} tutorial video`}
             />
           : <div aria-hidden="true" className="absolute inset-0 grid place-items-center bg-[#111] text-white"><span className="grid h-14 w-14 place-items-center rounded-full bg-white/15 text-2xl">▶</span></div>}
+        <a className="landing-tutorial-mobile-play" href={viewUrl} rel="noreferrer" target="_blank"><span aria-hidden="true">▶</span><strong>Watch {audience} tutorial</strong><small>Opens with full playback controls</small></a>
       </div>
       <div className="p-5 sm:p-6 md:p-5 lg:p-8">
         <p className="text-xs font-black uppercase tracking-[0.2em] text-[#109d1a]">For {audience}</p>
