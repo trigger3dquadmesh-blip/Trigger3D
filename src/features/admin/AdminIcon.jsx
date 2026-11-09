@@ -1,6 +1,7 @@
 const icons = {
   archive: <><path d="M4 7h16v13H4z" /><path d="M3 3h18v4H3zm6 9h6" /></>,
   arrowLeft: <><path d="m15 18-6-6 6-6" /><path d="M9 12h10" /></>,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4m8-4v4M3 10h18" /><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></>,
   chevronDown: <path d="m6 9 6 6 6-6" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
   cube: <><path d="m21 8-9 5-9-5 9-5 9 5Z" /><path d="m3 8 9 5 9-5v8l-9 5-9-5V8Zm9 5v8" /></>,

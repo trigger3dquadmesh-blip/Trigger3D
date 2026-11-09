@@ -2526,7 +2526,9 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .admin-terms-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
 .admin-terms-heading h1 { margin: 0; font-size: 1.35rem; letter-spacing: -0.02em; }
 .admin-terms-heading p { margin: 7px 0 0; color: var(--admin-muted); font-size: 0.78rem; }
-.admin-terms-layout { display: grid; grid-template-columns: minmax(230px, 280px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.admin-create-term-button { display: inline-flex; min-height: 40px; flex: none; align-items: center; justify-content: center; gap: 7px; padding: 9px 15px; border: 1px solid #109d1a; border-radius: 8px; color: #fff; background: #109d1a; font: inherit; font-size: 0.75rem; font-weight: 750; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease; }
+.admin-create-term-button:hover, .admin-create-term-button:focus-visible { border-color: #0c8215; background: #0c8215; outline: none; }
+.admin-terms-layout { display: grid; grid-template-columns: minmax(270px, 330px) minmax(0, 1fr); gap: 20px; align-items: start; }
 .admin-terms-list,
 .admin-term-card { overflow: hidden; border: 1px solid var(--admin-border); border-radius: 10px; background: var(--admin-card); }
 .admin-terms-list > header,
@@ -2564,8 +2566,15 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .admin-term-status.planned { color: #8a5a00; background: #fff4d6; }
 .admin-term-status.closed { color: var(--admin-muted); background: var(--admin-muted-surface); }
 .admin-terms-content { display: grid; gap: 18px; }
+.admin-term-selection-empty { display: flex; min-height: 190px; align-items: center; justify-content: center; gap: 14px; padding: 30px; border: 1px dashed var(--admin-border); border-radius: 10px; color: var(--admin-muted); background: var(--admin-card); text-align: left; }
+.admin-term-selection-empty > svg { width: 30px; height: 30px; flex: none; }
+.admin-term-selection-empty > div { max-width: 390px; }
+.admin-term-selection-empty strong { color: var(--admin-text); font-size: 0.86rem; }
+.admin-term-selection-empty p { margin: 6px 0 0; font-size: 0.72rem; line-height: 1.55; }
+.admin-term-selection-empty button { margin-top: 12px; padding: 8px 12px; border: 1px solid #109d1a; border-radius: 7px; color: #fff; background: #109d1a; font: inherit; font-size: 0.7rem; font-weight: 700; cursor: pointer; }
 .admin-term-card > header p { margin: 5px 0 0; color: var(--admin-muted); font-size: 0.72rem; }
 .admin-term-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 18px; }
+.admin-term-create-form { padding: 0; }
 .admin-term-form label { display: grid; gap: 6px; color: var(--admin-text); font-size: 0.72rem; font-weight: 650; }
 .admin-term-form input,
 .admin-term-form select {
@@ -2641,6 +2650,8 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   .admin-offerings-list article { grid-template-columns: 1fr; gap: 8px; }
 }
 @media (max-width: 620px) {
+  .admin-terms-heading { align-items: stretch; flex-direction: column; }
+  .admin-create-term-button { width: 100%; }
   .admin-selected-term { align-items: stretch; flex-direction: column; }
   .admin-selected-term > div:last-child { width: 100%; justify-content: stretch; }
   .admin-selected-term > div:last-child button { flex: 1 1 120px; }
