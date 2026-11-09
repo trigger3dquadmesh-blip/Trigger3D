@@ -1760,8 +1760,12 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .faculty-class-card-progress progress::-webkit-progress-value { border-radius: 8px; background: #109d1a; }
 .faculty-class-card-progress progress::-moz-progress-bar { border-radius: 8px; background: #109d1a; }
 .faculty-class-card-activity { display: grid; gap: 6px; margin: 0; font-size: 0.78rem; line-height: 1.5; }
-.faculty-class-card footer { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--admin-border); }
+.faculty-class-card footer { display: grid; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--admin-border); }
 .faculty-class-card .faculty-manage-class { width: 100%; min-height: 44px; justify-content: space-between; font-size: 0.8rem; }
+.faculty-class-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.faculty-restore-class { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; padding: 8px 13px; border: 1px solid #109d1a; border-radius: 7px; color: #fff; background: #109d1a; font: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer; }
+.faculty-restore-class:hover, .faculty-restore-class:focus-visible { border-color: #0c8215; background: #0c8215; outline: none; }
+.faculty-class-card footer .faculty-restore-class { width: 100%; }
 .faculty-class-card-grid > .faculty-empty-state { grid-column: 1 / -1; }
 .faculty-class-history-empty { display: flex; min-height: 170px; grid-column: 1 / -1; align-items: center; justify-content: center; flex-direction: column; gap: 9px; padding: 28px 18px; border: 1px solid var(--admin-border); border-radius: 12px; color: var(--admin-text); background: var(--admin-card); text-align: center; }
 .faculty-class-history-empty > svg { width: 22px; height: 22px; color: var(--admin-muted); }

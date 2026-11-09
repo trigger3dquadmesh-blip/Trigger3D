@@ -283,19 +283,19 @@ function LiveFacultyDashboard() {
     return true
   }
 
-  async function handleArchiveClass(archiveState) {
-    if (!selectedClass) return
+  async function handleArchiveClass(archiveState, targetClass = selectedClass) {
+    if (!targetClass) return
     setError('')
     setNotice('')
     const { error: archiveError } = await supabase.rpc('set_class_archived', {
-      target_class_id: selectedClass.id,
+      target_class_id: targetClass.id,
       archive_state: archiveState,
     })
     if (archiveError) {
       setError(archiveError.message)
       return
     }
-    setNotice(archiveState ? `${selectedClass.name} was archived.` : `${selectedClass.name} was restored.`)
+    setNotice(archiveState ? `${targetClass.name} was archived.` : `${targetClass.name} was restored.`)
     await loadClasses()
   }
 
@@ -404,7 +404,7 @@ function LiveFacultyDashboard() {
       {pendingPage ? <section className="faculty-reference-page"><DashboardLoading label={facultyLoadingLabels[pendingPage]} /></section> : <>
       {activePage === 'overview' && <FacultyOverviewPanel attempts={overviewData.attempts} classes={classes} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} onNavigate={navigateSection} releases={overviewData.releases} />}
 
-      {activePage === 'classes' && <FacultyClassesPanel activeTerm={activeTerm} attempts={overviewData.attempts} className={className} classSection={classSection} classes={classes} creating={creating} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onClassNameChange={setClassName} onClassSectionChange={setClassSection} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} releases={overviewData.releases} />}
+      {activePage === 'classes' && <FacultyClassesPanel activeTerm={activeTerm} attempts={overviewData.attempts} className={className} classSection={classSection} classes={classes} creating={creating} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onClassNameChange={setClassName} onClassSectionChange={setClassSection} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} onRestoreClass={(classItem) => handleArchiveClass(false, classItem)} releases={overviewData.releases} />}
 
       {activePage === 'class' && selectedClass && <FacultyClassWorkspace attempts={overviewData.attempts} classItem={selectedClass} enrollments={enrollments} firearms={overviewData.firearms} loading={loading} onArchive={handleArchiveClass} onAssessmentChange={loadClasses} onBack={() => navigateSection('classes')} onResetAttempt={handleResetAttempt} onResumeInterruptedAttempt={handleResumeInterruptedAttempt} onStatusChange={handleStatusChange} onUpdateDetails={handleUpdateClassDetails} releases={overviewData.releases} resettingId={resettingId} resultRows={overviewData.resultRows} updatingId={updatingId} />}
 
