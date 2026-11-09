@@ -91,6 +91,7 @@ function SectionTitle({ id, children }) {
 
 function TutorialCard({ audience, description, videoUrl, viewUrl }) {
   const playerRef = useRef(null)
+  const videoRef = useRef(null)
   const [playerVisible, setPlayerVisible] = useState(() => !('IntersectionObserver' in window))
 
   useEffect(() => {
@@ -99,7 +100,11 @@ function TutorialCard({ audience, description, videoUrl, viewUrl }) {
     if (!('IntersectionObserver' in window)) return undefined
 
     const observer = new IntersectionObserver(([entry]) => {
-      setPlayerVisible(entry.isIntersecting && entry.intersectionRatio >= 0.5)
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+        setPlayerVisible(true)
+        return
+      }
+      videoRef.current?.pause()
     }, { threshold: [0, 0.5] })
 
     observer.observe(player)
@@ -116,6 +121,7 @@ function TutorialCard({ audience, description, videoUrl, viewUrl }) {
               controls
               playsInline
               preload="metadata"
+              ref={videoRef}
               src={videoUrl}
             >Your browser does not support embedded video playback.</video>
           : <div aria-hidden="true" className="absolute inset-0 grid place-items-center bg-[#111] text-white"><span className="grid h-14 w-14 place-items-center rounded-full bg-white/15 text-2xl">▶</span></div>}
@@ -142,7 +148,6 @@ export default function HomePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showHeroModel, setShowHeroModel] = useState(() => window.matchMedia('(min-width: 1024px)').matches)
   const landingScrollRef = useRef(null)
-  const layoutModeRef = useRef(window.innerWidth < 768 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop')
   const accountPath = user ? '/account' : '/login'
 
   useEffect(() => {
@@ -150,31 +155,6 @@ export default function HomePage() {
     const update = () => setShowHeroModel(query.matches)
     query.addEventListener('change', update)
     return () => query.removeEventListener('change', update)
-  }, [])
-
-  useEffect(() => {
-    function handleViewportChange() {
-      const nextMode = window.innerWidth < 768 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop'
-      if (nextMode === layoutModeRef.current) return
-      layoutModeRef.current = nextMode
-      const landingPage = landingScrollRef.current
-      const previousScrollBehavior = landingPage?.style.scrollBehavior || ''
-      if (landingPage) landingPage.style.scrollBehavior = 'auto'
-      const resetLandingPosition = () => {
-        if (landingPage) landingPage.scrollTop = 0
-        window.scrollTo(0, 0)
-      }
-      resetLandingPosition()
-      window.requestAnimationFrame(() => {
-        resetLandingPosition()
-        window.requestAnimationFrame(() => {
-          resetLandingPosition()
-          if (landingPage) landingPage.style.scrollBehavior = previousScrollBehavior
-        })
-      })
-    }
-    window.addEventListener('resize', handleViewportChange)
-    return () => window.removeEventListener('resize', handleViewportChange)
   }, [])
 
   function handleContact(event) {

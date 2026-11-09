@@ -91,6 +91,13 @@ body { background: var(--page-bg); }
   height: 100%;
 }
 .landing-tutorial-player video { object-fit: contain; }
+.landing-tutorial-player video:fullscreen,
+.landing-tutorial-player video:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
+  background: #000;
+}
 
 @media (max-width: 1199px) {
   .landing-tutorial-player {
