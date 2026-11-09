@@ -11,8 +11,11 @@ function Crosshair() {
 export default function FirearmCardPreview({ firearm }) {
   const previewRef = useRef(null)
   const [nearViewport, setNearViewport] = useState(false)
-  const [modelUrl, setModelUrl] = useState('')
-  const [failed, setFailed] = useState(false)
+  const modelKey = `${firearm.glb_storage_path || ''}:${firearm.identifier || ''}:${firearm.name || ''}`
+  const [preview, setPreview] = useState({ key: '', modelUrl: '', failed: false })
+  const previewIsCurrent = preview.key === modelKey
+  const modelUrl = previewIsCurrent ? preview.modelUrl : ''
+  const failed = previewIsCurrent && preview.failed
 
   useEffect(() => {
     const element = previewRef.current
@@ -34,14 +37,12 @@ export default function FirearmCardPreview({ firearm }) {
   useEffect(() => {
     let active = true
     if (!nearViewport) return undefined
-    setModelUrl('')
-    setFailed(false)
     void loadFirearmCanvas()
     getFirearmModelUrl(firearm.glb_storage_path, firearm.identifier, firearm.name)
-      .then((url) => { if (active) setModelUrl(url) })
-      .catch(() => { if (active) setFailed(true) })
+      .then((url) => { if (active) setPreview({ key: modelKey, modelUrl: url, failed: false }) })
+      .catch(() => { if (active) setPreview({ key: modelKey, modelUrl: '', failed: true }) })
     return () => { active = false }
-  }, [firearm.glb_storage_path, firearm.identifier, firearm.name, nearViewport])
+  }, [firearm.glb_storage_path, firearm.identifier, firearm.name, modelKey, nearViewport])
 
   return (
     <div aria-label={`${firearm.name} model preview`} className="admin-firearm-card-preview" ref={previewRef}>

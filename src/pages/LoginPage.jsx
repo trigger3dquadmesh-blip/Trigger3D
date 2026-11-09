@@ -15,6 +15,10 @@ const allowedDomain = (
 ).replace(/^@/, '')
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() || ''
 
+function isLocalHost() {
+  return ['localhost', '127.0.0.1'].includes(window.location.hostname)
+}
+
 function getPublicSiteUrl() {
   const configuredUrl = import.meta.env.VITE_PUBLIC_SITE_URL?.trim().replace(/\/$/, '')
   if (configuredUrl) return configuredUrl
@@ -53,6 +57,7 @@ export default function LoginPage() {
   const [notice, setNotice] = useState('')
   const [captchaToken, setCaptchaToken] = useState('')
   const [captchaKey, setCaptchaKey] = useState(0)
+  const captchaConfigurationMissing = !turnstileSiteKey && !isLocalHost()
 
   useAutoDismissNotice(notice, () => setNotice(''), 5000)
 
@@ -101,6 +106,11 @@ export default function LoginPage() {
         setError(passwordError)
         return
       }
+    }
+
+    if (captchaConfigurationMissing) {
+      setError('Security verification is unavailable on this deployment. Ask the site owner to enable the Turnstile site key for this environment.')
+      return
     }
 
     if (turnstileSiteKey && !captchaToken) {
@@ -202,6 +212,12 @@ export default function LoginPage() {
           </div>
         )}
 
+        {captchaConfigurationMissing && (
+          <div className="alert alert-error" role="alert">
+            Security verification is not configured for this deployment. Sign in, registration, and password reset are unavailable until the Turnstile site key is enabled.
+          </div>
+        )}
+
         <form className="mt-4 grid gap-3" onSubmit={handleSubmit}>
           {mode === 'signup' && (
             <div className="relative">
@@ -273,7 +289,7 @@ export default function LoginPage() {
           <button
             className="auth-primary-action mt-1 w-full rounded-lg border-0 bg-[#109d1a] px-5 py-3 font-black text-white transition hover:bg-[#0c7d15] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#109d1a] disabled:cursor-not-allowed disabled:opacity-50"
             type="submit"
-            disabled={!isConfigured || submitting || sessionLoading}
+            disabled={!isConfigured || captchaConfigurationMissing || submitting || sessionLoading}
           >
             {submitting
               ? 'Please wait…'

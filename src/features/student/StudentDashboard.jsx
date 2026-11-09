@@ -18,7 +18,7 @@ const studentLoadingLabels = { overview: 'Loading dashboard…', classes: 'Loadi
 
 function enrollmentAccessSignature(items) {
   return items
-    .map((item) => `${item.id}:${item.status}:${item.class_id || item.class?.id || ''}`)
+    .map((item) => `${item.id}:${item.status}:${item.class_id || item.class?.id || ''}:${item.class?.archived_at || ''}`)
     .sort()
     .join('|')
 }
@@ -229,7 +229,7 @@ function LiveStudentDashboard() {
     async function detectEnrollmentChange() {
       const { data, error: enrollmentError } = await supabase
         .from('enrollments')
-        .select('id, class_id, status')
+        .select('id, class_id, status, class:classes!enrollments_class_id_fkey(id, archived_at)')
         .eq('student_id', profile.id)
         .order('id')
       if (!active || enrollmentError) return
