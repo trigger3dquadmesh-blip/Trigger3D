@@ -26,6 +26,15 @@ test('locks firearm viewing only after an assessment has actually started', () =
   assert.equal(assessmentAttemptHasStarted({ status: 'submitted', timer_started_at: '2026-10-07T09:00:00Z', has_activity: true }), false)
 })
 
+test('does not treat an untouched locked attempt as started', () => {
+  assert.equal(assessmentAttemptHasStarted({
+    status: 'in_progress',
+    timer_started_at: null,
+    has_activity: false,
+    integrity_locked_at: '2026-10-07T09:00:00Z',
+  }), false)
+})
+
 test('scopes assessment locks and destinations to a class', () => {
   assert.equal(
     getStudentFirearmDestination('firearm-1', true, 'class-4b'),

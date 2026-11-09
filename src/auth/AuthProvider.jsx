@@ -1,27 +1,31 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 import { AuthContext } from './auth-context.js'
 import { resolveProfileAvatar } from './profile-avatar.js'
-import { hasActiveAssessmentSession } from '../features/student/assessment/assessment-session.js'
 import { privilegedIdleTimeoutMs, requiresPrivilegedIdleTimeout } from './session-security.js'
 
-const awayTimestampKey = 'trigger3d.auth.away-at'
-const awaySignOutDelay = 30_000
+const profileFields = 'id, email, full_name, role, created_at, disabled_at, avatar_url'
+const profileRetryDelays = [0, 250, 700]
 
-function readAwayTimestamp() {
-  try {
-    return Number(sessionStorage.getItem(awayTimestampKey)) || 0
-  } catch {
-    return 0
-  }
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 }
 
-function clearAwayTimestamp() {
-  try {
-    sessionStorage.removeItem(awayTimestampKey)
-  } catch {
-    // Session storage can be unavailable in restrictive browser modes.
+async function loadProfile(userId) {
+  let lastResult = { data: null, error: null }
+
+  for (const delay of profileRetryDelays) {
+    if (delay) await wait(delay)
+    lastResult = await supabase
+      .from('profiles')
+      .select(profileFields)
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (!lastResult.error) return lastResult
   }
+
+  return lastResult
 }
 
 export default function AuthProvider({ children }) {
@@ -29,6 +33,8 @@ export default function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [profileError, setProfileError] = useState('')
   const [loading, setLoading] = useState(isSupabaseConfigured)
+  const profileRef = useRef(null)
+  const sessionRequestRef = useRef(0)
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -36,41 +42,45 @@ export default function AuthProvider({ children }) {
     }
 
     let active = true
-    let awayAtMemory = readAwayTimestamp()
-    let activeUserId = ''
-
     async function applySession(nextSession) {
       if (!active) return
 
-      activeUserId = nextSession?.user?.id || ''
+      const requestId = sessionRequestRef.current + 1
+      sessionRequestRef.current = requestId
+
       setSession(nextSession)
       setProfileError('')
 
       if (!nextSession?.user) {
+        profileRef.current = null
         setProfile(null)
         setLoading(false)
         return
       }
 
-      setLoading(true)
+      const hasCurrentProfile = profileRef.current?.id === nextSession.user.id
+      if (!hasCurrentProfile) setLoading(true)
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, role, created_at, disabled_at, avatar_url')
-        .eq('id', nextSession.user.id)
-        .maybeSingle()
+      const { data, error } = await loadProfile(nextSession.user.id)
 
-      if (!active) return
+      if (!active || requestId !== sessionRequestRef.current) return
 
       if (error) {
-        setProfile(null)
-        setProfileError(error.message)
+        // Token refreshes and tab focus can briefly overlap. Preserve a valid
+        // profile instead of replacing the account with a transient failure.
+        if (!hasCurrentProfile) {
+          profileRef.current = null
+          setProfile(null)
+          setProfileError(error.message)
+        }
       } else if (!data) {
+        profileRef.current = null
         setProfile(null)
         setProfileError('No account profile was found. Run the Trigger3D roles migration in Supabase.')
       } else {
         const resolvedProfile = await resolveProfileAvatar(data)
-        if (!active) return
+        if (!active || requestId !== sessionRequestRef.current) return
+        profileRef.current = resolvedProfile
         setProfile(resolvedProfile)
         setProfileError(data.disabled_at ? 'This account has been disabled. Contact an administrator.' : '')
       }
@@ -78,7 +88,7 @@ export default function AuthProvider({ children }) {
       setLoading(false)
     }
 
-    supabase.auth.getSession().then(async ({ data, error }) => {
+    supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return
 
       if (error) {
@@ -87,57 +97,8 @@ export default function AuthProvider({ children }) {
         return
       }
 
-      const awayAt = readAwayTimestamp()
-      if (data.session
-        && hasActiveAssessmentSession(sessionStorage, data.session.user.id)
-        && awayAt
-        && Date.now() - awayAt >= awaySignOutDelay) {
-        awayAtMemory = 0
-        clearAwayTimestamp()
-        await supabase.auth.signOut()
-        if (active) void applySession(null)
-        return
-      }
-
-      awayAtMemory = 0
-      clearAwayTimestamp()
       void applySession(data.session)
     })
-
-    function markUserAway() {
-      if (!hasActiveAssessmentSession(sessionStorage, activeUserId)) {
-        awayAtMemory = 0
-        clearAwayTimestamp()
-        return
-      }
-      if (!awayAtMemory) awayAtMemory = Date.now()
-      try {
-        sessionStorage.setItem(awayTimestampKey, String(awayAtMemory))
-      } catch {
-        // The in-memory timestamp still supports the current page session.
-      }
-    }
-
-    function checkWhetherSessionExpired() {
-      const awayAt = awayAtMemory || readAwayTimestamp()
-      awayAtMemory = 0
-      clearAwayTimestamp()
-      if (hasActiveAssessmentSession(sessionStorage, activeUserId)
-        && awayAt
-        && Date.now() - awayAt >= awaySignOutDelay) {
-        void supabase.auth.signOut()
-      }
-    }
-
-    function handleVisibilityChange() {
-      if (document.visibilityState === 'hidden') markUserAway()
-      else checkWhetherSessionExpired()
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('blur', markUserAway)
-    window.addEventListener('focus', checkWhetherSessionExpired)
-    window.addEventListener('pagehide', markUserAway)
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, nextSession) => {
@@ -147,10 +108,6 @@ export default function AuthProvider({ children }) {
 
     return () => {
       active = false
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('blur', markUserAway)
-      window.removeEventListener('focus', checkWhetherSessionExpired)
-      window.removeEventListener('pagehide', markUserAway)
       authListener.subscription.unsubscribe()
     }
   }, [])
@@ -180,17 +137,19 @@ export default function AuthProvider({ children }) {
     if (!session?.user) return { data: null, error: null }
 
     setLoading(true)
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, email, full_name, role, created_at, disabled_at, avatar_url')
-      .eq('id', session.user.id)
-      .maybeSingle()
+    const requestId = sessionRequestRef.current + 1
+    sessionRequestRef.current = requestId
+    const { data, error } = await loadProfile(session.user.id)
 
     let resolvedData = data
     if (error) {
-      setProfileError(error.message)
+      if (!profileRef.current || profileRef.current.id !== session.user.id) {
+        setProfileError(error.message)
+      }
     } else {
       resolvedData = await resolveProfileAvatar(data)
+      if (requestId !== sessionRequestRef.current) return { data: null, error: null }
+      profileRef.current = resolvedData
       setProfile(resolvedData)
       setProfileError(
         data?.disabled_at

@@ -5,10 +5,11 @@ import { getRoleHomePath } from '../config/roles.js'
 import DashboardLoading from '../components/DashboardLoading.jsx'
 
 export default function AccountPage() {
-  const { loading, profileError, role, signOut, user } = useAuth()
+  const { loading, profileError, refreshProfile, role, signOut, user } = useAuth()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
   const [signOutError, setSignOutError] = useState('')
+  const [retrying, setRetrying] = useState(false)
 
   if (loading) {
     return <main className="page status-page"><DashboardLoading className="dashboard-loading-route" label="Loading your account…" /></main>
@@ -32,6 +33,14 @@ export default function AccountPage() {
     navigate('/login', { replace: true })
   }
 
+  async function handleRetry() {
+    setRetrying(true)
+    setSignOutError('')
+    const { error } = await refreshProfile()
+    if (error) setSignOutError('Account access is still unavailable. Check your connection and try again.')
+    setRetrying(false)
+  }
+
   return (
     <main className="page account-page">
       <section className="account-setup-card">
@@ -50,7 +59,10 @@ export default function AccountPage() {
           <strong>{user.email}</strong>
         </div>
         {signOutError && <div className="alert alert-error" role="alert">{signOutError}</div>}
-        <button className="account-setup-signout" type="button" onClick={handleSignOut} disabled={signingOut}>
+        {profileError && <button className="account-setup-retry" type="button" onClick={handleRetry} disabled={retrying || signingOut}>
+          {retrying ? 'Checking account…' : 'Try again'}
+        </button>}
+        <button className="account-setup-signout" type="button" onClick={handleSignOut} disabled={signingOut || retrying}>
           {signingOut ? 'Signing out...' : 'Sign out'}
         </button>
       </section>

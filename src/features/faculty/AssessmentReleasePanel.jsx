@@ -71,8 +71,31 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
 
     if (updateError) setError(updateError.message)
     else {
+      let cleanupError = null
+      if (!isOpen) {
+        const emptyAttemptResult = await supabase
+          .from('assessment_attempts')
+          .select('id')
+          .eq('class_id', selectedClass.id)
+          .eq('firearm_id', firearm.id)
+          .eq('status', 'submitted')
+          .eq('has_activity', false)
+          .is('timer_started_at', null)
+
+        if (emptyAttemptResult.error) {
+          cleanupError = emptyAttemptResult.error
+        } else if (emptyAttemptResult.data?.length) {
+          const resetResults = await Promise.all(emptyAttemptResult.data.map((attempt) => (
+            supabase.rpc('reset_student_assessment_attempt_with_timer', {
+              target_attempt_id: attempt.id,
+            })
+          )))
+          cleanupError = resetResults.find((result) => result.error)?.error || null
+        }
+      }
       await Promise.all([loadReleases(), onChanged?.()])
       setPendingClose(null)
+      if (cleanupError) setError(`The assessment reopened, but empty attempts could not be refreshed. ${cleanupError.message}`)
     }
 
     setUpdatingId('')

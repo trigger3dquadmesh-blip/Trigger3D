@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { isValidFullName, normalizeFullName } from '../../auth/name.js'
 import useAuth from '../../auth/useAuth.js'
 import RoleDashboard from '../../components/RoleDashboard.jsx'
@@ -15,6 +15,13 @@ import DashboardLoading from '../../components/DashboardLoading.jsx'
 const studentPages = ['overview', 'classes', 'class', 'results']
 const studentDashboardPageKey = 'trigger3d.student.active-page'
 const studentLoadingLabels = { overview: 'Loading dashboard…', classes: 'Loading classes…', class: 'Loading class…', results: 'Loading results…' }
+
+function enrollmentAccessSignature(items) {
+  return items
+    .map((item) => `${item.id}:${item.status}:${item.class_id || item.class?.id || ''}`)
+    .sort()
+    .join('|')
+}
 
 export default function StudentDashboard() {
   return <LiveStudentDashboard />
@@ -40,11 +47,16 @@ function LiveStudentDashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useResponsiveSidebar()
   const [selectedClassId, setSelectedClassId] = useState('')
   const [joinOpen, setJoinOpen] = useState(false)
+  const enrollmentAccessSignatureRef = useRef('')
+  const enrollmentRequestRef = useRef(0)
+  const attemptRequestRef = useRef(0)
   const { navigate: transitionTo, pendingPage } = useDashboardTransition(activePage, setActivePage, studentDashboardPageKey)
 
   useAutoDismissNotice(notice, () => setNotice(''))
 
   const loadEnrollment = useCallback(async () => {
+    const requestId = enrollmentRequestRef.current + 1
+    enrollmentRequestRef.current = requestId
     let { data, error: enrollmentError } = await supabase
       .from('enrollments')
       .select(`
@@ -72,6 +84,8 @@ function LiveStudentDashboard() {
       enrollmentError = legacyResult.error
     }
 
+    if (requestId !== enrollmentRequestRef.current) return
+
     if (enrollmentError) {
       setError(enrollmentError.message)
       setLoading(false)
@@ -82,6 +96,7 @@ function LiveStudentDashboard() {
     const accessibleEnrollments = validEnrollments.filter((item) => item.status === 'active')
     const historyClassIds = [...new Set(validEnrollments.map((item) => item.class.id))]
 
+    enrollmentAccessSignatureRef.current = enrollmentAccessSignature(validEnrollments)
     setEnrollments(validEnrollments)
     setSelectedClassId((current) => (
       accessibleEnrollments.some((item) => item.class.id === current)
@@ -93,6 +108,8 @@ function LiveStudentDashboard() {
 
     if (hasActiveEnrollment) {
       const classIds = [...new Set(accessibleEnrollments.map((item) => item.class.id))]
+      const attemptRequestId = attemptRequestRef.current + 1
+      attemptRequestRef.current = attemptRequestId
       const [resultQuery, releaseResult, firearmResult] = await Promise.all([
         supabase
           .from('assessment_attempts')
@@ -106,6 +123,8 @@ function LiveStudentDashboard() {
             percentage,
             timer_started_at,
             has_activity,
+            integrity_locked_at,
+            connection_interrupted_at,
             submitted_at,
             firearm:firearms!assessment_attempts_firearm_id_fkey(name, caliber)
           `)
@@ -119,10 +138,12 @@ function LiveStudentDashboard() {
           .order('created_at'),
       ])
 
+      if (requestId !== enrollmentRequestRef.current) return
+
       if (resultQuery.error || releaseResult.error || firearmResult.error) {
         setError(resultQuery.error?.message || releaseResult.error?.message || firearmResult.error?.message)
         setFirearms([])
-        setAttempts([])
+        if (attemptRequestId === attemptRequestRef.current) setAttempts([])
         setReleases([])
         setComponents([])
       } else {
@@ -137,15 +158,17 @@ function LiveStudentDashboard() {
           ? await supabase.from('firearm_components').select('id, firearm_id').in('firearm_id', firearmIds)
           : { data: [], error: null }
 
+        if (requestId !== enrollmentRequestRef.current) return
+
         if (componentResult.error) {
           setError(componentResult.error.message)
           setFirearms([])
-          setAttempts([])
+          if (attemptRequestId === attemptRequestRef.current) setAttempts([])
           setReleases([])
           setComponents([])
         } else {
           setFirearms(readyFirearms)
-          setAttempts(resultQuery.data ?? [])
+          if (attemptRequestId === attemptRequestRef.current) setAttempts(resultQuery.data ?? [])
           setReleases(effectiveReleases)
           setComponents(componentResult.data ?? [])
         }
@@ -154,6 +177,8 @@ function LiveStudentDashboard() {
       setFirearms([])
       setReleases([])
       setComponents([])
+      const attemptRequestId = attemptRequestRef.current + 1
+      attemptRequestRef.current = attemptRequestId
       const historyResult = historyClassIds.length
         ? await supabase
             .from('assessment_attempts')
@@ -167,21 +192,24 @@ function LiveStudentDashboard() {
               percentage,
               timer_started_at,
               has_activity,
+              integrity_locked_at,
+              connection_interrupted_at,
               submitted_at,
               firearm:firearms!assessment_attempts_firearm_id_fkey(name, caliber)
             `)
             .in('class_id', historyClassIds)
             .order('submitted_at', { ascending: false })
         : { data: [], error: null }
+      if (requestId !== enrollmentRequestRef.current) return
       if (historyResult.error) {
         setError(historyResult.error.message)
-        setAttempts([])
+        if (attemptRequestId === attemptRequestRef.current) setAttempts([])
       } else {
-        setAttempts(historyResult.data ?? [])
+        if (attemptRequestId === attemptRequestRef.current) setAttempts(historyResult.data ?? [])
       }
     }
 
-    setLoading(false)
+    if (requestId === enrollmentRequestRef.current) setLoading(false)
   }, [])
 
   useEffect(() => {
@@ -189,6 +217,102 @@ function LiveStudentDashboard() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadEnrollment()
   }, [loadEnrollment])
+
+  useEffect(() => {
+    if (!profile?.id) return undefined
+    let active = true
+
+    async function reloadEnrollmentAccess() {
+      await loadEnrollment()
+    }
+
+    async function detectEnrollmentChange() {
+      const { data, error: enrollmentError } = await supabase
+        .from('enrollments')
+        .select('id, class_id, status')
+        .eq('student_id', profile.id)
+        .order('id')
+      if (!active || enrollmentError) return
+      const nextSignature = enrollmentAccessSignature(data ?? [])
+      if (nextSignature !== enrollmentAccessSignatureRef.current) {
+        await reloadEnrollmentAccess()
+      }
+    }
+
+    const enrollmentChannel = supabase
+      .channel(`student-enrollment-access:${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'enrollments', filter: `student_id=eq.${profile.id}` }, () => {
+        void reloadEnrollmentAccess()
+      })
+      .subscribe()
+    const enrollmentPoll = window.setInterval(() => void detectEnrollmentChange(), 4000)
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') void detectEnrollmentChange()
+    }
+    window.addEventListener('focus', refreshWhenVisible)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    void detectEnrollmentChange()
+
+    return () => {
+      active = false
+      window.clearInterval(enrollmentPoll)
+      window.removeEventListener('focus', refreshWhenVisible)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      void supabase.removeChannel(enrollmentChannel)
+    }
+  }, [loadEnrollment, profile?.id])
+
+  useEffect(() => {
+    const classIds = enrollments.filter((item) => item.class?.id).map((item) => item.class.id)
+    if (!profile?.id || !classIds.length) return undefined
+    let active = true
+
+    async function refreshAttempts() {
+      const requestId = attemptRequestRef.current + 1
+      attemptRequestRef.current = requestId
+      const { data, error: attemptError } = await supabase
+        .from('assessment_attempts')
+        .select(`
+          id,
+          class_id,
+          firearm_id,
+          status,
+          correct_count,
+          total_questions,
+          percentage,
+          timer_started_at,
+          has_activity,
+          integrity_locked_at,
+          connection_interrupted_at,
+          submitted_at,
+          firearm:firearms!assessment_attempts_firearm_id_fkey(name, caliber)
+        `)
+        .in('class_id', classIds)
+        .order('submitted_at', { ascending: false })
+      if (active && requestId === attemptRequestRef.current && !attemptError) setAttempts(data ?? [])
+    }
+
+    const attemptChannel = supabase
+      .channel(`student-assessment-attempts:${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts', filter: `student_id=eq.${profile.id}` }, () => {
+        void refreshAttempts()
+      })
+      .subscribe()
+    const attemptPoll = window.setInterval(() => void refreshAttempts(), 4000)
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') void refreshAttempts()
+    }
+    window.addEventListener('focus', refreshWhenVisible)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+
+    return () => {
+      active = false
+      window.clearInterval(attemptPoll)
+      window.removeEventListener('focus', refreshWhenVisible)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      void supabase.removeChannel(attemptChannel)
+    }
+  }, [enrollments, profile?.id])
 
   async function handleJoinClass(event) {
     event.preventDefault()

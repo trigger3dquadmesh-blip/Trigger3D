@@ -15,11 +15,12 @@ import useAutoDismissNotice from '../../components/useAutoDismissNotice.js'
 import useResponsiveSidebar from '../../components/useResponsiveSidebar.js'
 import useDashboardTransition from '../../components/useDashboardTransition.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
+import { assessmentAttemptHasStarted } from '../student/assessment/assessment-lock.js'
 
 const facultyPages = ['overview', 'classes', 'class', 'students', 'assessments', 'results']
 const facultyDashboardPageKey = 'trigger3d.faculty.active-page'
 const facultyLoadingLabels = { overview: 'Loading dashboard…', classes: 'Loading classes…', class: 'Loading class…', students: 'Loading students…', assessments: 'Loading assessments…', results: 'Loading results…' }
-const facultyAttemptFields = 'id, class_id, student_id, firearm_id, status, percentage, started_at, submitted_at, has_activity, integrity_locked_at, connection_interrupted_at, checkpoint_question_index, checkpoint_remaining_seconds, checkpoint_updated_at'
+const facultyAttemptFields = 'id, class_id, student_id, firearm_id, status, percentage, started_at, submitted_at, timer_started_at, has_activity, integrity_locked_at, connection_interrupted_at, checkpoint_question_index, checkpoint_remaining_seconds, checkpoint_updated_at'
 
 export default function FacultyDashboard() {
   return <LiveFacultyDashboard />
@@ -137,8 +138,8 @@ function LiveFacultyDashboard() {
     if (!classIds.length) return undefined
     let active = true
 
-    async function refreshAssessmentConnections() {
-      await supabase.rpc('mark_stale_assessment_connections')
+    async function refreshAssessmentConnections({ markStale = false } = {}) {
+      if (markStale) await supabase.rpc('mark_stale_assessment_connections')
       const { data, error: attemptError } = await supabase
         .from('assessment_attempts')
         .select(facultyAttemptFields)
@@ -148,12 +149,55 @@ function LiveFacultyDashboard() {
     }
 
     const connectionPoll = window.setInterval(() => {
-      void refreshAssessmentConnections()
+      void refreshAssessmentConnections({ markStale: true })
     }, 10000)
-    void refreshAssessmentConnections()
+    const attemptPoll = window.setInterval(() => {
+      void refreshAssessmentConnections()
+    }, 2000)
+    const attemptChannel = supabase
+      .channel('faculty-assessment-attempts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts' }, (payload) => {
+        const changedAttempt = payload.new
+        const changedAttemptId = changedAttempt?.id || payload.old?.id
+        if (!changedAttemptId) return
+
+        setOverviewData((current) => {
+          const existingAttempt = current.attempts.find((item) => item.id === changedAttemptId)
+          const belongsToFacultyClass = classIds.includes(changedAttempt?.class_id || existingAttempt?.class_id)
+          if (payload.eventType === 'DELETE' || !belongsToFacultyClass) {
+            return {
+              ...current,
+              attempts: current.attempts.filter((item) => item.id !== changedAttemptId),
+            }
+          }
+
+          const nextAttempt = existingAttempt
+            ? { ...existingAttempt, ...changedAttempt }
+            : changedAttempt
+          return {
+            ...current,
+            attempts: existingAttempt
+              ? current.attempts.map((item) => item.id === changedAttemptId ? nextAttempt : item)
+              : [...current.attempts, nextAttempt],
+          }
+        })
+      })
+      .subscribe()
+
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') void refreshAssessmentConnections({ markStale: true })
+    }
+
+    window.addEventListener('focus', refreshWhenVisible)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    void refreshAssessmentConnections({ markStale: true })
     return () => {
       active = false
       window.clearInterval(connectionPoll)
+      window.clearInterval(attemptPoll)
+      window.removeEventListener('focus', refreshWhenVisible)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      void supabase.removeChannel(attemptChannel)
     }
   }, [classes])
 
@@ -241,10 +285,6 @@ function LiveFacultyDashboard() {
 
   async function handleArchiveClass(archiveState) {
     if (!selectedClass) return
-    if (!archiveState && selectedClass.archived_at) {
-      setError('Previous classes are permanent read-only records and cannot be restored or edited.')
-      return
-    }
     setError('')
     setNotice('')
     const { error: archiveError } = await supabase.rpc('set_class_archived', {
@@ -285,6 +325,26 @@ function LiveFacultyDashboard() {
     setResettingId(attempt.id)
     setError('')
     setNotice('')
+
+    const { data: currentAttempt, error: attemptError } = await supabase
+      .from('assessment_attempts')
+      .select('id, status, timer_started_at, has_activity, integrity_locked_at, connection_interrupted_at')
+      .eq('id', attempt.id)
+      .maybeSingle()
+    const canReset = currentAttempt?.status === 'submitted'
+      || (assessmentAttemptHasStarted(currentAttempt)
+        && Boolean(currentAttempt.integrity_locked_at)
+        && !currentAttempt.connection_interrupted_at)
+
+    if (attemptError || !canReset) {
+      setError(attemptError?.message || (currentAttempt?.connection_interrupted_at
+        ? 'A connection-interrupted assessment must be continued from its saved checkpoint, not reset.'
+        : 'This assessment cannot be reset because the student has not started it yet.'))
+      setResettingId('')
+      await loadClasses()
+      return false
+    }
+
     const { error: resetError } = await supabase.rpc('reset_student_assessment_attempt_with_timer', {
       target_attempt_id: attempt.id,
     })
@@ -314,7 +374,7 @@ function LiveFacultyDashboard() {
       return false
     }
     const assessmentName = overviewData.firearms.find((item) => item.id === attempt.firearm_id)?.name || 'Selected assessment'
-    setNotice(`${assessmentName} can now be resumed from the student's saved checkpoint.`)
+    setNotice(`${assessmentName} continuation was approved. The student can resume from the saved checkpoint.`)
     await loadClasses()
     setResettingId('')
     return true

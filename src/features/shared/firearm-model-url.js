@@ -47,7 +47,17 @@ async function createModelSignedUrl(storagePath) {
 
     if (!error && data?.signedUrl) return data.signedUrl
     lastError = error || new Error('The model link could not be created.')
-    if (attempt === 0) await wait(SIGNED_URL_RETRY_DELAY_MS)
+    if (attempt === 0) {
+      // A tab can retain a valid-looking local session while its access token
+      // has already become stale. Revalidate it before retrying the private
+      // Storage request so Student, Faculty, and Admin viewers behave alike.
+      const { error: userError } = await supabase.auth.getUser()
+      if (userError) {
+        const { error: refreshError } = await supabase.auth.refreshSession()
+        if (refreshError) lastError = refreshError
+      }
+      await wait(SIGNED_URL_RETRY_DELAY_MS)
+    }
   }
   throw lastError
 }

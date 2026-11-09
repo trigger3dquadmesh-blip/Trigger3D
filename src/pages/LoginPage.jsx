@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Turnstile } from '@marsidev/react-turnstile'
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { isAllowedStudentEmail, normalizeEmail } from '../auth/email.js'
 import { isValidFullName, normalizeFullName } from '../auth/name.js'
 import { minimumPasswordLength, validateNewPassword } from '../auth/password.js'
@@ -36,7 +36,7 @@ const inputClass = 'peer h-[52px] w-full rounded-lg border border-[var(--auth-bo
 const labelClass = 'pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[var(--auth-muted)] transition-all peer-focus:top-1.5 peer-focus:translate-y-0 peer-focus:text-[0.65rem] peer-focus:font-bold peer-focus:text-[#109d1a] peer-[:not(:placeholder-shown)]:top-1.5 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[0.65rem] peer-[:not(:placeholder-shown)]:font-bold'
 
 export default function LoginPage() {
-  const { isConfigured, loading: sessionLoading, role, user } = useAuth()
+  const { isConfigured, loading: sessionLoading } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [mode, setMode] = useState(
@@ -55,10 +55,6 @@ export default function LoginPage() {
   const [captchaKey, setCaptchaKey] = useState(0)
 
   useAutoDismissNotice(notice, () => setNotice(''), 5000)
-
-  if (!sessionLoading && user) {
-    return <Navigate to={getRoleHomePath(role)} replace />
-  }
 
   function switchMode(nextMode) {
     setMode(nextMode)

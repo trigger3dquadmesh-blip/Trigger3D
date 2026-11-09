@@ -78,18 +78,7 @@ body { background: var(--page-bg); }
   box-shadow: 0 8px 20px rgb(0 0 0 / 12%);
 }
 
-.landing-tutorial-player {
-  container-type: inline-size;
-}
-
-@container (max-width: 40rem) {
-  .landing-tutorial-player iframe {
-    width: 160%;
-    height: 160%;
-    transform: scale(0.625);
-    transform-origin: top left;
-  }
-}
+.landing-tutorial-player { container-type: inline-size; }
 
 .landing-page nav a:not(.landing-primary-action):focus-visible {
   border-radius: 0.25rem;
@@ -389,7 +378,7 @@ button, input { font: inherit; }
     top: auto;
     right: 0;
     bottom: calc(100% + 8px);
-    width: min(210px, calc(100vw - 48px));
+    width: min(240px, calc(100vw - 48px));
     padding: 6px;
     transform: none;
   }
@@ -411,7 +400,7 @@ button, input { font: inherit; }
     top: auto;
     right: 0;
     bottom: calc(100% + 8px);
-    width: 210px;
+    width: 240px;
     padding: 6px;
     transform: none;
   }
@@ -525,7 +514,7 @@ button:disabled, [role='button'][aria-disabled='true'] { cursor: not-allowed; }
   @keyframes system-toast-fade { 0%, 90% { opacity: 1; } 100% { visibility: hidden; opacity: 0; } }
 }
 .account-email { color: var(--text) !important; font-weight: 800; overflow-wrap: anywhere; }
-.account-page { width: 100%; min-height: 100dvh; padding: 24px; background: var(--surface); }
+.account-page { display: grid; width: 100%; min-height: 100dvh; padding: 24px; place-items: center; background: var(--surface); }
 .account-setup-card { width: min(100%, 500px); padding: 32px; border: 1px solid var(--border-strong); border-radius: 16px; color: var(--text); background: var(--surface-strong); box-shadow: 0 24px 70px rgb(15 23 42 / 18%); text-align: center; }
 .account-setup-icon { display: grid; width: 52px; height: 52px; margin: 0 auto 17px; place-items: center; border-radius: 50%; color: #b42318; background: rgb(220 38 38 / 10%); }
 .account-setup-icon svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
@@ -536,6 +525,10 @@ button:disabled, [role='button'][aria-disabled='true'] { cursor: not-allowed; }
 .account-setup-identity span { color: var(--text-muted); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .account-setup-identity strong { overflow-wrap: anywhere; color: var(--text); font-size: 0.78rem; }
 .account-setup-signout { width: 100%; min-height: 42px; margin-top: 18px; padding: 9px 16px; border: 1px solid #109d1a; border-radius: 8px; color: #fff; background: #109d1a; font: inherit; font-size: 0.78rem; font-weight: 750; cursor: pointer; transition: background-color 150ms ease, border-color 150ms ease, opacity 150ms ease; }
+.account-setup-retry { width: 100%; min-height: 42px; margin-top: 18px; padding: 9px 16px; border: 1px solid #109d1a; border-radius: 8px; color: #109d1a; background: transparent; font: inherit; font-size: 0.78rem; font-weight: 750; cursor: pointer; }
+.account-setup-retry + .account-setup-signout { margin-top: 10px; }
+.account-setup-retry:hover:not(:disabled) { color: #fff; background: #109d1a; }
+.account-setup-retry:disabled { cursor: not-allowed; opacity: 0.5; }
 .account-setup-signout:hover:not(:disabled) { border-color: #0c7d15; background: #0c7d15; }
 .account-setup-signout:disabled { cursor: not-allowed; opacity: 0.5; }
 .account-setup-card .alert { margin-top: 15px; text-align: left; }
@@ -1062,6 +1055,20 @@ button:disabled, [role='button'][aria-disabled='true'] { cursor: not-allowed; }
 .student-assessment-result-icon { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 50%; color: #fff; background: #109d1a; font-size: 1.4rem; }
 .student-assessment-integrity-blocked .student-assessment-result-icon { color: #dc2626; background: color-mix(in srgb, #dc2626 12%, var(--admin-card)); }
 .student-assessment-integrity-blocked .student-assessment-result-icon svg { width: 30px; height: 30px; }
+.student-assessment-recovery-approved { border-color: color-mix(in srgb, #109d1a 45%, var(--admin-border)); box-shadow: 0 20px 55px rgb(16 157 26 / 10%); }
+.student-assessment-recovery-approved .student-assessment-result-icon { color: #109d1a; background: color-mix(in srgb, #109d1a 13%, var(--admin-card)); }
+.student-assessment-recovery-approved > footer { justify-content: center; background: color-mix(in srgb, #109d1a 4%, var(--admin-card)); }
+.student-assessment-resume-button { display: grid; width: min(100%, 430px); min-height: 64px; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid #0d8b17; border-radius: 10px; color: #fff; background: linear-gradient(135deg, #109d1a, #087f13); box-shadow: 0 10px 24px rgb(16 157 26 / 22%); font: inherit; text-align: left; cursor: pointer; transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+.student-assessment-resume-button:hover:not(:disabled) { border-color: #0b7313; box-shadow: 0 14px 28px rgb(16 157 26 / 28%); transform: translateY(-1px); }
+.student-assessment-resume-button:focus-visible { outline: 3px solid color-mix(in srgb, #109d1a 35%, transparent); outline-offset: 3px; }
+.student-assessment-resume-button:disabled { cursor: wait; opacity: 0.7; }
+.student-assessment-resume-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 8px; background: rgb(255 255 255 / 15%); }
+.student-assessment-resume-icon svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.student-assessment-resume-copy { display: grid; min-width: 0; gap: 3px; }
+.student-assessment-resume-copy strong { font-size: 0.8rem; line-height: 1.3; }
+.student-assessment-resume-copy small { color: rgb(255 255 255 / 78%); font-size: 0.66rem; line-height: 1.3; }
+.student-assessment-resume-arrow { font-size: 1.15rem; transition: transform 160ms ease; }
+.student-assessment-resume-button:hover:not(:disabled) .student-assessment-resume-arrow { transform: translateX(3px); }
 .assessment-unavailable-page { min-height: calc(100dvh - 54px); padding: clamp(18px, 4vw, 40px); }
 .assessment-unavailable-card { width: min(100%, 600px); padding-top: clamp(28px, 5vw, 42px); box-shadow: 0 22px 60px rgb(15 23 42 / 14%); }
 .assessment-unavailable-card > p:not(.eyebrow) { max-width: 430px; margin-inline: auto; line-height: 1.6; }
@@ -1851,6 +1858,12 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .faculty-class-tabs-nav button { display: flex; align-items: center; gap: 7px; padding: 12px 16px; border: 0; border-bottom: 2px solid transparent; color: var(--admin-muted); background: transparent; cursor: pointer; }
 .faculty-class-tabs-nav button.active { border-bottom-color: #109d1a; color: #109d1a; }
 .faculty-class-tabs-nav button span { min-width: 20px; padding: 2px 6px; border-radius: 99px; background: var(--admin-muted-surface); font-size: 0.67rem; }
+.faculty-archived-restore-banner { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 18px; padding: 14px 16px; border: 1px solid #86cf8d; border-radius: 9px; background: color-mix(in srgb, #109d1a 7%, var(--admin-card)); }
+.faculty-archived-restore-banner > div { display: grid; gap: 3px; }
+.faculty-archived-restore-banner strong { color: var(--admin-text); font-size: 0.82rem; }
+.faculty-archived-restore-banner span { color: var(--admin-muted); font-size: 0.75rem; line-height: 1.45; }
+.faculty-archived-restore-banner button { flex: 0 0 auto; }
+.faculty-archived-restore-banner button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .faculty-class-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 22px; }
 .faculty-class-metrics article { min-height: 118px; padding: 25px 22px; border: 1px solid var(--admin-border); border-radius: 10px; background: var(--admin-card); }
 .faculty-class-metrics span { display: block; color: var(--admin-muted); font-size: 0.7rem; text-transform: uppercase; }
@@ -1885,7 +1898,7 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .faculty-student-tools > button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 .faculty-student-table-wrap { overflow-x: auto; }
 .faculty-student-table-wrap.has-open-menu { overflow: visible; }
-.faculty-student-table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 0.73rem; }
+.faculty-student-table { width: 100%; min-width: 1120px; border-collapse: collapse; font-size: 0.73rem; }
 .faculty-student-table th { height: 42px; padding: 9px 18px; color: var(--admin-muted); background: var(--admin-muted-surface); font-size: 0.65rem; text-align: left; text-transform: uppercase; }
 .faculty-student-table td { height: 68px; padding: 10px 18px; border-top: 1px solid var(--admin-border); white-space: nowrap; }
 .faculty-student-table tr:has(.faculty-student-action-toggle[aria-expanded='true']) td { background: color-mix(in srgb, #109d1a 5%, var(--admin-card)); }
@@ -1896,6 +1909,12 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .faculty-student-identity small { margin-top: 3px; color: var(--admin-muted); font-size: 0.65rem; }
 .faculty-student-table .score-good { color: #07951a; }
 .faculty-student-table .score-low { color: #ed2c2c; }
+.faculty-assessment-state-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.faculty-assessment-state-list span { display: inline-flex; align-items: center; padding: 3px 8px; border: 1px solid var(--admin-border); border-radius: 999px; background: var(--admin-muted-surface); color: var(--admin-muted); font-size: 0.64rem; font-weight: 700; }
+.faculty-assessment-state-list .paused { border-color: #f0b34e; background: #fff5dc; color: #9a5b00; }
+.faculty-assessment-state-list .completed { border-color: #a8ddb0; background: #e8f7ea; color: #087b17; }
+.faculty-assessment-state-list .locked { border-color: #efaaaa; background: #fff0f0; color: #b42318; }
+.faculty-assessment-state-list .progress { border-color: #9dc7ef; background: #edf6ff; color: #175f9c; }
 .faculty-student-actions { display: flex; justify-content: end; gap: 12px; }
 .faculty-student-actions button { padding: 4px; border: 0; color: var(--admin-muted); background: transparent; font-size: 0.68rem; cursor: pointer; }
 .faculty-student-actions button:hover { color: #109d1a; }
@@ -1903,8 +1922,8 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .faculty-student-action-toggle { display: grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 8px; color: var(--admin-muted); background: transparent; cursor: pointer; }
 .faculty-student-action-toggle:hover, .faculty-student-action-toggle[aria-expanded='true'] { border-color: var(--admin-border); color: var(--admin-text); background: var(--admin-muted-surface); }
 .faculty-student-action-toggle svg { width: 18px; height: 18px; fill: currentColor; stroke: none; }
-.faculty-student-action-popover { position: absolute; z-index: 30; top: 50%; right: calc(100% + 7px); display: grid; width: 180px; overflow: hidden; padding: 5px; border: 1px solid var(--admin-border); border-radius: 9px; background: var(--admin-card); box-shadow: 0 12px 30px rgb(0 0 0 / 16%); transform: translateY(-50%); }
-.faculty-student-action-popover button { display: flex; min-height: 38px; align-items: center; gap: 9px; padding: 8px 10px; border: 0; border-radius: 6px; color: var(--admin-text); background: transparent; font-size: 0.72rem; text-align: left; cursor: pointer; }
+.faculty-student-action-popover { position: absolute; z-index: 30; top: 50%; right: calc(100% + 7px); display: grid; width: 240px; overflow: hidden; padding: 5px; border: 1px solid var(--admin-border); border-radius: 9px; background: var(--admin-card); box-shadow: 0 12px 30px rgb(0 0 0 / 16%); transform: translateY(-50%); }
+.faculty-student-action-popover button { display: flex; width: 100%; min-height: 38px; align-items: center; gap: 9px; padding: 8px 10px; border: 0; border-radius: 6px; color: var(--admin-text); background: transparent; font-size: 0.72rem; line-height: 1.35; text-align: left; white-space: normal; cursor: pointer; }
 .faculty-student-action-popover button:hover { color: var(--admin-text); background: var(--admin-muted-surface); }
 .faculty-student-action-popover button.remove { color: #b42318; }
 .faculty-student-action-popover button.readmit { color: #087f13; }
@@ -1963,8 +1982,6 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .faculty-class-details-form > div { display: flex; align-items: center; gap: 12px; }
 .faculty-class-details-form > div > span { color: #0a9b19; font-size: 0.72rem; font-weight: 700; }
 .faculty-class-workspace.is-read-only .faculty-class-details-form { opacity: 0.65; pointer-events: none; }
-.faculty-class-workspace.is-read-only .faculty-class-settings-grid > section:nth-child(2) button { display: none; }
-.faculty-class-workspace.is-read-only .faculty-class-settings-grid > section:nth-child(2)::after { display: block; margin-top: 14px; color: var(--admin-muted); content: 'This historical class is read-only and cannot be restored or changed.'; font-size: 0.72rem; line-height: 1.5; }
 .faculty-semester-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .faculty-create-class-dialog select { width: 100%; min-height: 42px; padding: 9px 40px 9px 12px; border: 1px solid var(--admin-border); border-radius: 8px; color: var(--admin-text); background-color: var(--admin-card) !important; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23647468' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important; background-position: right 12px center !important; background-repeat: no-repeat !important; background-size: 16px 16px !important; font: inherit; cursor: pointer; }
 .faculty-create-class-dialog select:hover, .faculty-create-class-dialog select:focus-visible { border-color: #109d1a !important; outline: 3px solid rgb(16 157 26 / 12%); }
@@ -2151,6 +2168,8 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .student-firearm-card > footer { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: auto; }
 .student-firearm-card > footer a { display: flex; min-height: 38px; align-items: center; justify-content: center; width: 100%; border: 1px solid var(--admin-border); border-radius: 7px; color: var(--admin-text); font-size: 0.72rem; font-weight: 700; text-decoration: none; }
 .student-firearm-card > footer a:hover { border-color: #109d1a; color: #109d1a; }
+.student-firearm-card > footer .student-firearm-locked-action { display: flex; min-height: 38px; align-items: center; justify-content: center; width: 100%; border: 1px solid #c4cbc7; border-radius: 7px; background: #edf0ee; color: #6b756f; cursor: not-allowed; font-size: 0.72rem; font-weight: 700; opacity: 1; }
+.student-firearm-card .student-firearm-lock-note { margin: 8px 0 0; color: #6b756f; font-size: 0.68rem; line-height: 1.45; }
 .student-class-settings-panel { width: min(100%, 620px); margin-top: 20px; padding: 22px; }
 .student-class-settings-panel h2 { margin: 0; font-size: 0.9rem; }
 .student-class-settings-panel p { margin: 12px 0 18px; color: var(--admin-muted); font-size: 0.74rem; line-height: 1.55; }
@@ -2205,9 +2224,13 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .student-assessment-list h2 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 0.78rem; }
 .student-assessment-list h2 span { padding: 3px 9px; border: 1px solid var(--admin-border); border-radius: 99px; font-size: 0.63rem; font-weight: 400; }
 .student-assessment-list h2 span.open { border-color: #a8dfae; color: #07951a; background: #e9f8eb; }
+.student-assessment-list h2 span.paused { border-color: #f0b34e; color: #9a5b00; background: #fff5dc; }
+.student-assessment-list h2 span.locked { border-color: #efaaaa; color: #b42318; background: #fff0f0; }
 .student-assessment-list p, .student-assessment-list small { display: block; margin: 6px 0 0; color: var(--admin-muted); font-size: 0.66rem; }
 .student-assessment-list > article > div > small { color: #07951a; font-weight: 700; }
 .student-assessment-list article > a:not(.student-primary-action) { padding: 8px 13px; border: 1px solid var(--admin-border); border-radius: 7px; color: var(--admin-text); font-size: 0.7rem; text-decoration: none; }
+.student-assessment-pending-action { min-height: 36px; padding: 8px 14px; border: 1px solid #e1b35f; border-radius: 7px; color: #875500; background: #fff5dc; font: inherit; font-size: 0.7rem; font-weight: 700; cursor: not-allowed; opacity: 1; }
+.student-assessment-pending-action.locked { border-color: #e1aaaa; color: #a51e1e; background: #fff0f0; }
 .student-join-dialog { width: min(100% - 32px, 505px); overflow: hidden; border-radius: 12px; color: var(--admin-text); background: var(--admin-card); }
 .student-join-dialog header { display: flex; align-items: start; justify-content: space-between; padding: 22px 22px 0; }
 .student-join-dialog h2 { margin: 0; font-size: 0.9rem; }
@@ -2334,10 +2357,11 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   .faculty-student-table td:nth-child(1)::before { content: 'Student'; }
   .faculty-student-table td:nth-child(2)::before { content: 'Student ID'; }
   .faculty-student-table td:nth-child(3)::before { content: 'Completed'; }
-  .faculty-student-table td:nth-child(4)::before { content: 'Average'; }
-  .faculty-student-table td:nth-child(5)::before { content: 'Last score'; }
-  .faculty-student-table td:nth-child(6)::before { content: 'Joined'; }
-  .faculty-student-table td:nth-child(7)::before { content: 'Actions'; }
+  .faculty-student-table td:nth-child(4)::before { content: 'Assessment status'; }
+  .faculty-student-table td:nth-child(5)::before { content: 'Average'; }
+  .faculty-student-table td:nth-child(6)::before { content: 'Last score'; }
+  .faculty-student-table td:nth-child(7)::before { content: 'Joined'; }
+  .faculty-student-table td:nth-child(8)::before { content: 'Actions'; }
   .faculty-student-identity { min-width: 0; margin-left: auto; text-align: left; }
   .faculty-student-actions { margin-left: auto; }
 }
@@ -2751,6 +2775,18 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   border-color: #3f9150;
   color: #b9f6c0;
   background: #174d20;
+}
+:root:not([data-theme='light']) .student-assessment-list h2 span.paused,
+:root:not([data-theme='light']) .student-assessment-pending-action {
+  border-color: #9c762d;
+  color: #ffd98d;
+  background: #4a3918;
+}
+:root:not([data-theme='light']) .student-assessment-list h2 span.locked,
+:root:not([data-theme='light']) .student-assessment-pending-action.locked {
+  border-color: #9c5555;
+  color: #ffb4b4;
+  background: #542626;
 }
 :root:not([data-theme='light']) .student-recent-results .review {
   color: #ffb4b4;
@@ -3475,6 +3511,8 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .student-viewer-assessment:hover { background: #0c7d15; }
 
 @media (max-width: 640px) {
+  .faculty-archived-restore-banner { align-items: stretch; flex-direction: column; }
+  .faculty-archived-restore-banner button { width: 100%; }
   .admin-live-model-viewer > header > div:last-child { flex: 0 0 auto; }
   .admin-live-model-viewer > header .viewer-panel-toggle { width: 32px; min-width: 32px; }
   .student-viewer-assessment { padding-inline: 9px; font-size: 0.72rem; }
@@ -3906,7 +3944,8 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   }
   .admin-firearm-card-preview { margin: -15px -15px 0; }
   .student-assessment-list article > a,
-  .student-assessment-list article > .student-primary-action { width: 100%; }
+  .student-assessment-list article > .student-primary-action,
+  .student-assessment-list article > .student-assessment-pending-action { width: 100%; }
   .student-assessment-list article > a:not(.student-primary-action) { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; padding-inline: 14px; font-weight: 650; transition: border-color 150ms ease, color 150ms ease, background 150ms ease; }
   .student-assessment-list article > a:not(.student-primary-action)::after { color: #109d1a; content: '›'; font-size: 1.15rem; line-height: 1; transition: transform 150ms ease; }
   .student-assessment-list article > a:not(.student-primary-action):active { border-color: #109d1a; color: #109d1a; background: var(--accent-surface); }
@@ -3977,10 +4016,11 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   .faculty-student-table td:nth-child(1)::before { content: 'Student'; }
   .faculty-student-table td:nth-child(2)::before { content: 'Student ID'; }
   .faculty-student-table td:nth-child(3)::before { content: 'Completed'; }
-  .faculty-student-table td:nth-child(4)::before { content: 'Average'; }
-  .faculty-student-table td:nth-child(5)::before { content: 'Last score'; }
-  .faculty-student-table td:nth-child(6)::before { content: 'Joined'; }
-  .faculty-student-table td:nth-child(7)::before { content: 'Actions'; }
+  .faculty-student-table td:nth-child(4)::before { content: 'Assessment status'; }
+  .faculty-student-table td:nth-child(5)::before { content: 'Average'; }
+  .faculty-student-table td:nth-child(6)::before { content: 'Last score'; }
+  .faculty-student-table td:nth-child(7)::before { content: 'Joined'; }
+  .faculty-student-table td:nth-child(8)::before { content: 'Actions'; }
   .faculty-student-identity { min-width: 0; margin-left: auto; text-align: left; }
   .faculty-student-actions { margin-left: auto; flex-wrap: wrap; }
   .faculty-summary-table tr { border-radius: 12px; }
@@ -4187,7 +4227,7 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
     top: auto;
     right: 0;
     bottom: calc(100% + 8px);
-    width: 210px;
+    width: 240px;
     padding: 6px;
     transform: none;
   }
@@ -4357,7 +4397,7 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
     top: auto;
     right: 0;
     bottom: calc(100% + 8px);
-    width: min(210px, calc(100vw - 48px));
+    width: min(240px, calc(100vw - 48px));
     padding: 6px;
     transform: none;
   }

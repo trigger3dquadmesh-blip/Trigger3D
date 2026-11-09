@@ -39,13 +39,13 @@ const tutorials = [
   {
     audience: 'Student',
     description: 'Learn how to join a class, explore firearm resources, use the interactive 3D viewer, take assessments, and review results.',
-    streamUrl: '/tutorial-videos/student.mp4',
+    embedUrl: 'https://drive.google.com/file/d/1VUuj2aeSmW5ubBDIqWv8S19HqMpWnwpp/preview',
     viewUrl: 'https://drive.google.com/file/d/1VUuj2aeSmW5ubBDIqWv8S19HqMpWnwpp/view?usp=sharing',
   },
   {
     audience: 'Faculty',
     description: 'Learn how to create and manage classes, monitor students, control assessments, and review or download results.',
-    streamUrl: '/tutorial-videos/faculty.mp4',
+    embedUrl: 'https://drive.google.com/file/d/1xPCNI0M-J3Ox4ZAZEWY2Q8jP1e0ezCwR/preview',
     viewUrl: 'https://drive.google.com/file/d/1xPCNI0M-J3Ox4ZAZEWY2Q8jP1e0ezCwR/view?usp=sharing',
   },
 ]
@@ -89,7 +89,7 @@ function SectionTitle({ id, children }) {
   return <h2 id={id} className="mb-12 text-center text-xl font-black uppercase tracking-[0.34em] md:text-2xl">{children}</h2>
 }
 
-function TutorialCard({ audience, description, streamUrl, viewUrl }) {
+function TutorialCard({ audience, description, embedUrl, viewUrl }) {
   const playerRef = useRef(null)
   const [playerVisible, setPlayerVisible] = useState(() => !('IntersectionObserver' in window))
 
@@ -110,16 +110,15 @@ function TutorialCard({ audience, description, streamUrl, viewUrl }) {
     <article className="min-w-0 overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-card)] shadow-md transition duration-200 hover:border-[#109d1a] md:hover:-translate-y-0.5 md:hover:shadow-[0_12px_24px_rgb(0_0_0/0.28)]">
       <div className="landing-tutorial-player relative aspect-video w-full overflow-hidden border-b border-[var(--landing-border)] bg-black" ref={playerRef}>
         {playerVisible
-          ? <video
-              className="absolute inset-0 block h-full w-full bg-black object-contain"
-              controls
-              playsInline
-              preload="metadata"
-              src={streamUrl}
+          ? <iframe
+              allow="autoplay; fullscreen"
+              allowFullScreen
+              className="absolute inset-0 block h-full w-full border-0 bg-black"
+              loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
+              src={embedUrl}
               title={`${audience} tutorial video`}
-            >
-              Your browser does not support HTML video playback.
-            </video>
+            />
           : <div aria-hidden="true" className="absolute inset-0 grid place-items-center bg-[#111] text-white"><span className="grid h-14 w-14 place-items-center rounded-full bg-white/15 text-2xl">▶</span></div>}
       </div>
       <div className="p-5 sm:p-6 md:p-5 lg:p-8">

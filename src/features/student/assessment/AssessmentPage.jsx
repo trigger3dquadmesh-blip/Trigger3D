@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import DashboardLoading from '../../../components/DashboardLoading.jsx'
+import { saveDashboardPage } from '../../../components/dashboard-location.js'
 import AdminIcon from '../../admin/AdminIcon.jsx'
 import { supabase } from '../../../lib/supabase.js'
 import useAuth from '../../../auth/useAuth.js'
@@ -25,12 +26,18 @@ import {
   normalizeAssessmentDuration,
   restoreAssessmentTimeState,
 } from './assessment-duration.js'
+import { assessmentAttemptWasReset, resolveConnectionRecovery } from './assessment-connection.js'
 
 const NO_ANSWER = '[No answer]'
 const TIME_EXPIRED_ANSWER = '[No answer: assessment time expired]'
 const REVIEW_PAGE_SIZE = 5
 const CONNECTION_CHECK_INTERVAL_MS = 8000
 const CONNECTION_CHECK_TIMEOUT_MS = 5000
+const studentDashboardPageKey = 'trigger3d.student.active-page'
+
+function rememberStudentDashboard() {
+  saveDashboardPage(localStorage, studentDashboardPageKey, 'overview')
+}
 
 async function saveCheckpointWithTimeout(payload) {
   let timeoutId
@@ -108,6 +115,30 @@ export default function AssessmentPage() {
   const startingAssessmentRef = useRef(false)
   const currentIndexRef = useRef(0)
   const timeRemainingRef = useRef(0)
+
+  const clearFacultyReset = useCallback((resetAttemptId, statusData) => {
+    assessmentFinishedRef.current = true
+    connectionInterruptedRef.current = false
+    connectionReportConfirmedRef.current = false
+    connectionReportInProgressRef.current = false
+    connectionDetectedAtRef.current = null
+    clearActiveAssessmentSession(sessionStorage, user?.id, resetAttemptId)
+    removeStoredDraft(resetAttemptId)
+    removeStoredTime(resetAttemptId)
+    setAssessmentLock(firearmId, false, classId)
+    answersRef.current = {}
+    setAnswers({})
+    setQuestions([])
+    setCurrentIndex(0)
+    setTimeRemaining(0)
+    setAttemptStartedAt(null)
+    setAttemptId(null)
+    setActivityRecorded(false)
+    setIntegrityBlocked(null)
+    setConnectionInterrupted(null)
+    setStatus({ ...statusData, attempt_status: 'not_started', attempt_id: null })
+    setError('')
+  }, [classId, firearmId, user?.id])
 
   useEffect(() => {
     answersRef.current = answers
@@ -187,31 +218,47 @@ export default function AssessmentPage() {
             percentage: statusResult.data.percentage,
           })
         } else if (statusResult.data.attempt_status === 'in_progress') {
-          const { data: integrityStatus, error: integrityError } = await supabase.rpc(
-            'get_my_assessment_integrity_status',
-            { target_attempt_id: statusResult.data.attempt_id },
-          )
-          if (integrityError) {
-            setError(integrityError.message)
-          } else if (integrityStatus?.is_locked) {
-            setIntegrityBlocked(integrityStatus)
+          const [integrityResult, checkpointResult, attemptResult] = await Promise.all([
+            supabase.rpc('get_my_assessment_integrity_status', {
+              target_attempt_id: statusResult.data.attempt_id,
+            }),
+            supabase.rpc('get_my_assessment_checkpoint', {
+              target_attempt_id: statusResult.data.attempt_id,
+            }),
+            supabase
+              .from('assessment_attempts')
+              .select('id, status, timer_started_at, has_activity, integrity_locked_at, connection_interrupted_at')
+              .eq('id', statusResult.data.attempt_id)
+              .maybeSingle(),
+          ])
+          if (!active) return
+
+          if (attemptResult.error) {
+            setError(attemptResult.error.message)
+          } else if (assessmentAttemptWasReset(attemptResult.data)) {
+            clearFacultyReset(statusResult.data.attempt_id, statusResult.data)
+          } else {
+            if (integrityResult.error) {
+              setError(integrityResult.error.message)
+            } else if (integrityResult.data?.is_locked) {
+              setIntegrityBlocked(integrityResult.data)
+            }
+            const checkpoint = checkpointResult.data
+            const interruptedAt = attemptResult.data?.connection_interrupted_at
+            if (interruptedAt) {
+              connectionInterruptedRef.current = true
+              connectionDetectedAtRef.current = interruptedAt
+              setConnectionInterrupted({
+                approved: false,
+                reported: true,
+                detectedAt: interruptedAt,
+                questionIndex: checkpoint?.question_index || 0,
+                remainingSeconds: checkpoint?.remaining_seconds,
+              })
+            }
+            setAssessmentLock(firearmId, true, classId)
+            markActiveAssessmentSession(sessionStorage, user?.id, statusResult.data.attempt_id)
           }
-          const { data: checkpoint } = await supabase.rpc('get_my_assessment_checkpoint', {
-            target_attempt_id: statusResult.data.attempt_id,
-          })
-          if (checkpoint?.connection_interrupted_at) {
-            connectionInterruptedRef.current = true
-            connectionDetectedAtRef.current = checkpoint.connection_interrupted_at
-            setConnectionInterrupted({
-              approved: false,
-              reported: true,
-              detectedAt: checkpoint.connection_interrupted_at,
-              questionIndex: checkpoint.question_index,
-              remainingSeconds: checkpoint.remaining_seconds,
-            })
-          }
-          setAssessmentLock(firearmId, true, classId)
-          markActiveAssessmentSession(sessionStorage, user?.id, statusResult.data.attempt_id)
         }
       }
 
@@ -220,7 +267,7 @@ export default function AssessmentPage() {
 
     void loadAssessment()
     return () => { active = false }
-  }, [classId, firearmId, user?.id])
+  }, [classId, clearFacultyReset, firearmId, user?.id])
 
   useEffect(() => {
     if (!result || !attemptId) return undefined
@@ -272,10 +319,16 @@ export default function AssessmentPage() {
       })
       if (data?.attempt_status !== 'submitted') return
       assessmentFinishedRef.current = true
+      connectionInterruptedRef.current = false
+      connectionReportConfirmedRef.current = false
+      connectionReportInProgressRef.current = false
+      connectionDetectedAtRef.current = null
       removeStoredDraft(attemptId)
       removeStoredTime(attemptId)
       setAssessmentLock(firearmId, false, classId)
       clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
+      setConnectionInterrupted(null)
+      setIntegrityBlocked(null)
       setResult({
         correct_count: data.correct_count,
         total_questions: data.total_questions,
@@ -300,6 +353,7 @@ export default function AssessmentPage() {
 
   async function startAssessment() {
     if (startingAssessmentRef.current) return false
+    assessmentFinishedRef.current = false
     startingAssessmentRef.current = true
     setStarting(true)
     setError('')
@@ -422,10 +476,16 @@ export default function AssessmentPage() {
       }
 
       assessmentFinishedRef.current = true
+      connectionInterruptedRef.current = false
+      connectionReportConfirmedRef.current = false
+      connectionReportInProgressRef.current = false
+      connectionDetectedAtRef.current = null
       removeStoredDraft(attemptId)
       removeStoredTime(attemptId)
       setAssessmentLock(firearmId, false, classId)
       clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
+      setConnectionInterrupted(null)
+      setIntegrityBlocked(null)
       setResult(submittedResult)
       if (document.fullscreenElement) void document.exitFullscreen()
       return true
@@ -505,10 +565,34 @@ export default function AssessmentPage() {
       window_blurred: 'Focus moved away from the assessment window.',
       assessment_page_left: 'The student navigated away from the active assessment page.',
     }
+    const { data: currentAttempt, error: attemptError } = await supabase
+      .from('assessment_attempts')
+      .select('id, status, timer_started_at, has_activity')
+      .eq('id', attemptId)
+      .maybeSingle()
+    if (attemptError || assessmentAttemptWasReset(currentAttempt)) {
+      integrityViolationRef.current = false
+      if (!attemptError) clearFacultyReset(attemptId, status || {})
+      if (document.fullscreenElement) void document.exitFullscreen()
+      return
+    }
     const { error: lockError } = await supabase.rpc('lock_assessment_for_integrity', {
       target_attempt_id: attemptId,
       violation_reason: reason,
     })
+    if (lockError) {
+      const { data: refreshedAttempt } = await supabase
+        .from('assessment_attempts')
+        .select('id, status, timer_started_at, has_activity')
+        .eq('id', attemptId)
+        .maybeSingle()
+      if (assessmentAttemptWasReset(refreshedAttempt)) {
+        integrityViolationRef.current = false
+        clearFacultyReset(attemptId, status || {})
+        if (document.fullscreenElement) void document.exitFullscreen()
+        return
+      }
+    }
     clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
     setAssessmentLock(firearmId, false, classId)
     setIntegrityBlocked({
@@ -561,9 +645,25 @@ export default function AssessmentPage() {
       connectionReportInProgressRef.current = true
       setConnectionInterrupted((current) => current ? { ...current, reporting: true, reportError: '' } : current)
 
-      const { data: latestCheckpoint } = await supabase.rpc('get_my_assessment_checkpoint', {
-        target_attempt_id: attemptId,
-      })
+      const [checkpointResult, attemptResult, statusResult] = await Promise.all([
+        supabase.rpc('get_my_assessment_checkpoint', { target_attempt_id: attemptId }),
+        supabase
+          .from('assessment_attempts')
+          .select('id, status, timer_started_at, has_activity, integrity_locked_at, connection_interrupted_at')
+          .eq('id', attemptId)
+          .maybeSingle(),
+        supabase.rpc('get_assessment_status', {
+          target_class_id: classId,
+          target_firearm_id: firearmId,
+        }),
+      ])
+      const latestCheckpoint = checkpointResult.data
+      if (!attemptResult.error && !statusResult.error
+        && assessmentAttemptWasReset(attemptResult.data)) {
+        connectionReportInProgressRef.current = false
+        clearFacultyReset(attemptId, statusResult.data)
+        return
+      }
       const restoredAt = Date.parse(latestCheckpoint?.connection_restored_at || '')
       const detectedAt = Date.parse(connectionDetectedAtRef.current || '')
       if (!latestCheckpoint?.connection_interrupted_at
@@ -615,18 +715,36 @@ export default function AssessmentPage() {
       window.removeEventListener('offline', handleOffline)
       window.removeEventListener('online', handleOnline)
     }
-  }, [attemptId, integrityBlocked, questions.length, result])
+  }, [attemptId, classId, clearFacultyReset, firearmId, integrityBlocked, questions.length, result])
 
   useEffect(() => {
-    if (!attemptId || !connectionInterrupted?.reported || connectionInterrupted.approved) return undefined
-    const poll = window.setInterval(async () => {
-      const { data } = await supabase.rpc('get_my_assessment_checkpoint', { target_attempt_id: attemptId })
-      if (data && !data.connection_interrupted_at) {
+    if (!attemptId || !connectionInterrupted?.reported) return undefined
+    async function checkRecoveryState() {
+      const [checkpointResult, attemptResult, statusResult] = await Promise.all([
+        supabase.rpc('get_my_assessment_checkpoint', { target_attempt_id: attemptId }),
+        supabase
+          .from('assessment_attempts')
+          .select('id, status, timer_started_at, has_activity, integrity_locked_at, connection_interrupted_at')
+          .eq('id', attemptId)
+          .maybeSingle(),
+        supabase.rpc('get_assessment_status', {
+          target_class_id: classId,
+          target_firearm_id: firearmId,
+        }),
+      ])
+      if (attemptResult.error || statusResult.error) return
+
+      const resolution = resolveConnectionRecovery(attemptResult.data, checkpointResult.data)
+      if (resolution === 'reset') {
+        clearFacultyReset(attemptId, statusResult.data)
+      } else if (resolution === 'approved') {
         setConnectionInterrupted((current) => current ? { ...current, approved: true } : current)
       }
-    }, 4000)
+    }
+    void checkRecoveryState()
+    const poll = window.setInterval(() => void checkRecoveryState(), 4000)
     return () => window.clearInterval(poll)
-  }, [attemptId, connectionInterrupted])
+  }, [attemptId, classId, clearFacultyReset, connectionInterrupted, firearmId])
 
   useEffect(() => {
     if (!attemptId || !attemptStartedAt || !questions.length || result || connectionInterrupted) return undefined
@@ -711,7 +829,9 @@ export default function AssessmentPage() {
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('blur', handleWindowBlur)
-    if (!document.fullscreenElement) void lockAssessmentForIntegrity('fullscreen_exited')
+    if (!document.fullscreenElement) {
+      window.setTimeout(() => void lockAssessmentForIntegrity('fullscreen_exited'), 0)
+    }
 
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
@@ -728,8 +848,14 @@ export default function AssessmentPage() {
 
     return () => {
       assessmentPageMountedRef.current = false
-      window.setTimeout(() => {
+      window.setTimeout(async () => {
         if (assessmentPageMountedRef.current || assessmentFinishedRef.current || integrityViolationRef.current || connectionInterruptedRef.current) return
+        const { data: currentAttempt, error: attemptError } = await supabase
+          .from('assessment_attempts')
+          .select('id, status, timer_started_at, has_activity')
+          .eq('id', attemptId)
+          .maybeSingle()
+        if (attemptError || assessmentAttemptWasReset(currentAttempt)) return
         integrityViolationRef.current = true
         void supabase.rpc('lock_assessment_for_integrity', {
           target_attempt_id: attemptId,
@@ -749,7 +875,7 @@ export default function AssessmentPage() {
           <p className="eyebrow">Assessment access</p>
           <h1>Assessment unavailable</h1>
           <p>This assessment could not be opened. Return to your class and confirm that the assessment is currently available.</p>
-          <footer><Link className="primary" to="/student">Return to student dashboard</Link></footer>
+          <footer><Link className="primary" onClick={rememberStudentDashboard} to="/student">Return to student dashboard</Link></footer>
         </section>
       </main>
     )
@@ -779,7 +905,7 @@ export default function AssessmentPage() {
             ? 'Sending your continuation request to your faculty…'
             : 'Reconnected. Trigger3D is sending your continuation request to your faculty.'
 
-    return <main className="student-assessment-page student-assessment-complete"><section className="student-assessment-result student-assessment-integrity-blocked" role="alert"><span className="student-assessment-result-icon"><AdminIcon name="alertTriangle" /></span><p className="eyebrow">Connection recovery</p><h1>{connectionInterrupted.approved ? 'Continuation approved' : connectionInterrupted.reported ? 'Waiting for faculty approval' : 'Your assessment was paused'}</h1><p>{recoveryMessage}</p><p>Your saved answers, current question, and remaining time are protected. You may leave fullscreen or return to your dashboard while the assessment is paused. Fullscreen is required again when you resume answering.</p>{connectionInterrupted.reportError && <div className="alert alert-error" role="alert">The request could not be sent yet. Trigger3D will keep retrying automatically.</div>}<footer>{connectionInterrupted.approved ? <button className="primary" onClick={() => void resumeApprovedAttempt()} type="button">Resume in fullscreen</button> : <Link className="primary" to="/student">Return to student dashboard</Link>}</footer></section></main>
+    return <main className="student-assessment-page student-assessment-complete"><section className={`student-assessment-result student-assessment-integrity-blocked${connectionInterrupted.approved ? ' student-assessment-recovery-approved' : ''}`} role="alert"><span className="student-assessment-result-icon"><AdminIcon name={connectionInterrupted.approved ? 'restore' : 'alertTriangle'} /></span><p className="eyebrow">Connection recovery</p><h1>{connectionInterrupted.approved ? 'Continuation approved' : connectionInterrupted.reported ? 'Waiting for faculty approval' : 'Your assessment was paused'}</h1><p>{recoveryMessage}</p><p>Your saved answers, current question, and remaining time are protected. You may leave fullscreen or return to your dashboard while the assessment is paused. Fullscreen is required again when you resume answering.</p>{connectionInterrupted.reportError && <div className="alert alert-error" role="alert">The request could not be sent yet. Trigger3D will keep retrying automatically.</div>}<footer>{connectionInterrupted.approved ? <button className="student-assessment-resume-button" disabled={starting} onClick={() => void resumeApprovedAttempt()} type="button"><span className="student-assessment-resume-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5m18 0v5h-5" /></svg></span><span className="student-assessment-resume-copy"><strong>{starting ? 'Restoring assessment…' : 'Continue in fullscreen'}</strong><small>Resume from question {Number(connectionInterrupted.questionIndex || 0) + 1}</small></span><span aria-hidden="true" className="student-assessment-resume-arrow">→</span></button> : <Link className="primary" onClick={rememberStudentDashboard} to="/student">Return to student dashboard</Link>}</footer></section></main>
   }
 
   if (integrityBlocked) {
@@ -797,7 +923,7 @@ export default function AssessmentPage() {
           <h1>You can no longer continue this attempt</h1>
           <p>{violationMessage}</p>
           <p>Your faculty instructor must reset the attempt before you can take this assessment again.</p>
-          <footer><Link className="primary" to="/student">Return to student dashboard</Link></footer>
+          <footer><Link className="primary" onClick={rememberStudentDashboard} to="/student">Return to student dashboard</Link></footer>
         </section>
       </main>
     )
@@ -819,7 +945,7 @@ export default function AssessmentPage() {
           <p>{result.correct_count} of {result.total_questions} answers correct</p>
           <footer>
             <Link to={`/student/models/${firearmId}${classQuery}`}>Return to model</Link>
-            <Link className="primary" to="/student">Student dashboard</Link>
+            <Link className="primary" onClick={rememberStudentDashboard} to="/student">Student dashboard</Link>
           </footer>
         </section>
         <section className="student-answer-review" aria-labelledby="answer-review-title">
