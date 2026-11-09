@@ -58,14 +58,6 @@
   ],
   "rewrites": [
     {
-      "source": "/tutorial-videos/student.mp4",
-      "destination": "https://drive.usercontent.google.com/download?id=1VUuj2aeSmW5ubBDIqWv8S19HqMpWnwpp&export=download"
-    },
-    {
-      "source": "/tutorial-videos/faculty.mp4",
-      "destination": "https://drive.usercontent.google.com/download?id=1xPCNI0M-J3Ox4ZAZEWY2Q8jP1e0ezCwR&export=download"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

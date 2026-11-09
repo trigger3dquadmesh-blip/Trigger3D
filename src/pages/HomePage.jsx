@@ -39,13 +39,13 @@ const tutorials = [
   {
     audience: 'Student',
     description: 'Learn how to join a class, explore firearm resources, use the interactive 3D viewer, take assessments, and review results.',
-    embedUrl: 'https://drive.google.com/file/d/1VUuj2aeSmW5ubBDIqWv8S19HqMpWnwpp/preview',
+    videoUrl: '/tutorial-videos/student.mp4',
     viewUrl: 'https://drive.google.com/file/d/1VUuj2aeSmW5ubBDIqWv8S19HqMpWnwpp/view?usp=sharing',
   },
   {
     audience: 'Faculty',
     description: 'Learn how to create and manage classes, monitor students, control assessments, and review or download results.',
-    embedUrl: 'https://drive.google.com/file/d/1xPCNI0M-J3Ox4ZAZEWY2Q8jP1e0ezCwR/preview',
+    videoUrl: '/tutorial-videos/faculty.mp4',
     viewUrl: 'https://drive.google.com/file/d/1xPCNI0M-J3Ox4ZAZEWY2Q8jP1e0ezCwR/view?usp=sharing',
   },
 ]
@@ -89,7 +89,7 @@ function SectionTitle({ id, children }) {
   return <h2 id={id} className="mb-12 text-center text-xl font-black uppercase tracking-[0.34em] md:text-2xl">{children}</h2>
 }
 
-function TutorialCard({ audience, description, embedUrl, viewUrl }) {
+function TutorialCard({ audience, description, videoUrl, viewUrl }) {
   const playerRef = useRef(null)
   const [playerVisible, setPlayerVisible] = useState(() => !('IntersectionObserver' in window))
 
@@ -110,17 +110,15 @@ function TutorialCard({ audience, description, embedUrl, viewUrl }) {
     <article className="min-w-0 overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-card)] shadow-md transition duration-200 hover:border-[#109d1a] md:hover:-translate-y-0.5 md:hover:shadow-[0_12px_24px_rgb(0_0_0/0.28)]">
       <div className="landing-tutorial-player relative w-full overflow-hidden border-b border-[var(--landing-border)] bg-black" ref={playerRef}>
         {playerVisible
-          ? <iframe
-              allow="autoplay; fullscreen"
-              allowFullScreen
-              className="absolute inset-0 block h-full w-full border-0 bg-black"
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-              src={embedUrl}
-              title={`${audience} tutorial video`}
-            />
+          ? <video
+              aria-label={`${audience} tutorial video`}
+              className="absolute inset-0 block h-full w-full bg-black"
+              controls
+              playsInline
+              preload="metadata"
+              src={videoUrl}
+            >Your browser does not support embedded video playback.</video>
           : <div aria-hidden="true" className="absolute inset-0 grid place-items-center bg-[#111] text-white"><span className="grid h-14 w-14 place-items-center rounded-full bg-white/15 text-2xl">▶</span></div>}
-        <a className="landing-tutorial-mobile-play" href={viewUrl} rel="noreferrer" target="_blank"><span aria-hidden="true">▶</span><strong>Watch {audience} tutorial</strong><small>Opens with full playback controls</small></a>
       </div>
       <div className="p-5 sm:p-6 md:p-5 lg:p-8">
         <p className="text-xs font-black uppercase tracking-[0.2em] text-[#109d1a]">For {audience}</p>

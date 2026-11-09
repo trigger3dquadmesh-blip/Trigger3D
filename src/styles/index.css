@@ -84,53 +84,19 @@ body { background: var(--page-bg); }
   min-height: 0;
 }
 
-.landing-tutorial-player iframe {
+.landing-tutorial-player iframe,
+.landing-tutorial-player video {
   display: block;
   width: 100%;
   height: 100%;
 }
-
-.landing-tutorial-mobile-play { display: none; }
+.landing-tutorial-player video { object-fit: contain; }
 
 @media (max-width: 1199px) {
   .landing-tutorial-player {
     width: 100%;
     aspect-ratio: 16 / 9;
   }
-  .landing-tutorial-player iframe { pointer-events: none; }
-  .landing-tutorial-mobile-play {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 7px;
-    padding: 20px;
-    color: #fff;
-    background: rgb(0 0 0 / 48%);
-    text-align: center;
-    text-decoration: none;
-    backdrop-filter: blur(1px);
-  }
-  .landing-tutorial-mobile-play > span {
-    display: grid;
-    width: 58px;
-    height: 58px;
-    place-items: center;
-    padding-left: 4px;
-    border: 2px solid rgb(255 255 255 / 86%);
-    border-radius: 50%;
-    color: #fff;
-    background: #109d1a;
-    font-size: 1.25rem;
-    box-shadow: 0 8px 20px rgb(0 0 0 / 35%);
-  }
-  .landing-tutorial-mobile-play > strong { font-size: clamp(0.9rem, 3.5vw, 1.05rem); }
-  .landing-tutorial-mobile-play > small { color: rgb(255 255 255 / 82%); font-size: 0.72rem; }
-  .landing-tutorial-mobile-play:hover,
-  .landing-tutorial-mobile-play:focus-visible { color: #fff; background: rgb(0 0 0 / 58%); outline: 3px solid #109d1a; outline-offset: -3px; }
 }
 
 .landing-page nav a:not(.landing-primary-action):focus-visible {
