@@ -125,6 +125,8 @@ export default function AdminAuditLogPanel({ academicTerms = [], auditEvents = [
   }), [academicYear, classId, effectiveSemester, effectiveYear, events, query, type])
   const pages = Math.max(1, Math.ceil(filtered.length / perPage))
   const rows = filtered.slice((page - 1) * perPage, page * perPage)
+  const firstVisibleEvent = filtered.length === 0 ? 0 : (page - 1) * perPage + 1
+  const lastVisibleEvent = Math.min(page * perPage, filtered.length)
 
   function changeAcademicScope(nextScope) {
     setAcademicYear(nextScope)
@@ -149,7 +151,7 @@ export default function AdminAuditLogPanel({ academicTerms = [], auditEvents = [
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
         <label className="admin-search-field"><AdminIcon name="search" /><span className="sr-only">Search audit log</span><input className="h-9 w-72 rounded-[7px] border border-[#b8c1bb] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#109d1a]" onChange={(event) => { setQuery(event.target.value); setPage(1); setExpandedId(null) }} placeholder="Search event, person, class, or record..." type="search" value={query} /></label>
         <label className="admin-audit-filter"><span className="sr-only">Filter audit events</span><select className="h-9 w-52 rounded-[7px] border border-[#b8c1bb] bg-white px-3 pr-9 text-sm" onChange={(event) => { setType(event.target.value); setPage(1); setExpandedId(null) }} value={type}><option value="all">All events</option><option value="academic">Academic / class activity</option><option value="assessment">Assessment activity</option><option value="account">Accounts &amp; access</option><option value="content">Firearm content</option></select><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" /></svg></label>
-        <span className="flex items-center text-xs text-[#5f6b63] sm:ml-auto">▽ &nbsp;{filtered.length} events</span>
+        <span className="flex items-center text-xs text-[#5f6b63] sm:ml-auto">Showing {firstVisibleEvent}–{lastVisibleEvent} of {filtered.length} events</span>
       </div>
       <div className="overflow-x-auto rounded-[10px] border border-[#b8c1bb] bg-white">
         <table className="w-full min-w-[900px] border-collapse text-left">
@@ -173,7 +175,7 @@ export default function AdminAuditLogPanel({ academicTerms = [], auditEvents = [
             {academicYear !== 'activity' && <button className="primary" onClick={() => changeAcademicScope('activity')} type="button">Show all activity</button>}
           </div>
         </div>}
-        {pages > 1 && <footer className="flex items-center justify-between border-t border-[#b8c1bb] bg-[#f8faf9] px-5 py-3"><span className="text-xs text-[#5f6b63]">Page {page} of {pages}</span><div className="flex gap-1"><button className="rounded-[6px] border border-[#b8c1bb] px-3 py-1.5 text-xs disabled:opacity-40" disabled={page === 1} onClick={() => setPage((value) => value - 1)} type="button">Previous</button><button className="rounded-[6px] border border-[#b8c1bb] px-3 py-1.5 text-xs disabled:opacity-40" disabled={page === pages} onClick={() => setPage((value) => value + 1)} type="button">Next</button></div></footer>}
+        {pages > 1 && <footer className="flex items-center justify-between border-t border-[#b8c1bb] bg-[#f8faf9] px-5 py-3"><span className="text-xs text-[#5f6b63]">Page {page} of {pages} · {firstVisibleEvent}–{lastVisibleEvent} of {filtered.length}</span><div className="flex gap-1"><button className="rounded-[6px] border border-[#b8c1bb] px-3 py-1.5 text-xs disabled:opacity-40" disabled={page === 1} onClick={() => setPage((value) => value - 1)} type="button">Previous</button><button className="rounded-[6px] border border-[#b8c1bb] px-3 py-1.5 text-xs disabled:opacity-40" disabled={page === pages} onClick={() => setPage((value) => value + 1)} type="button">Next</button></div></footer>}
       </div>
     </section>
   )

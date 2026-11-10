@@ -40,6 +40,7 @@ function LiveFacultyDashboard() {
   const [resettingId, setResettingId] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [analyticsSyncing, setAnalyticsSyncing] = useState(false)
   const [activePage, setActivePage] = useState(() => (
     getSavedDashboardPage(localStorage, facultyDashboardPageKey, facultyPages, 'overview')
   ))
@@ -49,10 +50,12 @@ function LiveFacultyDashboard() {
 
   useAutoDismissNotice(notice, () => setNotice(''))
 
-  const loadClasses = useCallback(async () => {
-    await supabase.rpc('archive_expired_classes')
-    await supabase.rpc('refresh_expired_academic_terms')
-    await supabase.rpc('mark_stale_assessment_connections')
+  const loadClasses = useCallback(async ({ runMaintenance = true } = {}) => {
+    if (runMaintenance) {
+      await supabase.rpc('archive_expired_classes')
+      await supabase.rpc('refresh_expired_academic_terms')
+      await supabase.rpc('mark_stale_assessment_connections')
+    }
     const activeTermResult = await supabase.from('academic_terms').select('id, academic_year, semester, start_date, end_date, status').eq('status', 'active').maybeSingle()
     setActiveTerm(activeTermResult.error ? null : activeTermResult.data)
     let { data, error: classesError } = await supabase
@@ -107,6 +110,11 @@ function LiveFacultyDashboard() {
     setLoading(false)
   }, [])
 
+  const facultyClassIdsKey = useMemo(
+    () => classes.map((item) => item.id).sort().join(','),
+    [classes],
+  )
+
   const loadEnrollments = useCallback(async (classId) => {
     const { data, error: enrollmentError } = await supabase
       .from('enrollments')
@@ -134,9 +142,20 @@ function LiveFacultyDashboard() {
   }, [loadClasses])
 
   useEffect(() => {
-    const classIds = classes.map((item) => item.id)
+    const classIds = facultyClassIdsKey ? facultyClassIdsKey.split(',') : []
     if (!classIds.length) return undefined
     let active = true
+    let fullRefreshTimer = 0
+
+    function scheduleFullRefresh() {
+      window.clearTimeout(fullRefreshTimer)
+      fullRefreshTimer = window.setTimeout(async () => {
+        if (!active) return
+        setAnalyticsSyncing(true)
+        await loadClasses({ runMaintenance: false })
+        if (active) setAnalyticsSyncing(false)
+      }, 400)
+    }
 
     async function refreshAssessmentConnections({ markStale = false } = {}) {
       if (markStale) await supabase.rpc('mark_stale_assessment_connections')
@@ -150,6 +169,7 @@ function LiveFacultyDashboard() {
 
     const connectionPoll = window.setInterval(() => {
       void refreshAssessmentConnections({ markStale: true })
+      scheduleFullRefresh()
     }, 10000)
     const attemptPoll = window.setInterval(() => {
       void refreshAssessmentConnections()
@@ -181,11 +201,23 @@ function LiveFacultyDashboard() {
               : [...current.attempts, nextAttempt],
           }
         })
+        scheduleFullRefresh()
       })
       .subscribe()
 
+    const facultyDataChannel = supabase
+      .channel('faculty-analytics-source-data')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'classes' }, scheduleFullRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'enrollments' }, scheduleFullRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_releases' }, scheduleFullRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_responses' }, scheduleFullRefresh)
+      .subscribe()
+
     function refreshWhenVisible() {
-      if (document.visibilityState === 'visible') void refreshAssessmentConnections({ markStale: true })
+      if (document.visibilityState === 'visible') {
+        void refreshAssessmentConnections({ markStale: true })
+        scheduleFullRefresh()
+      }
     }
 
     window.addEventListener('focus', refreshWhenVisible)
@@ -193,13 +225,15 @@ function LiveFacultyDashboard() {
     void refreshAssessmentConnections({ markStale: true })
     return () => {
       active = false
+      window.clearTimeout(fullRefreshTimer)
       window.clearInterval(connectionPoll)
       window.clearInterval(attemptPoll)
       window.removeEventListener('focus', refreshWhenVisible)
       document.removeEventListener('visibilitychange', refreshWhenVisible)
       void supabase.removeChannel(attemptChannel)
+      void supabase.removeChannel(facultyDataChannel)
     }
-  }, [classes])
+  }, [facultyClassIdsKey, loadClasses])
 
   useEffect(() => {
     if (selectedClassId) {
@@ -283,19 +317,19 @@ function LiveFacultyDashboard() {
     return true
   }
 
-  async function handleArchiveClass(archiveState, targetClass = selectedClass) {
-    if (!targetClass) return
+  async function handleArchiveClass() {
+    if (!selectedClass || selectedClass.archived_at) return
     setError('')
     setNotice('')
     const { error: archiveError } = await supabase.rpc('set_class_archived', {
-      target_class_id: targetClass.id,
-      archive_state: archiveState,
+      target_class_id: selectedClass.id,
+      archive_state: true,
     })
     if (archiveError) {
       setError(archiveError.message)
       return
     }
-    setNotice(archiveState ? `${targetClass.name} was archived.` : `${targetClass.name} was restored.`)
+    setNotice(`${selectedClass.name} was archived as a permanent read-only record.`)
     await loadClasses()
   }
 
@@ -404,7 +438,7 @@ function LiveFacultyDashboard() {
       {pendingPage ? <section className="faculty-reference-page"><DashboardLoading label={facultyLoadingLabels[pendingPage]} /></section> : <>
       {activePage === 'overview' && <FacultyOverviewPanel attempts={overviewData.attempts} classes={classes} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} onNavigate={navigateSection} releases={overviewData.releases} />}
 
-      {activePage === 'classes' && <FacultyClassesPanel activeTerm={activeTerm} attempts={overviewData.attempts} className={className} classSection={classSection} classes={classes} creating={creating} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onClassNameChange={setClassName} onClassSectionChange={setClassSection} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} onRestoreClass={(classItem) => handleArchiveClass(false, classItem)} releases={overviewData.releases} />}
+      {activePage === 'classes' && <FacultyClassesPanel activeTerm={activeTerm} attempts={overviewData.attempts} className={className} classSection={classSection} classes={classes} creating={creating} enrollments={overviewData.enrollments} firearms={overviewData.firearms} loading={loading} onClassNameChange={setClassName} onClassSectionChange={setClassSection} onCreateClass={handleCreateClass} onManageClass={(classId) => { setSelectedClassId(classId); setStudentSearch(''); navigateSection('class') }} releases={overviewData.releases} />}
 
       {activePage === 'class' && selectedClass && <FacultyClassWorkspace attempts={overviewData.attempts} classItem={selectedClass} enrollments={enrollments} firearms={overviewData.firearms} loading={loading} onArchive={handleArchiveClass} onAssessmentChange={loadClasses} onBack={() => navigateSection('classes')} onResetAttempt={handleResetAttempt} onResumeInterruptedAttempt={handleResumeInterruptedAttempt} onStatusChange={handleStatusChange} onUpdateDetails={handleUpdateClassDetails} releases={overviewData.releases} resettingId={resettingId} resultRows={overviewData.resultRows} updatingId={updatingId} />}
 
@@ -464,7 +498,7 @@ function LiveFacultyDashboard() {
       </article>}
 
       {activePage === 'assessments' && <AdminModelViewerPanel dataLoading={loading} firearms={overviewData.firearms.filter((item) => item.status === 'ready')} />}
-      {activePage === 'results' && <FacultyAnalyticsPanel attempts={overviewData.attempts} classes={classes} enrollments={overviewData.enrollments} loading={loading} releases={overviewData.releases} resultRows={overviewData.resultRows} />}
+      {activePage === 'results' && <FacultyAnalyticsPanel attempts={overviewData.attempts} classes={classes} enrollments={overviewData.enrollments} loading={loading} refreshing={analyticsSyncing} releases={overviewData.releases} resultRows={overviewData.resultRows} />}
 
       {(error || notice) && (
         <div

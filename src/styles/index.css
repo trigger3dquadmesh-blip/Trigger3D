@@ -1755,7 +1755,9 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .faculty-recent-card article strong { overflow: hidden; font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
 .faculty-recent-card article small { color: var(--admin-muted); font-size: 0.65rem; }
 .faculty-recent-card article > div:last-child { justify-items: end; }
-.faculty-recent-card article b { color: #109d1a; font-size: 0.8rem; }
+.faculty-recent-card article b { font-size: 0.8rem; }
+.faculty-recent-card article b.score-good { color: #07951a; }
+.faculty-recent-card article b.score-low { color: #ed2c2c; }
 .faculty-empty-state { margin: 0; padding: 20px; color: var(--admin-muted); font-size: 0.78rem; }
 
 .faculty-class-tools { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
@@ -1857,7 +1859,20 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .faculty-line-chart svg { width: 100%; height: 220px; overflow: visible; border-bottom: 1px dashed var(--admin-border); background: repeating-linear-gradient(to bottom, transparent 0, transparent 54px, var(--admin-border) 55px); }
 .faculty-line-chart polyline { fill: none; stroke: #109d1a; stroke-width: 1.3; vector-effect: non-scaling-stroke; }
 .faculty-line-chart circle { fill: #109d1a; }
-.faculty-line-chart > div { display: flex; justify-content: space-between; margin-top: 8px; color: var(--admin-muted); font-size: 0.68rem; }
+.faculty-line-chart-labels { display: flex; justify-content: space-between; margin-top: 8px; color: var(--admin-muted); font-size: 0.68rem; }
+.faculty-performance-content { padding-top: 18px; }
+.faculty-performance-summary { display: grid; gap: 4px; margin: 0 35px; padding: 13px 15px; border: 1px solid var(--admin-border); border-left: 4px solid var(--admin-muted); border-radius: 8px; background: var(--admin-muted-surface); }
+.faculty-performance-summary.improved { border-left-color: #109d1a; }
+.faculty-performance-summary.declined { border-left-color: #d92d20; }
+.faculty-performance-summary strong { font-size: 0.8rem; }
+.faculty-performance-summary span { color: var(--admin-muted); font-size: 0.72rem; }
+.faculty-performance-weeks { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 10px; padding: 0 35px 22px; }
+.faculty-performance-weeks article { display: grid; gap: 3px; padding: 11px 12px; border: 1px solid var(--admin-border); border-radius: 7px; background: var(--admin-card); }
+.faculty-performance-weeks span, .faculty-performance-weeks small { color: var(--admin-muted); font-size: 0.65rem; }
+.faculty-performance-weeks strong { color: #109d1a; font-size: 0.9rem; }
+.faculty-performance-insufficient { display: grid; justify-items: center; gap: 6px; padding: 38px 24px; text-align: center; }
+.faculty-performance-insufficient strong { font-size: 0.84rem; }
+.faculty-performance-insufficient p, .faculty-performance-insufficient span { margin: 0; color: var(--admin-muted); font-size: 0.72rem; line-height: 1.5; }
 .faculty-difficult-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 22px; padding: 20px; }
 .faculty-difficult-list article { display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: center; }
 .faculty-difficult-list article > span { color: var(--admin-muted); font-size: 0.68rem; }
@@ -2844,8 +2859,10 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .admin-confirmation-note span { font-size: 0.75rem; line-height: 1.55; }
 .admin-confirmation-note.danger { border-color: #f3aaa5; color: #8f1c13; background: #fff2f1; }
 .admin-confirmation-note.success { border-color: #9bd7a3; color: #087413; background: #effbf0; }
+.admin-confirmation-note.warning { border-color: #e8c36a; color: #7a5200; background: #fff8e6; }
 :root:not([data-theme='light']) .admin-confirmation-note.danger { border-color: #9f4038; color: #fecaca; background: #451a1a; }
 :root:not([data-theme='light']) .admin-confirmation-note.success { border-color: #2d7d3a; color: #bbf7d0; background: #163b1e; }
+:root:not([data-theme='light']) .admin-confirmation-note.warning { border-color: #8a6820; color: #fde68a; background: #422f0e; }
 .settings-password-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .admin-settings-shell .dashboard-grid {
   display: flex;
@@ -2939,7 +2956,7 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   border-radius: 8px;
   color: var(--admin-muted);
   background: var(--admin-card);
-  opacity: 0;
+  opacity: 0.62;
   cursor: pointer;
   transition: color 160ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 160ms ease;
 }
@@ -2953,7 +2970,7 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   border-radius: 8px;
   color: var(--admin-muted);
   background: var(--admin-card);
-  opacity: 0;
+  opacity: 0.62;
   cursor: pointer;
   transition: color 160ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 160ms ease;
 }
@@ -4010,6 +4027,8 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
   .faculty-release-card dl { grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
   .faculty-line-chart { padding-inline: 18px; overflow-x: auto; }
   .faculty-line-chart svg { min-width: 520px; }
+  .faculty-performance-summary { margin-inline: 18px; }
+  .faculty-performance-weeks { grid-template-columns: 1fr 1fr; padding-inline: 18px; }
   .faculty-class-bar-chart,
   .faculty-class-score-bars { min-width: 520px; }
   .faculty-reference-card:has(.faculty-class-bar-chart),

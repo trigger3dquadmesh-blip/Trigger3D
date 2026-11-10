@@ -1,4 +1,5 @@
 import { getActiveFacultyDashboardData } from './faculty-dashboard-data.js'
+import { getClassTerm } from './class-utils.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 function OverviewIcon({ name }) {
@@ -54,12 +55,14 @@ export default function FacultyOverviewPanel({ attempts, classes, enrollments, f
     return score >= band.minimum && score <= band.maximum
   }).length }))
   const maxScoreBand = Math.max(...scoreBands.map((band) => band.value), 1)
+  const uniqueStudentCount = new Set(activeEnrollments.map((item) => item.student_id)).size
+  const pendingCompletionCount = attention.reduce((total, item) => total + item.count, 0)
 
   const stats = [
     { label: 'Active Classes', value: activeClasses.length, detail: 'Currently available', icon: 'classes' },
-    { label: 'Enrolled Students', value: activeEnrollments.length, detail: 'Across all active classes', icon: 'students' },
+    { label: 'Unique Students', value: uniqueStudentCount, detail: 'Across all active classes', icon: 'students' },
     { label: 'Completion Rate', value: `${completionRate}%`, detail: 'Assessments completed', icon: 'completion' },
-    { label: 'Firearms Available', value: readyFirearms.length, detail: 'Active 3D models', icon: 'firearms' },
+    { label: 'Ready Firearm Models', value: readyFirearms.length, detail: 'Available to assign to classes', icon: 'firearms' },
   ]
 
   if (loading) {
@@ -87,34 +90,36 @@ export default function FacultyOverviewPanel({ attempts, classes, enrollments, f
             {activeClasses.slice(0, 3).map((item) => {
               const studentCount = activeEnrollments.filter((enrollment) => enrollment.class_id === item.id).length
               const openCount = openReleases.filter((release) => release.class_id === item.id).length
-              return <article key={item.id}><div><h3>{item.name}</h3><span>Active</span></div><small>{item.term || 'Current term'}</small><p><OverviewIcon name="students" /> {studentCount} {studentCount === 1 ? 'student' : 'students'}</p><footer><small>{openCount > 0 ? `● ${openCount} assessment${openCount === 1 ? '' : 's'} open` : 'No assessments open'}</small><button onClick={() => onManageClass(item.id)} type="button">Manage <span aria-hidden="true">›</span></button></footer></article>
+              return <article key={item.id}><div><h3>{item.name}</h3><span>Active</span></div><small>{getClassTerm(item)}</small><p><OverviewIcon name="students" /> {studentCount} {studentCount === 1 ? 'student' : 'students'}</p><footer><small>{openCount > 0 ? `● ${openCount} assessment${openCount === 1 ? '' : 's'} open` : 'No assessments open'}</small><button onClick={() => onManageClass(item.id)} type="button">Manage <span aria-hidden="true">›</span></button></footer></article>
             })}
             {!loading && activeClasses.length === 0 && <p className="faculty-empty-state">No active classes yet.</p>}
           </div>
         </section>
 
         <section className="faculty-reference-card faculty-attention-card">
-          <header><h2>Needs Attention <span>{attention.length}</span></h2></header>
+          <header><h2>Pending Completions <span>{pendingCompletionCount}</span></h2></header>
           <div>
-            {attention.map((item) => <article key={item.id}><i><OverviewIcon name="attention" /></i><div><p>{item.count} {item.count === 1 ? 'student has' : 'students have'} not completed the {item.firearmName} assessment</p><small>{item.className}</small></div></article>)}
-            {!loading && attention.length === 0 && <p className="faculty-empty-state">All open assessments are up to date.</p>}
+            {attention.map((item) => <article key={item.id}><i><OverviewIcon name="attention" /></i><div><p>{item.count} {item.count === 1 ? 'student still needs' : 'students still need'} to complete the {item.firearmName} assessment</p><small>{item.className}</small></div></article>)}
+            {!loading && attention.length === 0 && <p className="faculty-empty-state">All open assessments have been completed.</p>}
           </div>
         </section>
 
         <section className="faculty-reference-card faculty-score-card">
-          <header><div><h2>Score Distribution</h2><p>All recorded assessments</p></div></header>
+          <header><div><h2>Score Distribution</h2><p>Submitted assessments in active classes</p></div></header>
           <div className="faculty-score-chart" aria-label="Assessment score distribution" role="img">
-            {scoreBands.map((band) => <div className="faculty-score-column faculty-chart-point" data-tooltip={`${band.label} · ${band.value} ${band.value === 1 ? 'student' : 'students'}`} key={band.label} tabIndex="0"><div><span>{band.value || ''}</span><i style={{ height: `${Math.max((band.value / maxScoreBand) * 100, band.value ? 8 : 0)}%` }} /></div><small>{band.label}</small></div>)}
+            {scoreBands.map((band) => <div className="faculty-score-column faculty-chart-point" data-tooltip={`${band.label} · ${band.value} submitted ${band.value === 1 ? 'assessment' : 'assessments'}`} key={band.label} tabIndex="0"><div><span>{band.value || ''}</span><i style={{ height: `${Math.max((band.value / maxScoreBand) * 100, band.value ? 8 : 0)}%` }} /></div><small>{band.label}</small></div>)}
           </div>
         </section>
 
         <section className="faculty-reference-card faculty-recent-card">
-          <header><h2>Recent Activity</h2><button onClick={() => onNavigate('results')} type="button">See all</button></header>
+          <header><div><h2>Recent Activity</h2><p>Latest submitted assessments</p></div></header>
           <div>
             {submittedAttempts.slice(0, 5).map((attempt) => {
               const name = studentName(attempt.student_id, enrollments)
               const firearm = firearms.find((item) => item.id === attempt.firearm_id)
-              return <article key={attempt.id}><span>{name.charAt(0).toUpperCase()}</span><div><strong>{name}</strong><small>{firearm?.name || 'Firearm assessment'}</small></div><div><b>{Math.round(Number(attempt.percentage || 0))}%</b><small>Submitted</small></div></article>
+              const classItem = classes.find((item) => item.id === attempt.class_id)
+              const score = Math.round(Number(attempt.percentage || 0))
+              return <article key={attempt.id}><span>{name.charAt(0).toUpperCase()}</span><div><strong>{name}</strong><small>{firearm?.name || 'Firearm assessment'} · {classItem?.name || 'Class'}</small></div><div><b className={score >= 75 ? 'score-good' : 'score-low'}>{score}%</b><small>Submitted</small></div></article>
             })}
             {!loading && submittedAttempts.length === 0 && <p className="faculty-empty-state">No submitted assessments yet.</p>}
           </div>

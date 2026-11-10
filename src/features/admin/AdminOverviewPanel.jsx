@@ -28,18 +28,21 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
   const readyFirearms = data.firearms.filter((firearm) => firearm.status === 'ready')
   const activeClasses = data.classes.filter((item) => !item.archived_at)
   const recentAccountEvents = data.auditEvents.filter((item) => item.entity_type === 'profile').slice(0, 4)
-  const recentFirearmEvents = getRecentFirearmEvents(data.auditEvents, data.firearms)
+  const recentFirearmEvents = getRecentFirearmEvents(data.auditEvents)
   const activeProfiles = data.profiles.filter((profile) => !profile.disabled_at)
   const roleCounts = ['student', 'faculty', 'admin'].map((role) => ({ role, count: activeProfiles.filter((profile) => profile.role === role).length }))
   const draftFirearms = data.firearms.filter((firearm) => firearm.status !== 'ready').length
   const archivedClasses = data.classes.length - activeClasses.length
-  const inProgressAttempts = (data.attempts || []).filter((attempt) => attempt.status !== 'submitted').length
+  const inProgressAttempts = (data.attempts || []).filter((attempt) => (
+    attempt.status !== 'submitted'
+    && Boolean(attempt.timer_started_at || attempt.has_activity)
+  )).length
   const latestActivity = data.auditEvents[0]?.created_at
   const stats = [
     { label: 'Total Accounts', value: data.profiles.length, detail: archivedProfiles.length + ' archived', icon: 'accounts' },
-    { label: 'Active Firearms', value: readyFirearms.length, detail: data.firearms.length + ' total', icon: 'firearms' },
+    { label: 'Ready Firearm Models', value: readyFirearms.length, detail: data.firearms.length + ' total', icon: 'firearms' },
     { label: 'Active Classes', value: activeClasses.length, detail: data.classes.length + ' total', icon: 'classes' },
-    { label: 'Submitted Assessments', value: data.assessmentCount, detail: 'Recorded results', icon: 'assessments' },
+    { label: 'Submitted Attempts', value: data.assessmentCount, detail: 'Recorded student submissions', icon: 'assessments' },
   ]
 
   if (loading) {
@@ -97,7 +100,7 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
 
         <section className="self-start overflow-hidden rounded-[10px] border border-[#b8c1bb] bg-white">
           <header className="flex min-h-[53px] items-center justify-between border-b border-[#b8c1bb] px-5 py-4">
-            <h2 className="text-sm font-semibold">Firearm Activity</h2>
+            <h2 className="text-sm font-semibold">Recent Firearm Activity</h2>
             <button className="flex items-center gap-1 border-0 bg-transparent text-xs text-[#109d1a]" onClick={() => onNavigate('firearms')} type="button">Manage <span aria-hidden="true">›</span></button>
           </header>
           <div className="divide-y divide-[#b8c1bb]">
@@ -129,9 +132,9 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
             <div><dt>Firearm components</dt><dd>{loading ? 'Loading…' : data.componentCount}</dd></div>
             <div><dt>Firearms not ready</dt><dd>{loading ? 'Loading…' : draftFirearms}</dd></div>
             <div><dt>Archived classes</dt><dd>{loading ? 'Loading…' : archivedClasses}</dd></div>
-            <div><dt>Unsubmitted attempts</dt><dd>{loading ? 'Loading…' : inProgressAttempts}</dd></div>
+            <div><dt>Started, not submitted</dt><dd>{loading ? 'Loading…' : inProgressAttempts}</dd></div>
           </dl>
-          <footer><span>Latest recorded activity</span><strong>{loading ? 'Loading…' : formatDate(latestActivity)}</strong></footer>
+          <footer><span>Latest system activity</span><strong>{loading ? 'Loading…' : formatDate(latestActivity)}</strong></footer>
         </section>
       </div>
     </section>

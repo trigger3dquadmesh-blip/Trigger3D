@@ -24,7 +24,7 @@ export default function AdminDashboard() {
   ))
   const [sidebarCollapsed, setSidebarCollapsed] = useResponsiveSidebar()
   const [viewerFirearmId, setViewerFirearmId] = useState('')
-  const { data, error, loading, reload } = useAdminLiveData()
+  const { data, error, loading, reload, reloadAccounts } = useAdminLiveData()
   const { navigate: transitionTo, pendingPage } = useDashboardTransition(activePage, setActivePage, adminDashboardPageKey)
 
   function navigateSection(section) {
@@ -48,7 +48,7 @@ export default function AdminDashboard() {
       {pendingPage ? <section className="admin-reference-page"><DashboardLoading label={adminLoadingLabels[pendingPage]} /></section> : <>
       {activePage === 'overview' && <AdminOverviewPanel data={data} error={error} loading={loading} onNavigate={navigateSection} />}
       {activePage === 'terms' && <AdminAcademicTermsPanel />}
-      {activePage === 'accounts' && <AdminAccountsPanel accounts={data.profiles} dataError={error} loading={loading} onChanged={reload} />}
+      {activePage === 'accounts' && <AdminAccountsPanel accounts={data.profiles} dataError={error} loading={loading} onChanged={reload} onRefresh={reloadAccounts} />}
       {activePage === 'firearms' && <AdminFirearmsPanel dataError={error} firearms={data.firearms} loading={loading} onChanged={reload} onPreview={previewFirearm} />}
       {activePage === 'viewer' && <AdminModelViewerPanel dataLoading={loading} firearms={data.firearms} initialFirearmId={viewerFirearmId} />}
       {activePage === 'audit' && <AdminAuditLogPanel academicTerms={data.academicTerms} auditEvents={data.auditEvents} classes={data.classes} dataError={error} loading={loading} />}

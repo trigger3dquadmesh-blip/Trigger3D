@@ -13,6 +13,31 @@ function formatDate(value) {
   return value ? new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(`${value}T00:00:00`)) : 'Not set'
 }
 
+function todayValue() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+function isExpiredPlannedTerm(term) {
+  return term.status === 'planned' && term.end_date < todayValue()
+}
+
+function displayStatus(term) {
+  if (isExpiredPlannedTerm(term)) return 'Expired'
+  return term.status === 'planned' ? 'Upcoming' : term.status === 'active' ? 'Active' : 'Closed'
+}
+
+function validateTermDetails({ academicYear, startDate, endDate }) {
+  const match = academicYear.trim().match(/^(\d{4})-(\d{4})$/)
+  if (!match || Number(match[2]) !== Number(match[1]) + 1) return 'Academic year must contain consecutive years, such as 2027-2028.'
+  if (!startDate || !endDate || endDate < startDate) return 'Enter a valid term date range.'
+  const allowedYears = new Set([match[1], match[2]])
+  if (!allowedYears.has(startDate.slice(0, 4)) || !allowedYears.has(endDate.slice(0, 4))) {
+    return `The term dates must fall within academic year ${academicYear.trim()}.`
+  }
+  return ''
+}
+
 export default function AdminAcademicTermsPanel() {
   const [terms, setTerms] = useState([])
   const [offerings, setOfferings] = useState([])
@@ -28,11 +53,12 @@ export default function AdminAcademicTermsPanel() {
   const [createFormOpen, setCreateFormOpen] = useState(false)
   const [createConfirmationOpen, setCreateConfirmationOpen] = useState(false)
   const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false)
+  const [activationConfirmationOpen, setActivationConfirmationOpen] = useState(false)
   useAutoDismissNotice(notice, () => setNotice(''), 5000)
   useAutoDismissNotice(error, () => setError(''), 6500)
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
+  const loadData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     setError('')
     await supabase.rpc('refresh_expired_academic_terms')
     const [termResult, classResult] = await Promise.all([
@@ -64,15 +90,27 @@ export default function AdminAcademicTermsPanel() {
     void loadData()
   }, [loadData])
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin-academic-terms-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'academic_terms' }, () => { void loadData({ silent: true }) })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'classes' }, () => { void loadData({ silent: true }) })
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  }, [loadData])
+
   const selectedTerm = terms.find((term) => term.id === selectedTermId)
   const selectedOfferings = useMemo(() => offerings.filter((item) => item.academic_term_id === selectedTermId), [offerings, selectedTermId])
-  const currentTermCount = terms.filter((term) => term.status !== 'closed').length
-  const historicalTermCount = terms.filter((term) => term.status === 'closed').length
+  const activeTerm = terms.find((term) => term.status === 'active')
+  const activeTermOfferings = offerings.filter((item) => item.academic_term_id === activeTerm?.id)
+  const currentTermCount = terms.filter((term) => term.status !== 'closed' && !isExpiredPlannedTerm(term)).length
+  const historicalTermCount = terms.filter((term) => term.status === 'closed' || isExpiredPlannedTerm(term)).length
   const visibleTerms = useMemo(() => {
     const normalizedQuery = termQuery.trim().toLowerCase()
     return terms.filter((term) => {
-      const matchesTab = termTab === 'history' ? term.status === 'closed' : term.status !== 'closed'
-      const matchesQuery = !normalizedQuery || `${term.academic_year} ${term.semester} ${term.status}`.toLowerCase().includes(normalizedQuery)
+      const isHistorical = term.status === 'closed' || isExpiredPlannedTerm(term)
+      const matchesTab = termTab === 'history' ? isHistorical : !isHistorical
+      const matchesQuery = !normalizedQuery || `${term.academic_year} ${term.semester} ${term.status} ${displayStatus(term)}`.toLowerCase().includes(normalizedQuery)
       return matchesTab && matchesQuery
     })
   }, [termQuery, termTab, terms])
@@ -109,8 +147,20 @@ export default function AdminAcademicTermsPanel() {
     setSaving(false)
   }
 
+  function reviewCreateTerm(event) {
+    event.preventDefault()
+    const validationError = validateTermDetails(termForm)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    setError('')
+    setCreateFormOpen(false)
+    setCreateConfirmationOpen(true)
+  }
+
   async function setTermStatus(status) {
-    if (!selectedTerm) return
+    if (!selectedTerm) return false
     setSaving(true); setError(''); setNotice('')
     const { error: requestError } = await supabase.rpc('admin_set_academic_term_status', { target_term_id: selectedTerm.id, new_status: status })
     if (requestError) setError(requestError.message)
@@ -120,6 +170,7 @@ export default function AdminAcademicTermsPanel() {
       await loadData()
     }
     setSaving(false)
+    return !requestError
   }
 
   function beginEditTerm() {
@@ -138,6 +189,11 @@ export default function AdminAcademicTermsPanel() {
   async function updateTerm(event) {
     event.preventDefault()
     if (!selectedTerm || !editForm) return
+    const validationError = validateTermDetails(editForm)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
     const identityChanged = editForm.academicYear.trim() !== selectedTerm.academic_year || editForm.semester !== selectedTerm.semester
     if (identityChanged && selectedOfferings.length > 0 && !editForm.confirmLinkedClasses) {
       setError('Confirm that the academic year or semester correction should also apply to every class connected to this term.')
@@ -180,14 +236,14 @@ export default function AdminAcademicTermsPanel() {
         <div className="admin-term-card-list">
           {visibleTerms.map((term) => {
             const isSelected = selectedTermId === term.id
-            return <button aria-expanded={isSelected} className={isSelected ? 'active' : ''} key={term.id} onClick={() => { setSelectedTermId(term.id); setEditForm(null) }} type="button"><strong>{termLabel(term)}</strong><small>{formatDate(term.start_date)} – {formatDate(term.end_date)}</small><span className={`admin-term-status ${term.status}`}>{term.status}</span></button>
+            return <button aria-expanded={isSelected} className={isSelected ? 'active' : ''} key={term.id} onClick={() => { setSelectedTermId(term.id); setEditForm(null) }} type="button"><strong>{termLabel(term)}</strong><small>{formatDate(term.start_date)} – {formatDate(term.end_date)}</small><span className={`admin-term-status ${isExpiredPlannedTerm(term) ? 'closed' : term.status}`}>{displayStatus(term)}</span></button>
           })}
           {terms.length === 0 && <p>No academic terms yet.</p>}
           {terms.length > 0 && visibleTerms.length === 0 && <div className="admin-term-empty"><strong>No matching terms</strong><span>{termQuery ? `No term matches “${termQuery}”.` : termTab === 'history' ? 'No historical terms yet.' : 'No current or upcoming terms.'}</span>{termQuery && <button onClick={() => setTermQuery('')} type="button">Clear search</button>}</div>}
         </div>
       </aside>
       <div className="admin-terms-content">
-        {selectedTerm && <section className="admin-term-card"><header className="admin-selected-term"><div><h2>{termLabel(selectedTerm)}</h2><p>{selectedTerm.status === 'closed' ? 'Historical term · class records remain read-only' : `${formatDate(selectedTerm.start_date)} – ${formatDate(selectedTerm.end_date)}`}</p></div><div><button disabled={saving} onClick={beginEditTerm} type="button">Edit Term</button>{selectedTerm.status !== 'active' && selectedTerm.status !== 'closed' && <button disabled={saving} onClick={() => void setTermStatus('active')} type="button">Set Active</button>}{selectedTerm.status === 'active' && <button className="danger" disabled={saving} onClick={() => setCloseConfirmationOpen(true)} type="button">Close Term</button>}</div></header>
+        {selectedTerm && <section className="admin-term-card"><header className="admin-selected-term"><div><h2>{termLabel(selectedTerm)}</h2><p>{selectedTerm.status === 'closed' ? 'Historical term · class records remain read-only' : isExpiredPlannedTerm(selectedTerm) ? 'Expired upcoming term · edit its dates before activation' : `${formatDate(selectedTerm.start_date)} – ${formatDate(selectedTerm.end_date)}`}</p></div><div><button disabled={saving} onClick={beginEditTerm} type="button">Edit Term</button>{selectedTerm.status === 'planned' && !isExpiredPlannedTerm(selectedTerm) && <button disabled={saving} onClick={() => setActivationConfirmationOpen(true)} type="button">Set Active</button>}{selectedTerm.status === 'active' && <button className="danger" disabled={saving} onClick={() => setCloseConfirmationOpen(true)} type="button">Close Term</button>}</div></header>
           {editForm && <form className="admin-term-form admin-term-edit-form" onSubmit={updateTerm}>
             <label>Academic Year<input disabled={saving} onChange={(event) => setEditForm((current) => ({ ...current, academicYear: event.target.value, confirmLinkedClasses: false }))} pattern="\d{4}-\d{4}" required value={editForm.academicYear} /></label>
             <label>Semester<select disabled={saving} onChange={(event) => setEditForm((current) => ({ ...current, semester: event.target.value, confirmLinkedClasses: false }))} value={editForm.semester}><option>1st Semester</option><option>2nd Semester</option></select></label>
@@ -209,7 +265,7 @@ export default function AdminAcademicTermsPanel() {
       title="Create Academic Term"
       width="max-w-[560px]"
     >
-      <form className="admin-term-form admin-term-create-form" id="admin-create-term-form" onSubmit={(event) => { event.preventDefault(); setCreateFormOpen(false); setCreateConfirmationOpen(true) }}>
+      <form className="admin-term-form admin-term-create-form" id="admin-create-term-form" onSubmit={reviewCreateTerm}>
         <label>Academic Year<input autoFocus disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, academicYear: event.target.value }))} pattern="\d{4}-\d{4}" placeholder="2026-2027" required value={termForm.academicYear} /></label>
         <label>Semester<select disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, semester: event.target.value }))} value={termForm.semester}><option>1st Semester</option><option>2nd Semester</option></select></label>
         <label>Start Date<input disabled={saving} onChange={(event) => setTermForm((current) => ({ ...current, startDate: event.target.value }))} required type="date" value={termForm.startDate} /></label>
@@ -229,11 +285,26 @@ export default function AdminAcademicTermsPanel() {
           <strong>{termForm.makeActive ? 'This will become the active term' : 'This will be added as an upcoming term'}</strong>
           <span>{termForm.makeActive ? 'Faculty members will be able to create new classes under this term after confirmation.' : 'The term will be available for review but will not replace the currently active term.'}</span>
         </div>
+        {termForm.makeActive && activeTerm && <div className="admin-confirmation-note danger"><strong>{termLabel(activeTerm)} will be closed</strong><span>Its {activeTermOfferings.length} connected class{activeTermOfferings.length === 1 ? '' : 'es'} will become historical and read-only when the new term is activated.</span></div>}
+        {termForm.makeActive && termForm.startDate > todayValue() && <div className="admin-confirmation-note warning"><strong>This term starts in the future</strong><span>Activating it now gives faculty immediate access to create classes before {formatDate(termForm.startDate)}.</span></div>}
         <dl className="grid gap-2 text-xs leading-5 text-[var(--admin-muted)]">
           <div className="flex justify-between gap-4"><dt>Academic term</dt><dd className="text-right font-semibold text-[var(--admin-text)]">{termForm.semester}, AY {termForm.academicYear}</dd></div>
           <div className="flex justify-between gap-4"><dt>Start date</dt><dd className="text-right font-semibold text-[var(--admin-text)]">{formatDate(termForm.startDate)}</dd></div>
           <div className="flex justify-between gap-4"><dt>End date</dt><dd className="text-right font-semibold text-[var(--admin-text)]">{formatDate(termForm.endDate)}</dd></div>
         </dl>
+      </div>
+    </AdminDesignModal>
+    <AdminDesignModal
+      description="Review what will change before activating this academic term."
+      footer={<><AdminButton disabled={saving} kind="ghost" onClick={() => setActivationConfirmationOpen(false)}>Cancel</AdminButton><AdminButton disabled={saving} onClick={async () => { if (await setTermStatus('active')) setActivationConfirmationOpen(false) }}>{saving ? 'Activating…' : 'Activate Term'}</AdminButton></>}
+      onClose={() => { if (!saving) setActivationConfirmationOpen(false) }}
+      open={activationConfirmationOpen && Boolean(selectedTerm)}
+      title={selectedTerm ? `Activate ${termLabel(selectedTerm)}?` : 'Activate academic term?'}
+    >
+      <div className="grid gap-4">
+        <div className="admin-confirmation-note success"><strong>Faculty access will move to this term</strong><span>Faculty members will be able to create new subjects and sections under {selectedTerm ? termLabel(selectedTerm) : 'the selected term'}.</span></div>
+        {activeTerm && activeTerm.id !== selectedTerm?.id && <div className="admin-confirmation-note danger"><strong>{termLabel(activeTerm)} will be closed</strong><span>Its {activeTermOfferings.length} connected class{activeTermOfferings.length === 1 ? '' : 'es'} will become historical and read-only.</span></div>}
+        {selectedTerm?.start_date > todayValue() && <div className="admin-confirmation-note warning"><strong>This term starts in the future</strong><span>Activating it now gives faculty immediate access before {formatDate(selectedTerm.start_date)}.</span></div>}
       </div>
     </AdminDesignModal>
     <AdminDesignModal
