@@ -7,6 +7,14 @@ import { getFirearmModelUrl } from '../shared/firearm-model-url.js'
 import { getBundledFirearmComponents } from '../shared/bundled-firearm-components.js'
 import FirearmCanvas from '../student/viewer/FirearmCanvas.jsx'
 
+function componentMeshName(component) {
+  return typeof component?.mesh_name === 'string' ? component.mesh_name : ''
+}
+
+function componentLabel(component) {
+  return componentMeshName(component).replaceAll('_', ' ')
+}
+
 export default function AdminModelViewerPanel({ dataLoading = false, firearms, headerActions = null, headerLeading = null, initialFirearmId = '', lockSelection = false }) {
   const [firearmId, setFirearmId] = useState(initialFirearmId)
   const [details, setDetails] = useState(null)
@@ -58,7 +66,7 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
         const signedUrl = await (suppliedModelUrl || getFirearmModelUrl(firearmResult.data.glb_storage_path, firearmResult.data.identifier, firearmResult.data.name))
         if (!current) return
         setDetails(firearmResult.data)
-        setComponents(resolvedComponents)
+        setComponents(Array.isArray(resolvedComponents) ? resolvedComponents.filter((component) => componentMeshName(component)) : [])
         setModelUrl(signedUrl)
       } catch (loadError) {
         if (current) setError(loadError.message)
@@ -69,8 +77,8 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
     return () => { current = false }
   }, [activeFirearmId, loadKey, suppliedFirearmSnapshot])
 
-  const selected = components.find((item) => item.mesh_name === selectedName)
-  const visible = components.filter((item) => item.mesh_name.replaceAll('_', ' ').toLowerCase().includes(query.toLowerCase()))
+  const selected = components.find((item) => componentMeshName(item) === selectedName)
+  const visible = components.filter((item) => componentLabel(item).toLowerCase().includes(query.toLowerCase()))
   const groups = useMemo(() => [...new Set(visible.map((item) => item.assembly_group || item.category || 'Components'))], [visible])
   const creditHref = modelCreditHref(details?.model_credit || '')
 
@@ -108,7 +116,7 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
         </div>
         <aside className={'min-h-0 shrink-0 overflow-hidden bg-white transition-[width] ' + (panelOpen ? 'w-[300px] border-l border-[#b8c1bb]' : 'w-0')}>
           {panelOpen && <div className="flex h-full flex-col"><nav className="grid h-9 shrink-0 grid-cols-2 border-b border-[#b8c1bb]">{[['components', 'Components'], ['details', 'Details']].map(([id, label]) => <button className={'text-xs font-semibold ' + (tab === id ? 'border-b-2 border-[#109d1a] text-[#109d1a]' : 'text-[#5f6b63]')} key={id} onClick={() => setTab(id)} type="button">{label}</button>)}</nav>
-            {tab === 'components' ? <div className="flex min-h-0 flex-1 flex-col"><div className="px-3 pb-2 pt-3"><input className="h-9 w-full rounded-md border border-transparent bg-[#edf0ee] px-3 text-sm outline-none focus:border-[#109d1a]" onChange={(event) => setQuery(event.target.value)} placeholder="Search parts..." type="search" value={query} /></div><div className="min-h-0 flex-1 overflow-y-auto pb-2">{groups.map((group) => <section className="mb-1" key={group}><h2 className="mb-1 mt-0 px-4 pt-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#7f8982]">{group}</h2><div className="px-2">{visible.filter((item) => (item.assembly_group || item.category || 'Components') === group).map((component) => <button className={'mb-px w-full rounded-md px-3 py-2 text-left text-[13px] ' + (selectedName === component.mesh_name ? 'bg-green-50 font-medium text-[#109d1a]' : 'hover:bg-[#edf0ee]')} key={component.id} onClick={() => choose(component.mesh_name)} type="button">{component.mesh_name.replaceAll('_', ' ')}</button>)}</div></section>)}</div></div> : <div className="h-full overflow-y-auto">{selected ? <div className="flex h-full flex-col gap-5 p-5"><div><p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#7f8982]">{selected.assembly_group || selected.category}</p><h2 className="m-0 text-lg font-bold capitalize leading-6">{selected.mesh_name.replaceAll('_', ' ')}</h2></div><div><h3 className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#7f8982]">Description</h3><p className="m-0 text-sm leading-6">{selected.description || 'No description provided.'}</p></div><div><h3 className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#7f8982]">Function</h3><p className="m-0 text-sm leading-6">{selected.purpose || 'No function provided.'}</p></div></div> : <div className="admin-firearm-details"><span className="admin-firearm-details-icon">ⓘ</span><div><strong>{details?.name || 'Firearm details'}</strong><p>{details?.description || 'No firearm description provided.'}</p></div>{details?.model_credit && <p className="admin-model-credit"><strong>Model source / credits:</strong> {creditHref ? <a href={creditHref} rel="noreferrer" target="_blank">{details.model_credit}</a> : <span>{details.model_credit}</span>}</p>}{details?.tutorial_url && <a href={details.tutorial_url} rel="noreferrer" target="_blank"><AdminIcon name="play" /> Watch YouTube tutorial</a>}<dl>{[['Identifier', details?.identifier], ['Classification', details?.firearm_type?.replace('_', ' ')], ['Caliber', details?.caliber], ['Status', details?.status], ['Parts', components.length]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || 'Not available'}</dd></div>)}</dl><small>Select a component to view its description and function.</small></div>}</div>}
+            {tab === 'components' ? <div className="flex min-h-0 flex-1 flex-col"><div className="px-3 pb-2 pt-3"><input className="h-9 w-full rounded-md border border-transparent bg-[#edf0ee] px-3 text-sm outline-none focus:border-[#109d1a]" onChange={(event) => setQuery(event.target.value)} placeholder="Search parts..." type="search" value={query} /></div><div className="min-h-0 flex-1 overflow-y-auto pb-2">{groups.map((group) => <section className="mb-1" key={group}><h2 className="mb-1 mt-0 px-4 pt-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#7f8982]">{group}</h2><div className="px-2">{visible.filter((item) => (item.assembly_group || item.category || 'Components') === group).map((component) => <button className={'mb-px w-full rounded-md px-3 py-2 text-left text-[13px] ' + (selectedName === componentMeshName(component) ? 'bg-green-50 font-medium text-[#109d1a]' : 'hover:bg-[#edf0ee]')} key={component.id || componentMeshName(component)} onClick={() => choose(componentMeshName(component))} type="button">{componentLabel(component)}</button>)}</div></section>)}</div></div> : <div className="h-full overflow-y-auto">{selected ? <div className="flex h-full flex-col gap-5 p-5"><div><p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#7f8982]">{selected.assembly_group || selected.category}</p><h2 className="m-0 text-lg font-bold capitalize leading-6">{componentLabel(selected)}</h2></div><div><h3 className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#7f8982]">Description</h3><p className="m-0 text-sm leading-6">{selected.description || 'No description provided.'}</p></div><div><h3 className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#7f8982]">Function</h3><p className="m-0 text-sm leading-6">{selected.purpose || 'No function provided.'}</p></div></div> : <div className="admin-firearm-details"><span className="admin-firearm-details-icon">ⓘ</span><div><strong>{details?.name || 'Firearm details'}</strong><p>{details?.description || 'No firearm description provided.'}</p></div>{details?.model_credit && <p className="admin-model-credit"><strong>Model source / credits:</strong> {creditHref ? <a href={creditHref} rel="noreferrer" target="_blank">{details.model_credit}</a> : <span>{details.model_credit}</span>}</p>}{details?.tutorial_url && <a href={details.tutorial_url} rel="noreferrer" target="_blank"><AdminIcon name="play" /> Watch YouTube tutorial</a>}<dl>{[['Identifier', details?.identifier], ['Classification', details?.firearm_type?.replace('_', ' ')], ['Caliber', details?.caliber], ['Status', details?.status], ['Parts', components.length]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || 'Not available'}</dd></div>)}</dl><small>Select a component to view its description and function.</small></div>}</div>}
           </div>}
         </aside>
       </div>}

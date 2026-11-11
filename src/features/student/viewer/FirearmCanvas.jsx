@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Bounds, Html, OrbitControls, useBounds, useGLTF } from '@react-three/drei'
 import { Box3, Color, Vector3 } from 'three'
@@ -9,14 +9,23 @@ function BoundsController({ resetKey }) {
   const bounds = useBounds()
 
   useEffect(() => {
-    const api = bounds.refresh()
-    const { center, distance } = api.getSize()
-    const startingPosition = center.clone().add(new Vector3(0, 0, distance))
+    try {
+      const api = bounds.refresh()
+      const { center, distance } = api.getSize()
+      if (
+        !center
+        || ![center.x, center.y, center.z, distance].every(Number.isFinite)
+        || distance <= 0
+      ) return
+      const startingPosition = center.clone().add(new Vector3(0, 0, distance))
 
-    api
-      .moveTo(startingPosition)
-      .lookAt({ target: center })
-      .clip()
+      api
+        .moveTo(startingPosition)
+        .lookAt({ target: center })
+        .clip()
+    } catch (error) {
+      console.warn('Could not frame the firearm model.', error)
+    }
   }, [bounds, resetKey])
 
   return null
@@ -28,7 +37,11 @@ function ExplosionBoundsController({ exploded, maxExplodeOrder }) {
   useEffect(() => {
     const animationTime = 800 + maxExplodeOrder * 120
     const timeout = window.setTimeout(() => {
-      bounds.refresh().fit().clip()
+      try {
+        bounds.refresh().fit().clip()
+      } catch (error) {
+        console.warn('Could not refit the firearm viewer bounds.', error)
+      }
     }, animationTime)
 
     return () => window.clearTimeout(timeout)
@@ -38,13 +51,15 @@ function ExplosionBoundsController({ exploded, maxExplodeOrder }) {
 }
 
 function cloneMaterial(material) {
+  if (!material) return material
   return Array.isArray(material)
-    ? material.map((item) => item.clone())
-    : material.clone()
+    ? material.filter(Boolean).map((item) => item.clone?.() ?? item)
+    : material.clone?.() ?? material
 }
 
 function materialList(material) {
-  return Array.isArray(material) ? material : [material]
+  if (!material) return []
+  return Array.isArray(material) ? material.filter(Boolean) : [material]
 }
 
 function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSelect }) {
@@ -71,7 +86,8 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
 
     copy.traverse((object) => {
       if (!object.isMesh) return
-      object.material = cloneMaterial(object.material)
+      const clonedMaterial = cloneMaterial(object.material)
+      if (clonedMaterial) object.material = clonedMaterial
       object.userData.trigger3dOriginalPosition = object.position.clone()
       object.userData.trigger3dMaterials = materialList(object.material).map((material) => ({
         color: material.color?.clone() ?? null,
@@ -93,6 +109,7 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
 
       materialList(object.material).forEach((material, index) => {
         const original = object.userData.trigger3dMaterials[index]
+        if (!original) return
         if (original.color && material.color) material.color.copy(original.color)
         if (original.emissive && material.emissive) material.emissive.copy(original.emissive)
         if (original.emissiveIntensity !== undefined) {
@@ -113,7 +130,8 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
     const modelBox = new Box3().setFromObject(model)
     const modelCenter = modelBox.getCenter(new Vector3())
     const modelSize = modelBox.getSize(new Vector3())
-    const modelScale = Math.max(modelSize.x, modelSize.y, modelSize.z)
+    const measuredScale = Math.max(modelSize.x, modelSize.y, modelSize.z)
+    const modelScale = Number.isFinite(measuredScale) && measuredScale > 0 ? measuredScale : 1
     const explosionDistance = modelScale * 0.65
     const hasConfiguredLayout = components.some((component) => (
       component.assembly_group !== 'ungrouped'
@@ -132,13 +150,16 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
     })
 
     meshes.forEach((object, meshIndex) => {
-      const originalPosition = object.userData.trigger3dOriginalPosition
+      const originalPosition = object.userData.trigger3dOriginalPosition?.clone?.()
+        ?? object.position.clone()
       let targetPosition = originalPosition.clone()
       const layout = componentLayout.get(object.name)
 
-      if (exploded) {
-        object.geometry.computeBoundingBox()
-        const localCenter = object.geometry.boundingBox.getCenter(new Vector3())
+      if (exploded && object.geometry && object.parent) {
+        object.geometry.computeBoundingBox?.()
+        const localCenter = object.geometry.boundingBox
+          ? object.geometry.boundingBox.getCenter(new Vector3())
+          : new Vector3()
         const originalWorldCenter = object.localToWorld(localCenter.clone())
         let worldOffset
 
@@ -199,7 +220,7 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
   useEffect(() => () => {
     model.traverse((object) => {
       if (!object.isMesh) return
-      materialList(object.material).forEach((material) => material.dispose())
+      materialList(object.material).forEach((material) => material.dispose?.())
     })
   }, [model])
 
@@ -208,7 +229,7 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
       object={model}
       onPointerDown={(event) => {
         event.stopPropagation()
-        onSelect(event.object.name)
+        onSelect?.(event.object.name)
       }}
     />
   )
@@ -216,7 +237,7 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
 
 export default function FirearmCanvas({
   modelUrl,
-  components,
+  components = [],
   selectedName,
   exploded,
   resetKey,
@@ -225,6 +246,10 @@ export default function FirearmCanvas({
   const [loaded, setLoaded] = useState(false)
   const [timedOut, setTimedOut] = useState(false)
   const [retryKey, setRetryKey] = useState(0)
+  const handleModelLoaded = useCallback(() => {
+    setLoaded(true)
+    setTimedOut(false)
+  }, [])
 
   useEffect(() => {
     // A new signed URL or retry starts a fresh, bounded loading attempt.
@@ -247,7 +272,7 @@ export default function FirearmCanvas({
           key={`${modelUrl}:${retryKey}`}
           camera={{ position: [0, 0, 8], fov: 45 }}
           dpr={[1, 2]}
-          onPointerMissed={() => onSelect(null)}
+          onPointerMissed={() => onSelect?.(null)}
         >
           <color attach="background" args={['#090d11']} />
           <ambientLight intensity={1.8} />
@@ -262,7 +287,7 @@ export default function FirearmCanvas({
                 components={components}
                 selectedName={selectedName}
                 exploded={exploded}
-                onLoaded={() => { setLoaded(true); setTimedOut(false) }}
+                onLoaded={handleModelLoaded}
                 onSelect={onSelect}
               />
               <BoundsController resetKey={resetKey} />
