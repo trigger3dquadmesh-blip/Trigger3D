@@ -62,6 +62,34 @@ async function createModelSignedUrl(storagePath) {
   throw lastError
 }
 
+async function downloadModelBlob(storagePath) {
+  let lastError = null
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { data, error } = await supabase.storage
+      .from('firearm-models')
+      .download(storagePath)
+
+    if (!error && data instanceof Blob && data.size > 0) return data
+
+    lastError = error || new Error('The downloaded model file was empty.')
+    if (attempt === 0) {
+      const { error: userError } = await supabase.auth.getUser()
+      if (userError) {
+        const { error: refreshError } = await supabase.auth.refreshSession()
+        if (refreshError) lastError = refreshError
+      }
+      await wait(SIGNED_URL_RETRY_DELAY_MS)
+    }
+  }
+
+  throw lastError
+}
+
+function releaseCachedObjectUrl(entry) {
+  if (entry?.objectUrl) URL.revokeObjectURL(entry.objectUrl)
+}
+
 export async function getFirearmModelUrl(storagePath, identifier = '', name = '') {
   const bundledUrl = getBundledFirearmModelUrl(identifier, name)
   if (bundledUrl) return bundledUrl
@@ -79,13 +107,33 @@ export async function getFirearmModelUrl(storagePath, identifier = '', name = ''
   if (cached?.promise) return cached.promise
   if (cached?.url && cached.expiresAt > Date.now()) return cached.url
 
-  const promise = createModelSignedUrl(normalizedStoragePath)
-    .then((signedUrl) => {
+  if (cached) {
+    releaseCachedObjectUrl(cached)
+    modelUrlCache.delete(cacheKey)
+  }
+
+  const promise = downloadModelBlob(normalizedStoragePath)
+    .catch(async () => {
+      // Keep signed URLs as a compatibility fallback for older Storage
+      // policies while still converting the response to a same-origin blob
+      // URL before Three.js receives it.
+      const signedUrl = await createModelSignedUrl(normalizedStoragePath)
+      const response = await fetch(signedUrl, { cache: 'no-store' })
+      if (!response.ok) {
+        throw new Error(`The model download failed with status ${response.status}.`)
+      }
+      const blob = await response.blob()
+      if (!blob.size) throw new Error('The downloaded model file was empty.')
+      return blob
+    })
+    .then((blob) => {
+      const objectUrl = URL.createObjectURL(blob)
       modelUrlCache.set(cacheKey, {
-        url: signedUrl,
+        url: objectUrl,
+        objectUrl,
         expiresAt: Date.now() + CACHE_LIFETIME_MS,
       })
-      return signedUrl
+      return objectUrl
     })
     .catch((error) => {
       modelUrlCache.delete(cacheKey)
