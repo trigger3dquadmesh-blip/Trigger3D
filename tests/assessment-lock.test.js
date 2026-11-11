@@ -22,6 +22,9 @@ test('routes an in-progress firearm directly to its assessment', () => {
 test('uses one access state for normal, paused, and integrity-locked attempts', () => {
   assert.equal(getAssessmentAccessState(null), 'available')
   assert.equal(getAssessmentAccessState({ status: 'in_progress', timer_started_at: null, has_activity: false, connection_interrupted_at: '2026-11-11T10:00:00Z' }), 'available')
+  assert.equal(getAssessmentAccessState({ status: 'in_progress', timer_started_at: null, has_activity: false, integrity_locked_at: '2026-11-11T10:00:00Z' }), 'available')
+  assert.equal(getAssessmentAccessState({ status: 'not_started', timer_started_at: null, has_activity: false, connection_interrupted_at: '2026-11-11T10:00:00Z', integrity_locked_at: '2026-11-11T10:00:00Z' }), 'available')
+  assert.equal(getAssessmentAccessState({ status: 'submitted', timer_started_at: '2026-11-11T09:00:00Z', has_activity: true, connection_interrupted_at: '2026-11-11T10:00:00Z' }), 'available')
   assert.equal(getAssessmentAccessState({ status: 'in_progress', timer_started_at: '2026-11-11T09:00:00Z', has_activity: true }), 'in_progress')
   assert.equal(getAssessmentAccessState({ status: 'in_progress', timer_started_at: '2026-11-11T09:00:00Z', has_activity: true, connection_interrupted_at: '2026-11-11T10:00:00Z' }), 'paused')
   assert.equal(getAssessmentAccessState({ status: 'in_progress', timer_started_at: '2026-11-11T09:00:00Z', has_activity: true, integrity_locked_at: '2026-11-11T10:00:00Z' }), 'locked')

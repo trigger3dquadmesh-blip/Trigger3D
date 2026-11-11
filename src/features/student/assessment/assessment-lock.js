@@ -40,10 +40,15 @@ export function assessmentAttemptHasStarted(attempt) {
 export function getAssessmentAccessState(attempt) {
   if (!attempt) return 'available'
 
-  // These timestamps are the authoritative access controls. Older attempts can
-  // carry a legacy or temporarily stale status while still being paused/locked.
-  // Never expose the firearm just because that status has not caught up yet.
+  // A faculty reset can retain the attempt row for history while clearing the
+  // evidence that the current attempt was actually started. Old interruption
+  // and integrity timestamps must not lock the model in that reset/untouched
+  // state. An open assessment is also not an active attempt by itself.
+  if (!assessmentAttemptHasStarted(attempt)) return 'available'
+
+  // Once answering has actually started, the interruption/integrity markers
+  // determine the more specific blocked state.
   if (attempt.connection_interrupted_at) return 'paused'
   if (attempt.integrity_locked_at) return 'locked'
-  return assessmentAttemptHasStarted(attempt) ? 'in_progress' : 'available'
+  return 'in_progress'
 }
