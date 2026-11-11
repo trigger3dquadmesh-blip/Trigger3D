@@ -5,13 +5,40 @@ import { validateGunBundle } from './validation.js'
 import { normalizeModelCredit, normalizeTutorialUrl, validateFirearmMetadata } from './firearm-metadata.js'
 import { clearFirearmImportDraft, getFirearmImportDraft, saveFirearmImportDraft } from './firearm-import-draft.js'
 
+// File objects cannot be stored in localStorage, but keeping them in module memory
+// prevents a temporary panel remount (for example, when the Windows file picker
+// returns focus to the app) from silently discarding the selected bundle.
+let pendingBundleFiles = {
+  glbFile: null,
+  componentsFile: null,
+  questionsFile: null,
+}
+
+function rememberBundleFile(key, file) {
+  pendingBundleFiles = { ...pendingBundleFiles, [key]: file }
+  return file
+}
+
+function clearPendingBundleFiles() {
+  pendingBundleFiles = { glbFile: null, componentsFile: null, questionsFile: null }
+}
+
 function FilePicker({ accept, file, hint, icon, label, onChange }) {
   return (
     <label className="group grid min-h-[104px] cursor-pointer place-content-center justify-items-center rounded-[9px] border-2 border-dashed border-[var(--admin-border)] bg-[var(--admin-bg)] px-3 py-4 text-center hover:border-[#109d1a]">
       <AdminIcon className="mb-2 h-5 w-5 text-[var(--admin-muted)] group-hover:text-[#109d1a]" name={icon} />
       <strong className="text-xs font-semibold text-[var(--admin-text)]">{label}</strong>
       <span className="mt-1 max-w-full truncate text-[11px] text-[var(--admin-muted)]">{file?.name || hint}</span>
-      <input accept={accept} className="sr-only" onChange={(event) => onChange(event.target.files?.[0] || null)} type="file" />
+      <input
+        accept={accept}
+        className="sr-only"
+        onChange={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          onChange(event.currentTarget.files?.[0] || null)
+        }}
+        type="file"
+      />
     </label>
   )
 }
@@ -34,9 +61,9 @@ export default function FirearmImportPanel({ onImported }) {
   const [firearmType, setFirearmType] = useState(initialDraft.firearmType ?? '')
   const [tutorialUrl, setTutorialUrl] = useState(initialDraft.tutorialUrl ?? '')
   const [modelCredit, setModelCredit] = useState(initialDraft.modelCredit ?? '')
-  const [glbFile, setGlbFile] = useState(null)
-  const [componentsFile, setComponentsFile] = useState(null)
-  const [questionsFile, setQuestionsFile] = useState(null)
+  const [glbFile, setGlbFile] = useState(() => pendingBundleFiles.glbFile)
+  const [componentsFile, setComponentsFile] = useState(() => pendingBundleFiles.componentsFile)
+  const [questionsFile, setQuestionsFile] = useState(() => pendingBundleFiles.questionsFile)
   const [validation, setValidation] = useState(null)
   const [validating, setValidating] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -55,6 +82,7 @@ export default function FirearmImportPanel({ onImported }) {
     setFirearmType('')
     setTutorialUrl('')
     setModelCredit('')
+    clearPendingBundleFiles()
     setGlbFile(null)
     setComponentsFile(null)
     setQuestionsFile(null)
@@ -127,7 +155,7 @@ export default function FirearmImportPanel({ onImported }) {
   const fieldClass = 'h-10 w-full rounded-[8px] border border-[var(--admin-border)] bg-[var(--admin-input)] px-3 text-sm text-[var(--admin-input-text)] outline-none placeholder:text-[#7c8780] focus:border-[#109d1a] focus:ring-2 focus:ring-[#109d1a]/20'
 
   return (
-    <form className="grid gap-5" onSubmit={(event) => { event.preventDefault(); void importBundle() }}>
+    <div className="grid gap-5">
       <section className="grid gap-4 rounded-[9px] border border-[var(--admin-border)] bg-[var(--admin-bg)] p-4">
         <div><h3 className="m-0 text-sm font-semibold text-[var(--admin-text)]">Firearm information</h3><p className="mb-0 mt-1 text-xs text-[var(--admin-muted)]">These values identify the model throughout Trigger3D.</p></div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -140,13 +168,13 @@ export default function FirearmImportPanel({ onImported }) {
         <label className="grid gap-1.5 text-xs font-semibold text-[var(--admin-text)]">Description<textarea className="min-h-[76px] w-full resize-y rounded-[8px] border border-[var(--admin-border)] bg-[var(--admin-input)] px-3 py-2 text-sm text-[var(--admin-input-text)] outline-none focus:border-[#109d1a] focus:ring-2 focus:ring-[#109d1a]/20" onChange={(event) => setDescription(event.target.value)} placeholder="Brief model description" value={description} /></label>
       </section>
 
-      <section><div className="mb-3"><h3 className="m-0 text-sm font-semibold text-[var(--admin-text)]">Bundle files</h3><p className="mb-0 mt-1 text-xs text-[var(--admin-muted)]">Choose the matching GLB and CSV files. File names are validated before upload.</p></div><div className="grid gap-3 sm:grid-cols-3"><FilePicker accept=".glb,model/gltf-binary" file={glbFile} hint=".glb model" icon="cube" label="3D Model" onChange={(file) => { setGlbFile(file); clearValidation() }} /><FilePicker accept=".csv,text/csv" file={componentsFile} hint="components.csv" icon="file" label="Component Data" onChange={(file) => { setComponentsFile(file); clearValidation() }} /><FilePicker accept=".csv,text/csv" file={questionsFile} hint="questions.csv" icon="question" label="Assessment Questions" onChange={(file) => { setQuestionsFile(file); clearValidation() }} /></div></section>
+      <section><div className="mb-3"><h3 className="m-0 text-sm font-semibold text-[var(--admin-text)]">Bundle files</h3><p className="mb-0 mt-1 text-xs text-[var(--admin-muted)]">Choose the matching GLB and CSV files. File names are validated before upload.</p></div><div className="grid gap-3 sm:grid-cols-3"><FilePicker accept=".glb,model/gltf-binary" file={glbFile} hint=".glb model" icon="cube" label="3D Model" onChange={(file) => { setGlbFile(rememberBundleFile('glbFile', file)); clearValidation() }} /><FilePicker accept=".csv,text/csv" file={componentsFile} hint="components.csv" icon="file" label="Component Data" onChange={(file) => { setComponentsFile(rememberBundleFile('componentsFile', file)); clearValidation() }} /><FilePicker accept=".csv,text/csv" file={questionsFile} hint="questions.csv" icon="question" label="Assessment Questions" onChange={(file) => { setQuestionsFile(rememberBundleFile('questionsFile', file)); clearValidation() }} /></div></section>
 
       {validation?.errors.length > 0 && <div className="rounded-[8px] border border-red-400 bg-red-50 p-3 text-xs text-red-700" role="alert"><strong>Bundle rejected</strong><ul className="mb-0 mt-2 pl-5">{validation.errors.map((message) => <li key={message}>{message}</li>)}</ul></div>}
       {validation?.data && <div className="grid grid-cols-2 gap-2 rounded-[8px] border border-green-400 bg-green-50 p-3 text-xs text-green-800 sm:grid-cols-4" role="status"><strong>{validation.data.identifier}</strong><span>{validation.data.meshNames.length} meshes</span><span>{validation.data.components.length} components</span><span>{validation.data.questions.length} questions</span></div>}
       {error && <div className="rounded-[8px] border border-red-400 bg-red-50 p-3 text-xs text-red-700" role="alert">{error}</div>}
 
-      <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--admin-border)] pt-4"><button className="h-9 rounded-lg border border-[var(--admin-border)] bg-transparent px-4 text-xs font-semibold text-[var(--admin-text)] hover:border-[#109d1a] disabled:opacity-50" disabled={validating || importing} onClick={() => void runValidation()} type="button">{validating ? 'Validating…' : validation?.data ? 'Validate again' : 'Validate files'}</button><button className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#109d1a] px-4 text-xs font-semibold text-white hover:bg-[#0c7d15] disabled:cursor-not-allowed disabled:opacity-50" disabled={!validation?.data || importing || validating} type="submit"><AdminIcon name="upload" />{importing ? 'Importing…' : 'Import validated bundle'}</button></div>
-    </form>
+      <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--admin-border)] pt-4"><button className="h-9 rounded-lg border border-[var(--admin-border)] bg-transparent px-4 text-xs font-semibold text-[var(--admin-text)] hover:border-[#109d1a] disabled:opacity-50" disabled={validating || importing} onClick={() => void runValidation()} type="button">{validating ? 'Validating…' : validation?.data ? 'Validate again' : 'Validate files'}</button><button className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#109d1a] px-4 text-xs font-semibold text-white hover:bg-[#0c7d15] disabled:cursor-not-allowed disabled:opacity-50" disabled={!validation?.data || importing || validating} onClick={() => void importBundle()} type="button"><AdminIcon name="upload" />{importing ? 'Importing…' : 'Import validated bundle'}</button></div>
+    </div>
   )
 }
