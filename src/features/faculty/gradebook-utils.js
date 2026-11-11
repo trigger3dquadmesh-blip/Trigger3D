@@ -1,3 +1,5 @@
+import { assessmentAttemptIsSubmitted } from '../shared/current-assessment-attempts.js'
+
 function csvCell(value) {
   let text = String(value ?? '')
 
@@ -55,7 +57,7 @@ function scoreLabel(value) {
 }
 
 function assessmentStatus(attempt, release) {
-  if (attempt?.status === 'submitted') {
+  if (assessmentAttemptIsSubmitted(attempt)) {
     return {
       label: 'Submitted',
       score: attempt.percentage,

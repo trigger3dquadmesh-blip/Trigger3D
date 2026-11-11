@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
+import { assessmentAttemptIsSubmitted } from '../shared/current-assessment-attempts.js'
 
 export default function AssessmentReleasePanel({ attempts = [], enrollments = [], onChanged, onViewAnalytics, selectedClass }) {
   const [firearms, setFirearms] = useState([])
@@ -10,6 +11,7 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
   const [error, setError] = useState('')
   const [pendingClose, setPendingClose] = useState(null)
   const [durationDrafts, setDurationDrafts] = useState({})
+  const selectedClassId = selectedClass?.id || ''
 
   const releaseByFirearm = useMemo(
     () => new Map(releases.map((release) => [release.firearm_id, release])),
@@ -17,7 +19,7 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
   )
 
   const loadReleases = useCallback(async () => {
-    if (!selectedClass) return
+    if (!selectedClassId) return
     setLoading(true)
     setError('')
 
@@ -30,7 +32,7 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
       supabase
         .from('assessment_releases')
         .select('firearm_id, is_open, updated_at, duration_minutes')
-        .eq('class_id', selectedClass.id),
+        .eq('class_id', selectedClassId),
     ])
 
     if (firearmResult.error || releaseResult.error) {
@@ -42,15 +44,15 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
     }
 
     setLoading(false)
-  }, [selectedClass])
+  }, [selectedClassId])
 
   useEffect(() => {
-    if (selectedClass) {
+    if (selectedClassId) {
       // Data changes occur after the awaited Supabase requests resolve.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadReleases()
     }
-  }, [loadReleases, selectedClass])
+  }, [loadReleases, selectedClassId])
 
   async function toggleRelease(firearm) {
     const isOpen = releaseByFirearm.get(firearm.id)?.is_open ?? false
@@ -122,7 +124,7 @@ export default function AssessmentReleasePanel({ attempts = [], enrollments = []
             const isOpen = releaseByFirearm.get(firearm.id)?.is_open ?? false
             const durationMinutes = durationDrafts[firearm.id] ?? 60
             const activeStudentIds = new Set(enrollments.filter((item) => item.status === 'active').map((item) => item.student?.id || item.student_id))
-            const firearmAttempts = attempts.filter((item) => item.class_id === selectedClass.id && item.firearm_id === firearm.id && item.status === 'submitted' && activeStudentIds.has(item.student_id))
+            const firearmAttempts = attempts.filter((item) => item.class_id === selectedClass.id && item.firearm_id === firearm.id && assessmentAttemptIsSubmitted(item) && activeStudentIds.has(item.student_id))
             const average = firearmAttempts.length ? firearmAttempts.reduce((sum, item) => sum + Number(item.percentage || 0), 0) / firearmAttempts.length : 0
             const passing = firearmAttempts.length ? firearmAttempts.filter((item) => Number(item.percentage) >= 75).length / firearmAttempts.length * 100 : 0
             return (

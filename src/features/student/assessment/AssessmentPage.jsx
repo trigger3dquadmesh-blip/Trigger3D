@@ -125,7 +125,7 @@ export default function AssessmentPage() {
     clearActiveAssessmentSession(sessionStorage, user?.id, resetAttemptId)
     removeStoredDraft(resetAttemptId)
     removeStoredTime(resetAttemptId)
-    setAssessmentLock(firearmId, false, classId)
+    setAssessmentLock(firearmId, false, classId, user?.id)
     answersRef.current = {}
     setAnswers({})
     setQuestions([])
@@ -196,39 +196,45 @@ export default function AssessmentPage() {
       if (firearmResult.error || classResult.error || statusResult.error || releaseResult.error) {
         setError(firearmResult.error?.message || classResult.error?.message || statusResult.error?.message || releaseResult.error.message)
       } else {
+        const statusData = Array.isArray(statusResult.data) ? statusResult.data[0] : statusResult.data
+        if (!statusData) {
+          setError('The assessment status could not be loaded. Please refresh and try again.')
+          setLoading(false)
+          return
+        }
         setFirearm(firearmResult.data)
         setClassItem(classResult.data)
-        setStatus(statusResult.data)
+        setStatus(statusData)
         setQuestionCount(questionCountResult.error
-          ? Number(statusResult.data.question_count || statusResult.data.total_questions) || null
+          ? Number(statusData.question_count || statusData.total_questions) || null
           : Number(questionCountResult.data) || null)
         setDurationMinutes(normalizeAssessmentDuration(releaseResult.data?.duration_minutes))
-        if (statusResult.data.attempt_status === 'submitted') {
+        if (statusData.attempt_status === 'submitted') {
           assessmentFinishedRef.current = true
-          setAssessmentLock(firearmId, false, classId)
-          if (statusResult.data.attempt_id) {
-            clearActiveAssessmentSession(sessionStorage, user?.id, statusResult.data.attempt_id)
-            removeStoredDraft(statusResult.data.attempt_id)
-            removeStoredTime(statusResult.data.attempt_id)
-            setAttemptId(statusResult.data.attempt_id)
+          setAssessmentLock(firearmId, false, classId, user?.id)
+          if (statusData.attempt_id) {
+            clearActiveAssessmentSession(sessionStorage, user?.id, statusData.attempt_id)
+            removeStoredDraft(statusData.attempt_id)
+            removeStoredTime(statusData.attempt_id)
+            setAttemptId(statusData.attempt_id)
           }
           setResult({
-            correct_count: statusResult.data.correct_count,
-            total_questions: statusResult.data.total_questions,
-            percentage: statusResult.data.percentage,
+            correct_count: statusData.correct_count,
+            total_questions: statusData.total_questions,
+            percentage: statusData.percentage,
           })
-        } else if (statusResult.data.attempt_status === 'in_progress') {
+        } else if (statusData.attempt_status === 'in_progress') {
           const [integrityResult, checkpointResult, attemptResult] = await Promise.all([
             supabase.rpc('get_my_assessment_integrity_status', {
-              target_attempt_id: statusResult.data.attempt_id,
+              target_attempt_id: statusData.attempt_id,
             }),
             supabase.rpc('get_my_assessment_checkpoint', {
-              target_attempt_id: statusResult.data.attempt_id,
+              target_attempt_id: statusData.attempt_id,
             }),
             supabase
               .from('assessment_attempts')
               .select('id, status, timer_started_at, has_activity, integrity_locked_at, connection_interrupted_at')
-              .eq('id', statusResult.data.attempt_id)
+              .eq('id', statusData.attempt_id)
               .maybeSingle(),
           ])
           if (!active) return
@@ -236,14 +242,14 @@ export default function AssessmentPage() {
           if (attemptResult.error) {
             setError(attemptResult.error.message)
           } else if (assessmentAttemptWasReset(attemptResult.data)) {
-            clearFacultyReset(statusResult.data.attempt_id, statusResult.data)
+            clearFacultyReset(statusData.attempt_id, statusData)
           } else {
             if (integrityResult.error) {
               setError(integrityResult.error.message)
             } else if (integrityResult.data?.is_locked) {
               setIntegrityBlocked(integrityResult.data)
             }
-            const checkpoint = checkpointResult.data
+            const checkpoint = Array.isArray(checkpointResult.data) ? checkpointResult.data[0] : checkpointResult.data
             const interruptedAt = attemptResult.data?.connection_interrupted_at
             if (interruptedAt) {
               connectionInterruptedRef.current = true
@@ -256,8 +262,8 @@ export default function AssessmentPage() {
                 remainingSeconds: checkpoint?.remaining_seconds,
               })
             }
-            setAssessmentLock(firearmId, true, classId)
-            markActiveAssessmentSession(sessionStorage, user?.id, statusResult.data.attempt_id)
+            setAssessmentLock(firearmId, true, classId, user?.id)
+            markActiveAssessmentSession(sessionStorage, user?.id, statusData.attempt_id)
           }
         }
       }
@@ -325,7 +331,7 @@ export default function AssessmentPage() {
       connectionDetectedAtRef.current = null
       removeStoredDraft(attemptId)
       removeStoredTime(attemptId)
-      setAssessmentLock(firearmId, false, classId)
+      setAssessmentLock(firearmId, false, classId, user?.id)
       clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
       setConnectionInterrupted(null)
       setIntegrityBlocked(null)
@@ -358,31 +364,25 @@ export default function AssessmentPage() {
     setStarting(true)
     setError('')
 
-    const { data, error: startError } = await supabase.rpc('start_assessment', {
-      target_class_id: classId,
-      target_firearm_id: firearmId,
-    })
+    try {
+      const { data, error: startError } = await supabase.rpc('start_assessment', {
+        target_class_id: classId,
+        target_firearm_id: firearmId,
+      })
+      if (startError) throw startError
 
-    if (startError) {
-      setError(startError.message)
-      setStarting(false)
-      startingAssessmentRef.current = false
-      return false
-    } else if (!data?.length) {
-      setError('No assessment questions are available for this firearm.')
-      setStarting(false)
-      startingAssessmentRef.current = false
-      return false
-    } else {
+      const questionRows = Array.isArray(data) ? data : data ? [data] : []
+      const startedAttemptId = questionRows[0]?.attempt_id
+      if (!questionRows.length || !startedAttemptId) {
+        throw new Error('No assessment questions are available for this firearm.')
+      }
+
       const { data: timerStartedAt, error: timerError } = await supabase.rpc(
         'begin_assessment_timer',
-        { target_attempt_id: data[0].attempt_id },
+        { target_attempt_id: startedAttemptId },
       )
       if (timerError || !timerStartedAt) {
-        setError(timerError?.message || 'The assessment timer could not be started.')
-        setStarting(false)
-        startingAssessmentRef.current = false
-        return false
+        throw timerError || new Error('The assessment timer could not be started.')
       }
 
       const [{ data: refreshedStatus, error: statusError }, { data: checkpoint }] = await Promise.all([
@@ -390,60 +390,73 @@ export default function AssessmentPage() {
         'get_assessment_status',
         { target_class_id: classId, target_firearm_id: firearmId },
         ),
-        supabase.rpc('get_my_assessment_checkpoint', { target_attempt_id: data[0].attempt_id }),
+        supabase.rpc('get_my_assessment_checkpoint', { target_attempt_id: startedAttemptId }),
       ])
-      const attemptRevision = statusError ? timerStartedAt : refreshedStatus.attempt_started_at
+      const normalizedStatus = Array.isArray(refreshedStatus) ? refreshedStatus[0] : refreshedStatus
+      const normalizedCheckpoint = Array.isArray(checkpoint) ? checkpoint[0] : checkpoint
+      const attemptRevision = statusError
+        ? timerStartedAt
+        : normalizedStatus?.attempt_started_at || timerStartedAt
       const maximumSeconds = durationMinutes * 60
       const restoredTime = restoreAssessmentTimeState(
-        readStoredTime(data[0].attempt_id),
+        readStoredTime(startedAttemptId),
         { attemptStartedAt: attemptRevision, maximumSeconds },
       )
       const draft = attemptRevision
         ? restoreAssessmentDraft(
-            readStoredDraft(data[0].attempt_id),
-            { attemptStartedAt: attemptRevision, questions: data },
+            readStoredDraft(startedAttemptId),
+            { attemptStartedAt: attemptRevision, questions: questionRows },
           )
         : { answers: {}, currentIndex: 0 }
-      const serverRemaining = Number.isInteger(checkpoint?.remaining_seconds)
-        ? checkpoint.remaining_seconds
+      const serverRemaining = Number.isInteger(normalizedCheckpoint?.remaining_seconds)
+        ? normalizedCheckpoint.remaining_seconds
         : null
       const resumedTime = [restoredTime, serverRemaining]
         .filter((value) => Number.isInteger(value))
         .reduce((lowest, value) => Math.min(lowest, value), maximumSeconds)
       const serverIndex = Math.min(
-        Math.max(Number(checkpoint?.question_index) || 0, 0),
-        Math.max(data.length - 1, 0),
+        Math.max(Number(normalizedCheckpoint?.question_index) || 0, 0),
+        Math.max(questionRows.length - 1, 0),
       )
 
-      const restoredAnswers = { ...(checkpoint?.answers || {}), ...draft.answers }
+      const restoredAnswers = { ...(normalizedCheckpoint?.answers || {}), ...draft.answers }
       const restoredIndex = safeAssessmentQuestionIndex(
-        data,
+        questionRows,
         restoredAnswers,
         Math.max(draft.currentIndex, serverIndex),
       )
 
-      setQuestions(data)
-      setQuestionCount(data.length)
-      setAssessmentLock(firearmId, true, classId)
-      markActiveAssessmentSession(sessionStorage, user?.id, data[0].attempt_id)
-      setAttemptId(data[0].attempt_id)
+      setQuestions(questionRows)
+      setQuestionCount(questionRows.length)
+      setAssessmentLock(firearmId, true, classId, user?.id)
+      markActiveAssessmentSession(sessionStorage, user?.id, startedAttemptId)
+      setAttemptId(startedAttemptId)
       setAttemptStartedAt(attemptRevision)
       setTimeRemaining(resumedTime)
       setActivityRecorded(false)
       answersRef.current = restoredAnswers
       setAnswers(restoredAnswers)
       setCurrentIndex(restoredIndex)
-      if (!statusError) setStatus(refreshedStatus)
+      if (!statusError && normalizedStatus) setStatus(normalizedStatus)
+      return true
+    } catch (startFailure) {
+      assessmentFinishedRef.current = true
+      setAssessmentLock(firearmId, false, classId, user?.id)
+      setError(startFailure?.message || 'The assessment could not be started. Please try again.')
+      return false
+    } finally {
+      setStarting(false)
+      startingAssessmentRef.current = false
     }
-
-    setStarting(false)
-    startingAssessmentRef.current = false
-    return true
   }
 
   async function submitAssessment(submittedAnswers = answersRef.current) {
     if (!attemptId) {
       setError('This assessment attempt is not ready. Refresh the page and resume the assessment before submitting.')
+      return false
+    }
+    if (integrityViolationRef.current || connectionInterruptedRef.current) {
+      setError('This assessment is paused and cannot be submitted until faculty allows you to continue.')
       return false
     }
     if (!allQuestionsAnswered(questions, submittedAnswers)) {
@@ -482,7 +495,7 @@ export default function AssessmentPage() {
       connectionDetectedAtRef.current = null
       removeStoredDraft(attemptId)
       removeStoredTime(attemptId)
-      setAssessmentLock(firearmId, false, classId)
+      setAssessmentLock(firearmId, false, classId, user?.id)
       clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
       setConnectionInterrupted(null)
       setIntegrityBlocked(null)
@@ -499,6 +512,7 @@ export default function AssessmentPage() {
   }
 
   async function saveAnswer(question, answer) {
+    if (integrityViolationRef.current || connectionInterruptedRef.current) return false
     if (!attemptId || !question || !isAnswered(answer)) return true
     const { error: saveError } = await supabase.rpc('save_assessment_response', {
       target_attempt_id: attemptId,
@@ -518,7 +532,8 @@ export default function AssessmentPage() {
   }
 
   async function advanceQuestion() {
-    if (!currentQuestion || !isAnswered(currentAnswer) || submitting || advancingQuestionRef.current) return
+    if (integrityViolationRef.current || connectionInterruptedRef.current
+      || !currentQuestion || !isAnswered(currentAnswer) || submitting || advancingQuestionRef.current) return
     advancingQuestionRef.current = true
     try {
       const latestAnswers = {
@@ -594,7 +609,7 @@ export default function AssessmentPage() {
       }
     }
     clearActiveAssessmentSession(sessionStorage, user?.id, attemptId)
-    setAssessmentLock(firearmId, false, classId)
+    setAssessmentLock(firearmId, false, classId, user?.id)
     setIntegrityBlocked({
       is_locked: true,
       reason,

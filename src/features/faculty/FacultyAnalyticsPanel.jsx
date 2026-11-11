@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
+import { assessmentAttemptIsSubmitted } from '../shared/current-assessment-attempts.js'
 
 const minimumDifficultySample = 3
 
@@ -38,7 +39,7 @@ export default function FacultyAnalyticsPanel({ attempts, classes, enrollments, 
   const scopedClassIds = new Set(selectedClassId === 'all' ? activeClasses.map((item) => item.id) : [selectedClassId])
   const scopedEnrollments = enrollments.filter((item) => item.status === 'active' && scopedClassIds.has(item.class_id))
   const scopedEnrollmentKeys = new Set(scopedEnrollments.map((item) => `${item.class_id}:${item.student_id}`))
-  const scopedAttempts = attempts.filter((item) => item.status === 'submitted' && scopedEnrollmentKeys.has(`${item.class_id}:${item.student_id}`))
+  const scopedAttempts = attempts.filter((item) => assessmentAttemptIsSubmitted(item) && scopedEnrollmentKeys.has(`${item.class_id}:${item.student_id}`))
   const scopedRows = resultRows.filter((item) => (
     scopedClassIds.has(item.class_id)
     && scopedEnrollmentKeys.has(`${item.class_id}:${item.student_id}`)
@@ -53,7 +54,7 @@ export default function FacultyAnalyticsPanel({ attempts, classes, enrollments, 
     const students = enrollments.filter((entry) => entry.class_id === item.id && entry.status === 'active').length
     const activeStudentIds = new Set(enrollments.filter((entry) => entry.class_id === item.id && entry.status === 'active').map((entry) => entry.student_id))
     const classReleases = releases.filter((entry) => entry.class_id === item.id).length
-    const classAttempts = attempts.filter((entry) => entry.class_id === item.id && entry.status === 'submitted' && activeStudentIds.has(entry.student_id))
+    const classAttempts = attempts.filter((entry) => entry.class_id === item.id && assessmentAttemptIsSubmitted(entry) && activeStudentIds.has(entry.student_id))
     const classExpected = students * classReleases
     return { id: item.id, name: item.name, students, completion: classExpected ? Math.min(100, (classAttempts.length / classExpected) * 100) : 0, average: mean(classAttempts.map((entry) => entry.percentage)), passing: classAttempts.length ? (classAttempts.filter((entry) => Number(entry.percentage) >= 75).length / classAttempts.length) * 100 : 0 }
   }).filter((item) => selectedClassId === 'all' || item.id === selectedClassId)

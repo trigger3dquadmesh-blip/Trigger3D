@@ -4,6 +4,8 @@ import AssessmentReleasePanel from './AssessmentReleasePanel.jsx'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
 import FacultyClassAnalytics from './FacultyClassAnalytics.jsx'
 import { assessmentAttemptHasStarted } from '../student/assessment/assessment-lock.js'
+import { selectCurrentAssessmentAttempt } from './assessment-status.js'
+import { assessmentAttemptIsSubmitted } from '../shared/current-assessment-attempts.js'
 
 function percentage(value) {
   const number = Number(value || 0)
@@ -51,8 +53,16 @@ export default function FacultyClassWorkspace({ attempts, classItem, enrollments
   const removedEnrollments = enrollments.filter((item) => item.status === 'removed')
   const activeStudentIds = new Set(activeEnrollments.map((item) => item.student?.id || item.student_id))
   const allClassAttempts = attempts.filter((item) => item.class_id === classItem.id)
-  const submittedClassAttempts = allClassAttempts.filter((item) => item.status === 'submitted')
-  const classAttempts = submittedClassAttempts.filter((item) => activeStudentIds.has(item.student_id))
+  const classAttemptsByAssignment = new Map()
+  allClassAttempts
+    .filter((item) => activeStudentIds.has(item.student_id))
+    .forEach((attempt) => {
+      const key = `${attempt.student_id}:${attempt.firearm_id}`
+      classAttemptsByAssignment.set(key, [...(classAttemptsByAssignment.get(key) || []), attempt])
+    })
+  const classAttempts = [...classAttemptsByAssignment.values()]
+    .map(selectCurrentAssessmentAttempt)
+    .filter(assessmentAttemptIsSubmitted)
   const classReleases = releases.filter((item) => item.class_id === classItem.id)
   const availableAssessments = firearms.filter((item) => item.status === 'ready')
   const expected = activeEnrollments.length * classReleases.length
@@ -63,17 +73,25 @@ export default function FacultyClassWorkspace({ attempts, classItem, enrollments
   const tabs = [['overview', 'Overview'], ['students', 'Students'], ['assessments', 'Assessments'], ['analytics', 'Analytics'], ['settings', 'Settings']]
   const studentRows = enrollments.filter((enrollment) => enrollment.status === studentStatus).map((enrollment) => {
     const studentId = enrollment.student?.id || enrollment.student_id
-    const studentAttempts = allClassAttempts.filter((item) => item.student_id === studentId).sort((a, b) => new Date(b.submitted_at || b.started_at || 0) - new Date(a.submitted_at || a.started_at || 0))
-    const completedAttempts = studentAttempts.filter((item) => (
-      item.status === 'submitted' && Boolean(item.timer_started_at || item.has_activity)
-    ))
-    const resettableAttempts = studentAttempts.filter((item) => (
-      (item.status === 'submitted' && Boolean(item.timer_started_at || item.has_activity))
+    const studentAttempts = allClassAttempts.filter((item) => item.student_id === studentId)
+    const attemptsByFirearm = new Map()
+    studentAttempts.forEach((attempt) => {
+      attemptsByFirearm.set(attempt.firearm_id, [
+        ...(attemptsByFirearm.get(attempt.firearm_id) || []),
+        attempt,
+      ])
+    })
+    const currentAttempts = [...attemptsByFirearm.values()]
+      .map(selectCurrentAssessmentAttempt)
+      .filter(Boolean)
+    const completedAttempts = currentAttempts.filter(assessmentAttemptIsSubmitted)
+    const resettableAttempts = currentAttempts.filter((item) => (
+      assessmentAttemptIsSubmitted(item)
       || (assessmentAttemptHasStarted(item) && (item.integrity_locked_at || item.connection_interrupted_at))
     ))
-    const pausedCount = studentAttempts.filter((item) => assessmentAttemptHasStarted(item) && item.connection_interrupted_at).length
-    const lockedCount = studentAttempts.filter((item) => assessmentAttemptHasStarted(item) && item.integrity_locked_at && !item.connection_interrupted_at).length
-    const inProgressCount = studentAttempts.filter((item) => assessmentAttemptHasStarted(item) && !item.integrity_locked_at && !item.connection_interrupted_at).length
+    const pausedCount = currentAttempts.filter((item) => assessmentAttemptHasStarted(item) && item.connection_interrupted_at).length
+    const lockedCount = currentAttempts.filter((item) => assessmentAttemptHasStarted(item) && !item.connection_interrupted_at && item.integrity_locked_at).length
+    const inProgressCount = currentAttempts.filter((item) => assessmentAttemptHasStarted(item) && !item.integrity_locked_at && !item.connection_interrupted_at).length
     const assessmentStates = [
       pausedCount && { className: 'paused', label: 'Paused' },
       lockedCount && { className: 'locked', label: 'Locked' },
@@ -82,7 +100,7 @@ export default function FacultyClassWorkspace({ attempts, classItem, enrollments
     ].filter(Boolean)
     if (!assessmentStates.length) assessmentStates.push({ className: 'not-started', label: 'Not started' })
     const assessmentActionLabel = pausedCount
-      ? 'Approve paused assessment'
+      ? 'Manage paused assessment'
       : lockedCount
         ? 'Manage locked assessment'
         : 'Manage completed assessment'

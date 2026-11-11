@@ -26,9 +26,11 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
   const [loadKey, setLoadKey] = useState(0)
   const activeFirearmId = firearmId || initialFirearmId || firearms[0]?.id || ''
   const suppliedFirearm = firearms.find((item) => item.id === activeFirearmId)
+  const suppliedFirearmSnapshot = suppliedFirearm ? JSON.stringify(suppliedFirearm) : ''
 
   useEffect(() => {
     if (!activeFirearmId) return undefined
+    const suppliedFirearmData = suppliedFirearmSnapshot ? JSON.parse(suppliedFirearmSnapshot) : null
     let current = true
     async function load() {
       setLoading(true)
@@ -36,12 +38,12 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
       setSelectedName(null)
       setModelUrl('')
       void loadFirearmCanvas()
-      const suppliedModelUrl = suppliedFirearm
-        ? getFirearmModelUrl(suppliedFirearm.glb_storage_path, suppliedFirearm.identifier, suppliedFirearm.name)
+      const suppliedModelUrl = suppliedFirearmData
+        ? getFirearmModelUrl(suppliedFirearmData.glb_storage_path, suppliedFirearmData.identifier, suppliedFirearmData.name)
         : null
       const [firearmResult, componentsResult] = await Promise.all([
-        suppliedFirearm
-          ? Promise.resolve({ data: suppliedFirearm, error: null })
+        suppliedFirearmData
+          ? Promise.resolve({ data: suppliedFirearmData, error: null })
           : supabase.from('firearms').select('id, identifier, name, caliber, description, firearm_type, tutorial_url, model_credit, status, created_at, glb_storage_path').eq('id', activeFirearmId).single(),
         supabase.from('firearm_components').select('id, mesh_name, category, purpose, description, display_order, explode_x, explode_y, explode_z, explode_order, assembly_group').eq('firearm_id', activeFirearmId).order('display_order'),
       ])
@@ -68,7 +70,7 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
     }
     void load()
     return () => { current = false }
-  }, [activeFirearmId, loadKey, suppliedFirearm])
+  }, [activeFirearmId, loadKey, suppliedFirearmSnapshot])
 
   const selected = components.find((item) => item.mesh_name === selectedName)
   const visible = components.filter((item) => item.mesh_name.replaceAll('_', ' ').toLowerCase().includes(query.toLowerCase()))

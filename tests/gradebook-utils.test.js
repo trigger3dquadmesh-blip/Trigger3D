@@ -13,6 +13,7 @@ const gradebook = buildGradebookData({
       student_id: 'student-1',
       firearm_id: 'firearm-1',
       status: 'submitted',
+      has_activity: true,
       percentage: 86.5,
       correctCount: 39,
       totalQuestions: 45,

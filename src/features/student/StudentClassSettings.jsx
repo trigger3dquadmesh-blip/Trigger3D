@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import useAuth from '../../auth/useAuth.js'
 import { supabase } from '../../lib/supabase.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
 
 export default function StudentClassSettings() {
+  const { profile } = useAuth()
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
   const [target, setTarget] = useState(null)
@@ -12,11 +14,12 @@ export default function StudentClassSettings() {
   const [notice, setNotice] = useState('')
 
   useEffect(() => {
+    if (!profile?.id) return undefined
     let active = true
     async function loadClasses() {
-      let { data, error: loadError } = await supabase.from('enrollments').select('id, class:classes!enrollments_class_id_fkey(id, name, term, archived_at)').eq('status', 'active')
+      let { data, error: loadError } = await supabase.from('enrollments').select('id, class:classes!enrollments_class_id_fkey(id, name, term, archived_at)').eq('student_id', profile.id).eq('status', 'active')
       if (loadError && /term/i.test(loadError.message || '')) {
-        const legacyResult = await supabase.from('enrollments').select('id, class:classes!enrollments_class_id_fkey(id, name, archived_at)').eq('status', 'active')
+        const legacyResult = await supabase.from('enrollments').select('id, class:classes!enrollments_class_id_fkey(id, name, archived_at)').eq('student_id', profile.id).eq('status', 'active')
         data = (legacyResult.data || []).map((item) => ({ ...item, class: item.class ? { ...item.class, term: 'Current term' } : item.class }))
         loadError = legacyResult.error
       }
@@ -27,7 +30,7 @@ export default function StudentClassSettings() {
     }
     loadClasses()
     return () => { active = false }
-  }, [])
+  }, [profile?.id])
 
   async function leaveClass() {
     if (!target || confirmation.trim() !== target.class.name) return

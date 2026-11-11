@@ -22,7 +22,7 @@ test('tracks firearm views separately for every student and class', () => {
 
 test('treats a submitted assessment as proof that its firearm was viewed', () => {
   const attempts = [
-    { class_id: 'class-a', firearm_id: 'firearm-a', status: 'submitted' },
+    { class_id: 'class-a', firearm_id: 'firearm-a', status: 'submitted', has_activity: true },
     { class_id: 'class-a', firearm_id: 'firearm-b', status: 'in_progress' },
   ]
 

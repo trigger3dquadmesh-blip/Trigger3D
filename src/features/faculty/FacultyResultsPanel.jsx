@@ -73,7 +73,7 @@ export default function FacultyResultsPanel({ selectedClass }) {
       supabase.from('firearms').select('id, name, caliber').eq('status', 'ready'),
       supabase
         .from('assessment_attempts')
-        .select('id, student_id, firearm_id, status, percentage, has_activity, attempt_number')
+        .select('id, student_id, firearm_id, status, percentage, has_activity, attempt_number, started_at, submitted_at, timer_started_at, integrity_locked_at, connection_interrupted_at, checkpoint_updated_at')
         .eq('class_id', selectedClass.id),
     ])
 

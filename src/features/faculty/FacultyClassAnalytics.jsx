@@ -1,3 +1,5 @@
+import { assessmentAttemptIsSubmitted } from '../shared/current-assessment-attempts.js'
+
 function metric(value) {
   const number = Number(value || 0)
   return Number.isInteger(number) ? `${number}%` : `${number.toFixed(1)}%`
@@ -9,7 +11,7 @@ export default function FacultyClassAnalytics({ attempts, classItem, enrollments
   const activeStudents = enrollments.filter((item) => item.status === 'active')
   const activeStudentIds = new Set(activeStudents.map((item) => item.student?.id || item.student_id))
   const activeAttempts = attempts.filter((item) => item.class_id === classItem.id && activeStudentIds.has(item.student_id))
-  const submitted = activeAttempts.filter((item) => item.status === 'submitted')
+  const submitted = activeAttempts.filter(assessmentAttemptIsSubmitted)
   const classReleases = releases.filter((item) => item.class_id === classItem.id)
   const assigned = activeStudents.length * classReleases.length
   const inProgress = activeAttempts.filter((item) => item.status === 'in_progress').length

@@ -2215,6 +2215,10 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .student-firearm-card > footer a:hover { border-color: #109d1a; color: #109d1a; }
 .student-firearm-card > footer .student-firearm-locked-action { display: flex; min-height: 38px; align-items: center; justify-content: center; width: 100%; border: 1px solid #c4cbc7; border-radius: 7px; background: #edf0ee; color: #6b756f; cursor: not-allowed; font-size: 0.72rem; font-weight: 700; opacity: 1; }
 .student-firearm-card .student-firearm-lock-note { margin: 8px 0 0; color: #6b756f; font-size: 0.68rem; line-height: 1.45; }
+.student-firearm-card > footer .student-firearm-locked-action.paused { border-color: #e1b35f; color: #875500; background: #fff5dc; }
+.student-firearm-card .student-firearm-lock-note.paused { color: #875500; }
+.student-firearm-card > footer .student-firearm-locked-action.locked { border-color: #e1aaaa; color: #a51e1e; background: #fff0f0; }
+.student-firearm-card .student-firearm-lock-note.locked { color: #a51e1e; }
 .student-class-settings-panel { width: min(100%, 620px); margin-top: 20px; padding: 22px; }
 .student-class-settings-panel h2 { margin: 0; font-size: 0.9rem; }
 .student-class-settings-panel p { margin: 12px 0 18px; color: var(--admin-muted); font-size: 0.74rem; line-height: 1.55; }
@@ -2273,9 +2277,38 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
 .student-assessment-list h2 span.locked { border-color: #efaaaa; color: #b42318; background: #fff0f0; }
 .student-assessment-list p, .student-assessment-list small { display: block; margin: 6px 0 0; color: var(--admin-muted); font-size: 0.66rem; }
 .student-assessment-list > article > div > small { color: #07951a; font-weight: 700; }
+.student-assessment-list > article > div > small.paused { color: #9a5b00; }
+.student-assessment-list > article > div > small.locked { color: #b42318; }
 .student-assessment-list article > a:not(.student-primary-action) { padding: 8px 13px; border: 1px solid var(--admin-border); border-radius: 7px; color: var(--admin-text); font-size: 0.7rem; text-decoration: none; }
 .student-assessment-pending-action { min-height: 36px; padding: 8px 14px; border: 1px solid #e1b35f; border-radius: 7px; color: #875500; background: #fff5dc; font: inherit; font-size: 0.7rem; font-weight: 700; cursor: not-allowed; opacity: 1; }
 .student-assessment-pending-action.locked { border-color: #e1aaaa; color: #a51e1e; background: #fff0f0; }
+.student-viewer-lock-card { width: min(100%, 620px); border-top: 4px solid #8b9690; text-align: center; }
+.student-viewer-lock-card.paused { border-top-color: #d9981e; background: #fffaf0; }
+.student-viewer-lock-card.locked { border-top-color: #c32920; background: #fff7f7; }
+.student-viewer-lock-card .eyebrow { color: #68736d; }
+.student-viewer-lock-card.paused .eyebrow { color: #9a5b00; }
+.student-viewer-lock-card.locked .eyebrow { color: #b42318; }
+.student-viewer-status-page { display: grid; width: 100%; min-height: calc(100dvh - 54px); padding: clamp(20px, 4vw, 52px); place-items: center; background: var(--admin-bg); }
+.student-viewer-error-card { display: grid; width: min(100%, 680px); grid-template-columns: auto 1fr; align-items: start; gap: 18px 22px; padding: clamp(28px, 4vw, 44px); border: 1px solid var(--admin-border); border-top: 5px solid #109d1a; border-radius: 14px; color: var(--admin-text); background: var(--admin-card); box-shadow: 0 20px 50px rgb(23 32 25 / 13%); text-align: left; }
+.student-viewer-error-card .student-viewer-status-icon { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 12px; color: #109d1a; background: color-mix(in srgb, #109d1a 12%, var(--admin-card)); }
+.student-viewer-error-card .student-viewer-status-icon svg { width: 25px; height: 25px; }
+.student-viewer-error-copy { display: grid; gap: 8px; }
+.student-viewer-error-card .eyebrow { margin: 0; color: #0a8f18; font-size: 0.68rem; font-weight: 800; letter-spacing: .12em; }
+.student-viewer-error-card h1 { margin: 0; color: var(--admin-text); font-size: clamp(1.45rem, 3vw, 2.15rem); line-height: 1.15; }
+.student-viewer-error-copy > p:last-child { max-width: 500px; margin: 0; color: var(--admin-muted); font-size: 0.78rem; line-height: 1.65; }
+.student-viewer-error-card footer { display: flex; flex-wrap: wrap; grid-column: 1 / -1; justify-content: center; gap: 10px; margin-top: 10px; }
+.student-viewer-retry-button, .student-viewer-return-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; border-radius: 8px; font: inherit; font-size: 0.72rem; font-weight: 700; text-decoration: none; cursor: pointer; }
+.student-viewer-retry-button svg, .student-viewer-return-button svg { width: 15px; height: 15px; }
+.student-viewer-retry-button { border: 1px solid #109d1a; color: #fff; background: #109d1a; }
+.student-viewer-retry-button:hover { background: #0b8515; }
+.student-viewer-return-button { border: 1px solid var(--admin-border); color: var(--admin-text); background: var(--admin-card); }
+.student-viewer-return-button:hover { border-color: #109d1a; color: #0a8f18; background: color-mix(in srgb, #109d1a 6%, var(--admin-card)); }
+@media (max-width: 560px) {
+  .student-viewer-error-card { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .student-viewer-error-copy { justify-items: center; }
+  .student-viewer-error-card footer { width: 100%; grid-column: 1; flex-direction: column; }
+  .student-viewer-retry-button, .student-viewer-return-button { width: 100%; }
+}
 .student-join-dialog { width: min(100% - 32px, 505px); overflow: hidden; border-radius: 12px; color: var(--admin-text); background: var(--admin-card); }
 .student-join-dialog header { display: flex; align-items: start; justify-content: space-between; padding: 22px 22px 0; }
 .student-join-dialog h2 { margin: 0; font-size: 0.9rem; }

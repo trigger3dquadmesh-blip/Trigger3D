@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { copyText } from '../../lib/clipboard.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
 import { filterClasses, getClassTerm, getClassTerms } from './class-utils.js'
+import { assessmentAttemptIsSubmitted } from '../shared/current-assessment-attempts.js'
 
 function SmallIcon({ name }) {
   const paths = {
@@ -76,7 +77,7 @@ export default function FacultyClassesPanel({ activeTerm, attempts, className, c
             const classReleases = releases.filter((entry) => entry.class_id === item.id)
             const expected = students.length * classReleases.length
             const activeAttempts = attempts.filter((entry) => entry.class_id === item.id && activeStudentIds.has(entry.student_id))
-            const submitted = activeAttempts.filter((entry) => entry.status === 'submitted').length
+            const submitted = activeAttempts.filter(assessmentAttemptIsSubmitted).length
             const completion = expected ? Math.min(100, Math.round((submitted / expected) * 100)) : 0
             const lastActivity = activeAttempts.map((entry) => entry.submitted_at || entry.started_at).filter(Boolean).sort().at(-1)
             const feedback = copyFeedback.code === item.code ? copyFeedback.status : ''
@@ -93,7 +94,7 @@ export default function FacultyClassesPanel({ activeTerm, attempts, className, c
             const classReleases = releases.filter((entry) => entry.class_id === item.id)
             const expected = students.length * classReleases.length
             const activeAttempts = attempts.filter((entry) => entry.class_id === item.id && activeStudentIds.has(entry.student_id))
-            const submitted = activeAttempts.filter((entry) => entry.status === 'submitted').length
+            const submitted = activeAttempts.filter(assessmentAttemptIsSubmitted).length
             const completion = expected ? Math.min(100, Math.round((submitted / expected) * 100)) : 0
             const lastActivity = activeAttempts.map((entry) => entry.submitted_at || entry.started_at).filter(Boolean).sort().at(-1)
             const feedback = copyFeedback.code === item.code ? copyFeedback.status : ''

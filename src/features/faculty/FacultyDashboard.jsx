@@ -16,11 +16,12 @@ import useResponsiveSidebar from '../../components/useResponsiveSidebar.js'
 import useDashboardTransition from '../../components/useDashboardTransition.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
 import { assessmentAttemptHasStarted } from '../student/assessment/assessment-lock.js'
+import { assessmentAttemptIsSubmitted } from '../shared/current-assessment-attempts.js'
 
 const facultyPages = ['overview', 'classes', 'class', 'students', 'assessments', 'results']
 const facultyDashboardPageKey = 'trigger3d.faculty.active-page'
 const facultyLoadingLabels = { overview: 'Loading dashboard…', classes: 'Loading classes…', class: 'Loading class…', students: 'Loading students…', assessments: 'Loading assessments…', results: 'Loading results…' }
-const facultyAttemptFields = 'id, class_id, student_id, firearm_id, status, percentage, started_at, submitted_at, timer_started_at, has_activity, integrity_locked_at, connection_interrupted_at, checkpoint_question_index, checkpoint_remaining_seconds, checkpoint_updated_at'
+const facultyAttemptFields = 'id, class_id, student_id, firearm_id, status, percentage, attempt_number, started_at, submitted_at, timer_started_at, has_activity, integrity_locked_at, connection_interrupted_at, checkpoint_question_index, checkpoint_remaining_seconds, checkpoint_updated_at'
 
 export default function FacultyDashboard() {
   return <LiveFacultyDashboard />
@@ -114,6 +115,10 @@ function LiveFacultyDashboard() {
     () => classes.map((item) => item.id).sort().join(','),
     [classes],
   )
+  const readyFirearms = useMemo(
+    () => overviewData.firearms.filter((item) => item.status === 'ready'),
+    [overviewData.firearms],
+  )
 
   const loadEnrollments = useCallback(async (classId) => {
     const { data, error: enrollmentError } = await supabase
@@ -169,7 +174,6 @@ function LiveFacultyDashboard() {
 
     const connectionPoll = window.setInterval(() => {
       void refreshAssessmentConnections({ markStale: true })
-      scheduleFullRefresh()
     }, 10000)
     const attemptPoll = window.setInterval(() => {
       void refreshAssessmentConnections()
@@ -201,7 +205,10 @@ function LiveFacultyDashboard() {
               : [...current.attempts, nextAttempt],
           }
         })
-        scheduleFullRefresh()
+        const changedStatus = changedAttempt?.status || payload.old?.status
+        if (payload.eventType === 'DELETE' || changedStatus === 'submitted') {
+          scheduleFullRefresh()
+        }
       })
       .subscribe()
 
@@ -210,13 +217,11 @@ function LiveFacultyDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'classes' }, scheduleFullRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'enrollments' }, scheduleFullRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_releases' }, scheduleFullRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_responses' }, scheduleFullRefresh)
       .subscribe()
 
     function refreshWhenVisible() {
       if (document.visibilityState === 'visible') {
         void refreshAssessmentConnections({ markStale: true })
-        scheduleFullRefresh()
       }
     }
 
@@ -365,7 +370,7 @@ function LiveFacultyDashboard() {
       .select('id, status, timer_started_at, has_activity, integrity_locked_at, connection_interrupted_at')
       .eq('id', attempt.id)
       .maybeSingle()
-    const canReset = currentAttempt?.status === 'submitted'
+    const canReset = assessmentAttemptIsSubmitted(currentAttempt)
       || (assessmentAttemptHasStarted(currentAttempt)
         && Boolean(currentAttempt.integrity_locked_at)
         && !currentAttempt.connection_interrupted_at)
@@ -497,7 +502,7 @@ function LiveFacultyDashboard() {
         )}
       </article>}
 
-      {activePage === 'assessments' && <AdminModelViewerPanel dataLoading={loading} firearms={overviewData.firearms.filter((item) => item.status === 'ready')} />}
+      {activePage === 'assessments' && <AdminModelViewerPanel dataLoading={loading} firearms={readyFirearms} />}
       {activePage === 'results' && <FacultyAnalyticsPanel attempts={overviewData.attempts} classes={classes} enrollments={overviewData.enrollments} loading={loading} refreshing={analyticsSyncing} releases={overviewData.releases} resultRows={overviewData.resultRows} />}
 
       {(error || notice) && (

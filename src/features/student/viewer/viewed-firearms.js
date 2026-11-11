@@ -16,6 +16,8 @@ export function hasSubmittedFirearmAssessment(attempts, classId, firearmId) {
   return attempts.some((attempt) => (
     attempt.class_id === classId
     && attempt.firearm_id === firearmId
-    && attempt.status === 'submitted'
+    && assessmentAttemptIsSubmitted(attempt)
   ))
 }
+import { assessmentAttemptIsSubmitted } from '../../shared/current-assessment-attempts.js'
+
