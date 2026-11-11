@@ -1,11 +1,10 @@
 import { assessmentAttemptIsSubmitted } from '../shared/current-assessment-attempts.js'
+import { minimumDifficultySample, validSubmittedResultRows } from './component-difficulty.js'
 
 function metric(value) {
   const number = Number(value || 0)
   return Number.isInteger(number) ? `${number}%` : `${number.toFixed(1)}%`
 }
-
-const minimumDifficultySample = 3
 
 export default function FacultyClassAnalytics({ attempts, classItem, enrollments, firearms, releases, resultRows }) {
   const activeStudents = enrollments.filter((item) => item.status === 'active')
@@ -22,7 +21,10 @@ export default function FacultyClassAnalytics({ attempts, classItem, enrollments
   const firearmScores = classReleases.map((release) => { const values = submitted.filter((item) => item.firearm_id === release.firearm_id); const firearm = firearms.find((item) => item.id === release.firearm_id); return { id: release.firearm_id, name: firearm?.name || 'Assessment', value: values.length ? values.reduce((sum, item) => sum + Number(item.percentage || 0), 0) / values.length : 0, attempts: values.length } })
   const componentDifficulty = (() => {
     const map = new Map()
-    resultRows.filter((row) => row.class_id === classItem.id && activeStudentIds.has(row.student_id)).forEach((row) => {
+    validSubmittedResultRows(
+      resultRows.filter((row) => row.class_id === classItem.id && activeStudentIds.has(row.student_id)),
+      submitted,
+    ).forEach((row) => {
       const key = `${row.firearm_name}:${row.component_name || 'Component'}`
       const item = map.get(key) || { name: (row.component_name || 'Component').replaceAll('_', ' '), incorrect: 0, total: 0, attemptIds: new Set() }
       item.total += 1

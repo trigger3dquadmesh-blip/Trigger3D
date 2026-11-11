@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
 import { assessmentAttemptIsSubmitted } from '../shared/current-assessment-attempts.js'
-
-const minimumDifficultySample = 3
+import { minimumDifficultySample, validSubmittedResultRows } from './component-difficulty.js'
 
 function mean(values) {
   return values.length ? values.reduce((total, value) => total + Number(value || 0), 0) / values.length : 0
@@ -40,10 +39,13 @@ export default function FacultyAnalyticsPanel({ attempts, classes, enrollments, 
   const scopedEnrollments = enrollments.filter((item) => item.status === 'active' && scopedClassIds.has(item.class_id))
   const scopedEnrollmentKeys = new Set(scopedEnrollments.map((item) => `${item.class_id}:${item.student_id}`))
   const scopedAttempts = attempts.filter((item) => assessmentAttemptIsSubmitted(item) && scopedEnrollmentKeys.has(`${item.class_id}:${item.student_id}`))
-  const scopedRows = resultRows.filter((item) => (
-    scopedClassIds.has(item.class_id)
-    && scopedEnrollmentKeys.has(`${item.class_id}:${item.student_id}`)
-  ))
+  const scopedRows = validSubmittedResultRows(
+    resultRows.filter((item) => (
+      scopedClassIds.has(item.class_id)
+      && scopedEnrollmentKeys.has(`${item.class_id}:${item.student_id}`)
+    )),
+    scopedAttempts,
+  )
   const scopedReleases = releases.filter((item) => scopedClassIds.has(item.class_id))
   const expected = scopedReleases.reduce((total, release) => total + scopedEnrollments.filter((item) => item.class_id === release.class_id).length, 0)
   const completion = expected ? Math.min(100, (scopedAttempts.length / expected) * 100) : 0
