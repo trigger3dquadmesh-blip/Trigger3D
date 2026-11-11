@@ -6,7 +6,8 @@ import { supabase } from '../lib/supabase.js'
 import DashboardLoading from './DashboardLoading.jsx'
 
 export default function AdminMfaGuard({ allowEnrollment = false, children }) {
-  const { loading, role, user } = useAuth()
+  const { loading, role, user } = useAuth() 
+  const userId = user?.id
   const location = useLocation()
   const [checking, setChecking] = useState(true)
   const [requirement, setRequirement] = useState('not-required')
@@ -14,7 +15,7 @@ export default function AdminMfaGuard({ allowEnrollment = false, children }) {
 
   useEffect(() => {
     let active = true
-    if (loading || !user || !['admin', 'faculty'].includes(role)) {
+    if (loading || !userId || !['admin', 'faculty'].includes(role)) {
       // Reset the previous administrator check when the signed-in account changes.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setChecking(false)
