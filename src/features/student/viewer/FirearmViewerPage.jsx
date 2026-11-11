@@ -7,7 +7,7 @@ import { supabase } from '../../../lib/supabase.js'
 import { getAssessmentAccessState, getAssessmentLockKey, setAssessmentLock } from '../assessment/assessment-lock.js'
 import useAuth from '../../../auth/useAuth.js'
 import { markFirearmViewed } from './viewed-firearms.js'
-import { selectCurrentAssessmentAttempt } from '../../shared/current-assessment-attempts.js'
+import { assessmentAttemptIsSubmitted, selectCurrentAssessmentAttempt } from '../../shared/current-assessment-attempts.js'
 
 // Keep this query limited to the access-control columns used by the assessment
 // flow. Some deployed databases do not include the newer audit/timestamp fields;
@@ -22,7 +22,7 @@ export default function FirearmViewerPage() {
   const classId = searchParams.get('classId') || ''
   const classQuery = classId ? `?classId=${encodeURIComponent(classId)}` : ''
   const [firearm, setFirearm] = useState(null)
-  const [status, setStatus] = useState(null)
+  const [assessmentCompleted, setAssessmentCompleted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [accessState, setAccessState] = useState('available')
@@ -58,15 +58,10 @@ export default function FirearmViewerPage() {
         const nextAccessState = getAssessmentAccessState(currentAttempt)
         const assessmentStarted = nextAccessState !== 'available'
         setFirearm(firearmResult.data)
-        // Completion status controls only the optional assessment shortcut. It
-        // must never prevent a permitted student from opening the 3D model.
-        const { data: assessmentStatus, error: statusError } = await supabase.rpc('get_assessment_status', {
-          target_class_id: classId,
-          target_firearm_id: firearmId,
-        })
-        if (statusError) console.warn('Assessment status was unavailable while opening the firearm viewer.', statusError)
-        if (!active) return
-        setStatus(statusError ? null : assessmentStatus)
+        // Whether a faculty member opened or closed an assessment must never
+        // affect model loading. Only the student's actual attempt determines
+        // whether the viewer is available and whether the shortcut is shown.
+        setAssessmentCompleted(assessmentAttemptIsSubmitted(currentAttempt))
         setAccessState(nextAccessState)
         if (!assessmentStarted) {
           // A faculty reset clears the database lock. Remove any stale lock that
@@ -109,6 +104,7 @@ export default function FirearmViewerPage() {
       if (active && !attemptError) {
         const currentAttempt = selectCurrentAssessmentAttempt(data || [])
         const nextAccessState = getAssessmentAccessState(currentAttempt)
+        setAssessmentCompleted(assessmentAttemptIsSubmitted(currentAttempt))
         setAccessState(nextAccessState)
         if (nextAccessState === 'available') setAssessmentLock(firearmId, false, classId, profile.id)
       }
@@ -157,9 +153,8 @@ export default function FirearmViewerPage() {
     return <main className="page status-page"><section className={`card student-viewer-lock-card ${accessState}`}><p className="eyebrow">{eyebrow}</p><h1>Model viewing is locked</h1><p>{message}</p>{accessState === 'in_progress' && <Link className="assessment-button" to={`/student/models/${firearmId}/assessment${classQuery}`}>Resume assessment</Link>}<Link className="text-link" to="/student">Back to dashboard</Link></section></main>
   }
 
-  const completed = status?.attempt_status === 'submitted'
   const headerLeading = <Link className="student-viewer-back" to="/student" aria-label="Back to class"><AdminIcon name="arrowLeft" /><span>Back to class</span></Link>
-  const headerActions = completed ? null : <Link className="student-viewer-assessment" to={`/student/models/${firearmId}/assessment${classQuery}`}>Start Assessment</Link>
+  const headerActions = assessmentCompleted ? null : <Link className="student-viewer-assessment" to={`/student/models/${firearmId}/assessment${classQuery}`}>Start Assessment</Link>
 
   return <AdminModelViewerPanel firearms={[firearm]} headerActions={headerActions} headerLeading={headerLeading} initialFirearmId={firearmId} lockSelection />
 }
