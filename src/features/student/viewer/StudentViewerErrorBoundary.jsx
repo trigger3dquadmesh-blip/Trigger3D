@@ -1,7 +1,8 @@
-import { Component } from 'react'
+import { Component, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import AdminIcon from '../../admin/AdminIcon.jsx'
 
-export default class StudentViewerErrorBoundary extends Component {
+class ViewerRenderBoundary extends Component {
   constructor(props) {
     super(props)
     this.state = { error: null }
@@ -25,18 +26,33 @@ export default class StudentViewerErrorBoundary extends Component {
           <div className="student-viewer-error-copy">
             <p className="eyebrow">Viewer recovery</p>
             <h1>The firearm viewer stopped loading</h1>
-            <p>Trigger3D encountered a display problem while opening this model. Reload the viewer to try again.</p>
+            <p>Trigger3D encountered a display problem while opening this model. Try the viewer again without leaving your signed-in session.</p>
           </div>
           <footer>
-            <button className="student-viewer-retry-button" onClick={() => window.location.reload()} type="button">
-              <AdminIcon name="reset" />Reload viewer
+            <button className="student-viewer-retry-button" onClick={this.props.onRetry} type="button">
+              <AdminIcon name="reset" />Try viewer again
             </button>
-            <a className="student-viewer-return-button" href="/student">
+            <Link className="student-viewer-return-button" to="/student">
               <AdminIcon name="arrowLeft" />Return to dashboard
-            </a>
+            </Link>
           </footer>
         </section>
       </main>
     )
   }
+}
+
+export default function StudentViewerErrorBoundary({ children }) {
+  const location = useLocation()
+  const [recoveryKey, setRecoveryKey] = useState(0)
+  const boundaryKey = `${location.pathname}:${location.search}:${recoveryKey}`
+
+  return (
+    <ViewerRenderBoundary
+      key={boundaryKey}
+      onRetry={() => setRecoveryKey((value) => value + 1)}
+    >
+      {children}
+    </ViewerRenderBoundary>
+  )
 }

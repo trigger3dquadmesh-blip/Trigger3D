@@ -18,18 +18,19 @@ const authStoragePointerKey = 'trigger3d.auth.storage-key'
 
 function createIsolatedAuthStorageKey() {
   const previousKey = window.sessionStorage.getItem(authStoragePointerKey)
+  // sessionStorage is already scoped to a browser tab. Reuse the same key on
+  // refresh so the saved Supabase session cannot disappear while the app is
+  // being reloaded. A newly opened tab without a pointer still gets its own
+  // key, allowing different accounts to remain signed in independently.
+  if (previousKey) return previousKey
+
   const randomId = globalThis.crypto?.randomUUID?.()
     ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
   const nextKey = `trigger3d.auth.${randomId}`
 
-  // A fresh key prevents Supabase auth broadcasts from replacing the account
-  // in another open Trigger3D tab. Copying the current value keeps refreshes
-  // signed in, including tabs created by duplicating an existing tab.
-  if (previousKey) {
-    const currentSession = window.sessionStorage.getItem(previousKey)
-    if (currentSession) window.sessionStorage.setItem(nextKey, currentSession)
-    window.sessionStorage.removeItem(previousKey)
-  } else if (supabaseUrl) {
+  // Migrate the older fixed Supabase key once. New tabs then receive their own
+  // randomly named session entry, while reloads retain the pointer above.
+  if (supabaseUrl) {
     const projectReference = new URL(supabaseUrl).hostname.split('.')[0]
     const legacyKey = `sb-${projectReference}-auth-token`
     const legacySession = window.sessionStorage.getItem(legacyKey)

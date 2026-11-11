@@ -954,7 +954,11 @@ button:disabled, [role='button'][aria-disabled='true'] { cursor: not-allowed; }
 .viewer-load-timeout button { min-height: 2.6rem; margin-top: 0.35rem; padding: 0.6rem 1rem; border: 1px solid #22c55e; border-radius: 0.55rem; color: #fff; background: #109d1a; font-weight: 800; cursor: pointer; }
 .viewer-load-timeout button:hover { background: #0c7d15; }
 .viewer-fallback { display: grid; place-content: center; height: 100%; padding: 2rem; color: var(--text-muted); text-align: center; }
-.viewer-error { color: #fecaca; background: #450a0a; }
+.viewer-error { gap: 10px; justify-items: center; color: #fecaca; background: #450a0a; }
+.viewer-error strong { color: #fff; font-size: 1rem; }
+.viewer-error span { max-width: 34rem; font-size: .82rem; }
+.viewer-error button { min-height: 40px; margin-top: 4px; padding: 8px 16px; border: 1px solid #22c55e; border-radius: 8px; color: #fff; background: #109d1a; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.viewer-error button:hover { background: #0b8515; }
 .component-information { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 .component-information h3 { margin: 1rem 0 0.25rem; font-size: 0.82rem; letter-spacing: 0.06em; text-transform: uppercase; }
 .component-information p { margin-top: 0.25rem; }

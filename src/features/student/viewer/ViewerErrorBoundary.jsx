@@ -21,7 +21,9 @@ export default class ViewerErrorBoundary extends Component {
     if (this.state.error) {
       return (
         <div className="viewer-fallback viewer-error" role="alert">
-          Could not render this GLB: {this.state.error.message}
+          <strong>The 3D viewer stopped loading.</strong>
+          <span>{this.state.error.message || 'The model could not be displayed.'}</span>
+          <button onClick={this.props.onRetry} type="button">Try model again</button>
         </div>
       )
     }

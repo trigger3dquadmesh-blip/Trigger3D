@@ -242,8 +242,9 @@ export default function FirearmCanvas({
 
   return (
     <div className="viewer-canvas">
-      <ViewerErrorBoundary resetKey={modelUrl}>
+      <ViewerErrorBoundary onRetry={retryModel} resetKey={`${modelUrl}:${retryKey}`}>
         <Canvas
+          key={`${modelUrl}:${retryKey}`}
           camera={{ position: [0, 0, 8], fov: 45 }}
           dpr={[1, 2]}
           onPointerMissed={() => onSelect(null)}
