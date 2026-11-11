@@ -1,13 +1,11 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import AdminIcon from './AdminIcon.jsx'
 import { modelCreditHref } from './import/firearm-metadata.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
 import { getFirearmModelUrl } from '../shared/firearm-model-url.js'
 import { getBundledFirearmComponents } from '../shared/bundled-firearm-components.js'
-
-const loadFirearmCanvas = () => import('../student/viewer/FirearmCanvas.jsx')
-const FirearmCanvas = lazy(loadFirearmCanvas)
+import FirearmCanvas from '../student/viewer/FirearmCanvas.jsx'
 
 export default function AdminModelViewerPanel({ dataLoading = false, firearms, headerActions = null, headerLeading = null, initialFirearmId = '', lockSelection = false }) {
   const [firearmId, setFirearmId] = useState(initialFirearmId)
@@ -37,7 +35,6 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
       setError('')
       setSelectedName(null)
       setModelUrl('')
-      void loadFirearmCanvas()
       const suppliedModelUrl = suppliedFirearmData
         ? getFirearmModelUrl(suppliedFirearmData.glb_storage_path, suppliedFirearmData.identifier, suppliedFirearmData.name)
         : null
@@ -106,7 +103,7 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
       </header>
       {!activeFirearmId ? <div className="grid flex-1 place-items-center border border-[#b8c1bb] bg-[#171717] text-sm text-[#aeb8b2]">No uploaded firearm models are available.</div> : error ? <div className="grid flex-1 place-items-center border border-red-300 bg-red-50 p-6 text-center text-sm text-red-700"><div className="grid max-w-lg justify-items-center gap-4"><p className="m-0">{error}</p><button className="rounded-lg bg-[#109d1a] px-5 py-2.5 font-semibold text-white hover:bg-[#0c7d15]" onClick={() => setLoadKey((value) => value + 1)} type="button">Retry model</button></div></div> : <div className="flex min-h-0 flex-1 border-x border-b border-[#b8c1bb]">
         <div className="relative min-w-0 flex-1 overflow-hidden bg-[#171717]">
-          {loading || !modelUrl ? <DashboardLoading className="viewer-model-preparing" label={`Loading ${details?.name || '3D model'}…`} /> : <div className="admin-live-viewer-canvas h-full"><Suspense fallback={<DashboardLoading className="viewer-model-preparing" label="Preparing 3D viewer…" />}><FirearmCanvas components={components} exploded={exploded} modelUrl={modelUrl} onSelect={(name) => name ? choose(name) : setSelectedName(null)} resetKey={resetKey} selectedName={selectedName} /></Suspense></div>}
+          {loading || !modelUrl ? <DashboardLoading className="viewer-model-preparing" label={`Loading ${details?.name || '3D model'}…`} /> : <div className="admin-live-viewer-canvas h-full"><FirearmCanvas components={components} exploded={exploded} modelUrl={modelUrl} onSelect={(name) => name ? choose(name) : setSelectedName(null)} resetKey={resetKey} selectedName={selectedName} /></div>}
           <div className="absolute right-3 top-1/2 z-10 flex -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-[#aab3ae] bg-[#d7dad8]/90 p-1.5 text-[#46534c] shadow"><button aria-label="Toggle exploded view" className={'grid h-10 w-10 place-items-center rounded-lg hover:bg-white/70 ' + (exploded ? 'bg-[#109d1a] text-white' : '')} onClick={() => setExploded((value) => !value)} title={exploded ? 'Reassemble model' : 'Exploded view'} type="button"><AdminIcon className="h-[18px] w-[18px]" name="explode" /></button><button aria-label="Reset model view" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/70" onClick={() => { setExploded(false); setSelectedName(null); setResetKey((value) => value + 1) }} title="Reset view" type="button"><AdminIcon className="h-[18px] w-[18px]" name="reset" /></button></div>
         </div>
         <aside className={'min-h-0 shrink-0 overflow-hidden bg-white transition-[width] ' + (panelOpen ? 'w-[300px] border-l border-[#b8c1bb]' : 'w-0')}>
