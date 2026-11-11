@@ -49,7 +49,7 @@ export default function AdminMfaGuard({ allowEnrollment = false, children }) {
     })
 
     return () => { active = false }
-  }, [loading, role, user])
+  }, [loading, role, userId])
 
   if (loading || checking) {
     return <main className="page status-page"><DashboardLoading className="dashboard-loading-route" label="Checking account security…" /></main>
