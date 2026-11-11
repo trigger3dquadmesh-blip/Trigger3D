@@ -77,6 +77,19 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
   const groups = useMemo(() => [...new Set(visible.map((item) => item.assembly_group || item.category || 'Components'))], [visible])
   const creditHref = modelCreditHref(details?.model_credit || '')
 
+  useEffect(() => {
+    const compactViewport = window.matchMedia('(max-width: 760px)')
+    const updatePanelForViewport = (event) => setPanelOpen(!event.matches)
+
+    if (compactViewport.addEventListener) compactViewport.addEventListener('change', updatePanelForViewport)
+    else compactViewport.addListener(updatePanelForViewport)
+
+    return () => {
+      if (compactViewport.removeEventListener) compactViewport.removeEventListener('change', updatePanelForViewport)
+      else compactViewport.removeListener(updatePanelForViewport)
+    }
+  }, [])
+
   function choose(name) {
     setSelectedName(name)
     setTab('details')

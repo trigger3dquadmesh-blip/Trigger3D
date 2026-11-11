@@ -168,7 +168,7 @@ export default function HomePage() {
   }
 
   return (
-    <main className="landing-page landing-scroll min-h-screen overflow-x-hidden [overflow-anchor:none] bg-[var(--landing-bg)] text-[var(--landing-text)] md:h-screen md:overflow-y-auto md:scroll-smooth" ref={landingScrollRef}>
+    <main className="landing-page landing-scroll min-h-screen overflow-x-hidden [overflow-anchor:none] bg-[var(--landing-bg)] text-[var(--landing-text)] scroll-smooth" ref={landingScrollRef}>
       <header className="sticky top-0 z-50 border-b border-[var(--landing-border)] bg-[var(--landing-bg)]/95 backdrop-blur-md">
         <nav aria-label="Primary navigation" className="mx-auto flex h-16 w-[94%] max-w-[1600px] items-center justify-between gap-5">
           <a href="#top" aria-label="Trigger3D home" onClick={() => setMobileMenuOpen(false)}><Brand /></a>

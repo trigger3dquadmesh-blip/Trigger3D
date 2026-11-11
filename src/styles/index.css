@@ -203,13 +203,19 @@ body:has(.landing-page) .theme-toggle.theme-toggle--nav:hover {
   body:has(.landing-page) .theme-toggle { width: 2.75rem; height: 2.75rem; justify-content: center; padding: 0; }
 }
 
-@media (min-width: 768px) {
-  body:has(.landing-page) { overflow: hidden; }
+/*
+ * Keep one scroll owner at every viewport width. Switching between body scroll
+ * on mobile and an inner fixed-height scroller on larger screens can preserve
+ * an invalid scroll offset when DevTools changes device sizes, leaving the
+ * landing page apparently blank.
+ */
+body:has(.landing-page) {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 @media (min-width: 768px) and (min-height: 700px) {
-  .landing-scroll { scroll-snap-type: y mandatory; }
-  .landing-snap { scroll-snap-align: start; }
+  .landing-snap { scroll-margin-top: 4rem; }
 }
 
 a { color: inherit; }

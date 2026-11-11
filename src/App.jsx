@@ -5,6 +5,7 @@ import RoleProtectedRoute from './components/RoleProtectedRoute.jsx'
 import AdminMfaGuard from './components/AdminMfaGuard.jsx'
 import { ROLES } from './config/roles.js'
 import DashboardLoading from './components/DashboardLoading.jsx'
+import StudentViewerErrorBoundary from './features/student/viewer/StudentViewerErrorBoundary.jsx'
 
 const HomePage = lazy(() => import('./pages/HomePage.jsx'))
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'))
@@ -104,7 +105,9 @@ export default function App() {
         element={
           <ProtectedRoute>
             <RoleProtectedRoute allowedRole={ROLES.STUDENT}>
-              <StudentRouteShell><FirearmViewerPage /></StudentRouteShell>
+              <StudentViewerErrorBoundary>
+                <StudentRouteShell><FirearmViewerPage /></StudentRouteShell>
+              </StudentViewerErrorBoundary>
             </RoleProtectedRoute>
           </ProtectedRoute>
         }
