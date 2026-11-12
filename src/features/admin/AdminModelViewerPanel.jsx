@@ -5,6 +5,7 @@ import { modelCreditHref } from './import/firearm-metadata.js'
 import DashboardLoading from '../../components/DashboardLoading.jsx'
 import { getFirearmModelUrl } from '../shared/firearm-model-url.js'
 import { getBundledFirearmComponents } from '../shared/bundled-firearm-components.js'
+import { resolveViewerComponents } from '../shared/viewer-components.js'
 import FirearmCanvas from '../student/viewer/FirearmCanvas.jsx'
 
 function componentMeshName(component) {
@@ -43,9 +44,6 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
       setError('')
       setSelectedName(null)
       setModelUrl('')
-      const suppliedModelUrl = suppliedFirearmData
-        ? getFirearmModelUrl(suppliedFirearmData.glb_storage_path, suppliedFirearmData.identifier, suppliedFirearmData.name)
-        : null
       const [firearmResult, componentsResult] = await Promise.all([
         suppliedFirearmData
           ? Promise.resolve({ data: suppliedFirearmData, error: null })
@@ -59,11 +57,9 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
         return
       }
       try {
-        const databaseComponents = componentsResult.error ? [] : (componentsResult.data ?? [])
-        const resolvedComponents = databaseComponents.length
-          ? databaseComponents
-          : await getBundledFirearmComponents(firearmResult.data.identifier, firearmResult.data.name)
-        const signedUrl = await (suppliedModelUrl || getFirearmModelUrl(firearmResult.data.glb_storage_path, firearmResult.data.identifier, firearmResult.data.name))
+        const resolvedComponents = await resolveViewerComponents(componentsResult, () =>
+          getBundledFirearmComponents(firearmResult.data.identifier, firearmResult.data.name))
+        const signedUrl = await getFirearmModelUrl(firearmResult.data.glb_storage_path, firearmResult.data.identifier, firearmResult.data.name)
         if (!current) return
         setDetails(firearmResult.data)
         setComponents(Array.isArray(resolvedComponents) ? resolvedComponents.filter((component) => componentMeshName(component)) : [])
