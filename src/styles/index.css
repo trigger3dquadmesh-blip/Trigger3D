@@ -209,13 +209,27 @@ body:has(.landing-page) .theme-toggle.theme-toggle--nav:hover {
  * an invalid scroll offset when DevTools changes device sizes, leaving the
  * landing page apparently blank.
  */
-body:has(.landing-page) {
-  overflow-x: hidden;
-  overflow-y: auto;
+html:has(.landing-page) {
+  scroll-snap-type: y mandatory;
+  scroll-padding-top: 4rem;
+  scroll-behavior: smooth;
 }
 
-@media (min-width: 768px) and (min-height: 700px) {
-  .landing-snap { scroll-margin-top: 4rem; }
+body:has(.landing-page) {
+  /* Clip horizontal overflow without creating a scroll ancestor for sticky. */
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+.landing-page > .landing-snap {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  /* The document's scroll padding already accounts for the navbar. */
+  scroll-margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.landing-page) { scroll-behavior: auto; }
 }
 
 a { color: inherit; }
