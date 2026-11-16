@@ -1,7 +1,7 @@
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bounds, Html, OrbitControls, useBounds, useGLTF } from '@react-three/drei'
-import { Box3, Color, Vector3 } from 'three'
+import { Box3, Color, Quaternion, Vector3 } from 'three'
 import { gsap } from 'gsap'
 import ViewerErrorBoundary from './ViewerErrorBoundary.jsx'
 
@@ -31,23 +31,111 @@ function BoundsController({ resetKey }) {
   return null
 }
 
-function ExplosionBoundsController({ exploded, maxExplodeOrder }) {
-  const bounds = useBounds()
+// Backdrop behind the 3D scene follows the site theme: a light gray studio
+// gradient in light mode, a soft dark gradient in dark mode. The colors live
+// in index.css (--viewer-backdrop). The 3D canvas itself is transparent, so
+// this CSS background shows through.
+const VIEWER_BACKGROUND = 'var(--viewer-backdrop)'
 
-  useEffect(() => {
-    const animationTime = 800 + maxExplodeOrder * 120
-    const timeout = window.setTimeout(() => {
-      try {
-        bounds.refresh().fit().clip()
-      } catch (error) {
-        console.warn('Could not refit the firearm viewer bounds.', error)
+const GLIDE_SECONDS = 0.9
+// How far back the camera sits from a focused part (1 = tight fit). Small
+// parts get more room so they don't fill the screen; big parts get a tight
+// fit so they don't look far away. Sizes are fractions of the whole gun.
+const SMALL_PART_PADDING = 1.8
+const LARGE_PART_PADDING = 1.0
+const SMALL_PART_SIZE = 0.1
+const LARGE_PART_SIZE = 0.4
+
+function partPadding(sizeRatio) {
+  const t = (sizeRatio - SMALL_PART_SIZE) / (LARGE_PART_SIZE - SMALL_PART_SIZE)
+  const clamped = Math.min(1, Math.max(0, t))
+  return SMALL_PART_PADDING + (LARGE_PART_PADDING - SMALL_PART_PADDING) * clamped
+}
+
+// Smoothly moves the camera so it looks at `endTarget` from `endDistance`,
+// always keeping the current viewing angle (it never turns on its own).
+// Distance is interpolated on a log scale so zooming changes the apparent
+// size at an even rate instead of lurching at the start. Returns the gsap
+// tween so it can be cancelled.
+function glideCamera(camera, controls, endTarget, endDistance) {
+  const startTarget = controls?.target?.clone() ?? endTarget.clone()
+  const offset = camera.position.clone().sub(startTarget)
+  const startDistance = offset.length() > 0.000001 ? offset.length() : endDistance
+  const direction = offset.length() > 0.000001 ? offset.normalize() : new Vector3(0, 0, 1)
+  const logStart = Math.log(startDistance)
+  const logEnd = Math.log(endDistance)
+  const currentTarget = new Vector3()
+
+  // Keep both ends of the trip inside the clipping range while moving.
+  camera.near = Math.min(camera.near, Math.min(startDistance, endDistance) / 100)
+  camera.far = Math.max(camera.far, Math.max(startDistance, endDistance) * 100)
+  camera.updateProjectionMatrix()
+
+  const progress = { value: 0 }
+  return gsap.to(progress, {
+    value: 1,
+    duration: GLIDE_SECONDS,
+    ease: 'power2.inOut',
+    onUpdate: () => {
+      currentTarget.lerpVectors(startTarget, endTarget, progress.value)
+      const distance = Math.exp(logStart + (logEnd - logStart) * progress.value)
+      camera.position.copy(currentTarget).addScaledVector(direction, distance)
+      if (controls) {
+        controls.target.copy(currentTarget)
+        controls.update()
+      } else {
+        camera.lookAt(currentTarget)
       }
-    }, animationTime)
+    },
+    onComplete: () => {
+      camera.near = endDistance / 100
+      camera.far = endDistance * 100
+      camera.updateProjectionMatrix()
+    },
+  })
+}
 
-    return () => window.clearTimeout(timeout)
-  }, [bounds, exploded, maxExplodeOrder])
+// In explode view the selected part slowly turns in place around the vertical
+// axis so every side can be seen without dragging. Set to false to turn off.
+const SPIN_SELECTED_PART = true
+const SPIN_SECONDS_PER_TURN = 10
+const SPIN_RAMP_SECONDS = 0.8 // eases the spin in instead of starting abruptly
+const SPIN_RETURN_RATE = 5 // how fast a released part eases back to straight
+const FULL_TURN = Math.PI * 2
+const spinTurn = new Quaternion()
+const spinOffset = new Vector3()
+const worldUp = new Vector3(0, 1, 0)
 
-  return null
+// Captures what is needed to turn `object` around its own center (not its
+// pivot, which for most models sits at the gun's center).
+function createSpin(object) {
+  object.updateWorldMatrix(true, false)
+  const parentRotation = object.parent.getWorldQuaternion(new Quaternion()).invert()
+  return {
+    object,
+    angle: 0,
+    speed: 0,
+    axis: worldUp.clone().applyQuaternion(parentRotation).normalize(),
+    baseQuaternion: object.quaternion.clone(),
+    basePosition: object.position.clone(),
+    // Vector from the pivot to the part's center, in the parent's space.
+    centerOffset: object.userData.trigger3dLocalCenter.clone()
+      .multiply(object.scale)
+      .applyQuaternion(object.quaternion),
+  }
+}
+
+// Turns the part by `spin.angle` while keeping its center where it was.
+function applySpin(spin) {
+  spinTurn.setFromAxisAngle(spin.axis, spin.angle)
+  spin.object.quaternion.copy(spinTurn).multiply(spin.baseQuaternion)
+  spinOffset.copy(spin.centerOffset).applyQuaternion(spinTurn)
+  spin.object.position.copy(spin.basePosition).add(spin.centerOffset).sub(spinOffset)
+}
+
+function restoreSpin(spin) {
+  spin.object.quaternion.copy(spin.baseQuaternion)
+  spin.object.position.copy(spin.basePosition)
 }
 
 function cloneMaterial(material) {
@@ -64,6 +152,17 @@ function materialList(material) {
 
 function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSelect }) {
   const { scene } = useGLTF(url)
+  const bounds = useBounds()
+  const camera = useThree((state) => state.camera)
+  const controls = useThree((state) => state.controls)
+  const glideRef = useRef(null)
+  // Time (performance.now) when the current explode/collapse animation ends.
+  const settleAtRef = useRef(0)
+  // What the camera last framed, so selection changes only move it when needed.
+  const framedRef = useRef({ exploded: null, target: null })
+  // The part spinning now, and parts easing back to straight after release.
+  const spinRef = useRef(null)
+  const returningSpinsRef = useRef([])
   const componentLayout = useMemo(
     () => new Map(components.map((component) => [component.mesh_name, component])),
     [components],
@@ -84,11 +183,28 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
       copy.updateWorldMatrix(true, true)
     }
 
+    // Measure the assembled ("rest") pose once, here, before anything moves.
+    // Explode distances are based on these numbers, so toggling while parts
+    // are still in motion can never push them further out than intended.
+    const restBox = new Box3().setFromObject(copy)
+    const restSize = restBox.getSize(new Vector3())
+    const restScale = Math.max(restSize.x, restSize.y, restSize.z)
+    copy.userData.trigger3dRest = {
+      center: restBox.getCenter(new Vector3()),
+      scale: Number.isFinite(restScale) && restScale > 0 ? restScale : 1,
+    }
+
     copy.traverse((object) => {
       if (!object.isMesh) return
       const clonedMaterial = cloneMaterial(object.material)
       if (clonedMaterial) object.material = clonedMaterial
       object.userData.trigger3dOriginalPosition = object.position.clone()
+      object.geometry?.computeBoundingBox?.()
+      const localCenter = object.geometry?.boundingBox
+        ? object.geometry.boundingBox.getCenter(new Vector3())
+        : new Vector3()
+      object.userData.trigger3dLocalCenter = localCenter.clone()
+      object.userData.trigger3dRestWorldCenter = object.localToWorld(localCenter)
       object.userData.trigger3dMaterials = materialList(object.material).map((material) => ({
         color: material.color?.clone() ?? null,
         emissive: material.emissive?.clone() ?? null,
@@ -126,12 +242,17 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
   }, [model, selectedName])
 
   useEffect(() => {
+    // Straighten any spinning part before parts start moving, so a part never
+    // goes back into the gun turned.
+    if (spinRef.current) restoreSpin(spinRef.current)
+    returningSpinsRef.current.forEach(restoreSpin)
+    spinRef.current = null
+    returningSpinsRef.current = []
+
     model.updateWorldMatrix(true, true)
-    const modelBox = new Box3().setFromObject(model)
-    const modelCenter = modelBox.getCenter(new Vector3())
-    const modelSize = modelBox.getSize(new Vector3())
-    const measuredScale = Math.max(modelSize.x, modelSize.y, modelSize.z)
-    const modelScale = Number.isFinite(measuredScale) && measuredScale > 0 ? measuredScale : 1
+    // Use the assembled pose measured at load time, never the current pose:
+    // mid-animation the model is spread out and would measure too large.
+    const { center: modelCenter, scale: modelScale } = model.userData.trigger3dRest
     const explosionDistance = modelScale * 0.65
     const hasConfiguredLayout = components.some((component) => (
       component.assembly_group !== 'ungrouped'
@@ -144,6 +265,7 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
       ...components.map((component) => Number(component.explode_order) || 0),
     )
     const meshes = []
+    settleAtRef.current = performance.now() + 800 + maxExplodeOrder * 120
 
     model.traverse((object) => {
       if (object.isMesh) meshes.push(object)
@@ -156,11 +278,7 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
       const layout = componentLayout.get(object.name)
 
       if (exploded && object.geometry && object.parent) {
-        object.geometry.computeBoundingBox?.()
-        const localCenter = object.geometry.boundingBox
-          ? object.geometry.boundingBox.getCenter(new Vector3())
-          : new Vector3()
-        const originalWorldCenter = object.localToWorld(localCenter.clone())
+        const originalWorldCenter = object.userData.trigger3dRestWorldCenter.clone()
         let worldOffset
 
         if (hasConfiguredLayout && layout) {
@@ -217,6 +335,114 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
     }
   }, [componentLayout, components, exploded, model])
 
+  // Camera framing. Explode/collapse frames the whole model once the parts
+  // settle. In explode view, selecting a part glides the camera to that part
+  // (no isolation: every part stays visible and the controls stay free), and
+  // clearing the selection glides back out to the whole model.
+  useEffect(() => {
+    const part = exploded && selectedName ? model.getObjectByName(selectedName) : null
+    const target = part ?? model
+    const framed = framedRef.current
+    if (framed.exploded === exploded && framed.target === target) return
+
+    const wait = Math.max(0, settleAtRef.current - performance.now())
+    const timeout = window.setTimeout(() => {
+      try {
+        const { center, size, distance: fitDistance } = bounds.refresh(target).getSize()
+        let distance = fitDistance
+        if (part) {
+          const sizeRatio = Math.max(size.x, size.y, size.z) / model.userData.trigger3dRest.scale
+          distance = fitDistance * partPadding(sizeRatio)
+        }
+        if (
+          !center
+          || ![center.x, center.y, center.z, distance].every(Number.isFinite)
+          || distance <= 0
+        ) return
+        glideRef.current?.kill()
+        glideRef.current = glideCamera(camera, controls, center, distance)
+        // Only the whole-model view sets the scroll-out limit, so zooming
+        // into a small part never traps the user close to it.
+        if (target === model && controls) controls.maxDistance = distance * 10
+        framedRef.current = { exploded, target }
+      } catch (error) {
+        console.warn('Could not frame the firearm viewer camera.', error)
+      }
+    }, wait)
+
+    return () => window.clearTimeout(timeout)
+  }, [bounds, camera, controls, exploded, model, selectedName])
+
+  // Grabbing the controls mid-glide hands the camera straight back to the
+  // user; unmounting stops any glide still running.
+  useEffect(() => {
+    const stopGlide = () => glideRef.current?.kill()
+    controls?.addEventListener?.('start', stopGlide)
+    return () => {
+      controls?.removeEventListener?.('start', stopGlide)
+      stopGlide()
+    }
+  }, [controls])
+
+  // In explode view, start the selected part spinning once the parts have
+  // settled. When it is released (another part, click away, reassemble) it
+  // is handed to the "returning" list and eases back to straight.
+  useEffect(() => {
+    if (!SPIN_SELECTED_PART || !exploded || !selectedName) return undefined
+    const part = model.getObjectByName(selectedName)
+    if (!part?.isMesh || !part.parent) return undefined
+
+    let spin = null
+    const wait = Math.max(0, settleAtRef.current - performance.now())
+    const timeout = window.setTimeout(() => {
+      // Picking a part again while it is still easing back carries on from
+      // its current angle instead of measuring it while turned.
+      const returning = returningSpinsRef.current.find((item) => item.object === part)
+      returningSpinsRef.current = returningSpinsRef.current.filter((item) => item !== returning)
+      spin = returning ?? createSpin(part)
+      spinRef.current = spin
+    }, wait)
+
+    return () => {
+      window.clearTimeout(timeout)
+      if (!spin) return
+      if (spinRef.current === spin) spinRef.current = null
+      returningSpinsRef.current.push(spin)
+    }
+  }, [exploded, model, selectedName])
+
+  useFrame((_, delta) => {
+    const step = Math.min(delta, 0.1) // avoid a jump after the tab was hidden
+    const spin = spinRef.current
+    if (spin) {
+      spin.speed = Math.min(1, spin.speed + step / SPIN_RAMP_SECONDS)
+      spin.angle = (spin.angle + spin.speed * (FULL_TURN / SPIN_SECONDS_PER_TURN) * step) % FULL_TURN
+      applySpin(spin)
+    }
+    if (returningSpinsRef.current.length === 0) return
+    returningSpinsRef.current = returningSpinsRef.current.filter((item) => {
+      // Ease back the short way round.
+      let angle = item.angle % FULL_TURN
+      if (angle > Math.PI) angle -= FULL_TURN
+      if (angle < -Math.PI) angle += FULL_TURN
+      angle -= angle * Math.min(1, step * SPIN_RETURN_RATE)
+      item.angle = angle
+      item.speed = 0
+      if (Math.abs(angle) < 0.002) {
+        restoreSpin(item)
+        return false
+      }
+      applySpin(item)
+      return true
+    })
+  })
+
+  // Leaving the viewer straightens every part.
+  useEffect(() => () => {
+    if (spinRef.current) restoreSpin(spinRef.current)
+    returningSpinsRef.current.forEach(restoreSpin)
+  }, [model])
+
   useEffect(() => () => {
     model.traverse((object) => {
       if (!object.isMesh) return
@@ -227,8 +453,10 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
   return (
     <primitive
       object={model}
-      onPointerDown={(event) => {
+      onClick={(event) => {
         event.stopPropagation()
+        // Ignore clicks that were really a drag to orbit the camera.
+        if (event.delta > 4) return
         onSelect?.(event.object.name)
       }}
     />
@@ -266,7 +494,7 @@ export default function FirearmCanvas({
   }
 
   return (
-    <div className="viewer-canvas">
+    <div className="viewer-canvas" style={{ background: VIEWER_BACKGROUND }}>
       <ViewerErrorBoundary onRetry={retryModel} resetKey={`${modelUrl}:${retryKey}`}>
         <Canvas
           key={`${modelUrl}:${retryKey}`}
@@ -274,7 +502,6 @@ export default function FirearmCanvas({
           dpr={[1, 2]}
           onPointerMissed={() => onSelect?.(null)}
         >
-          <color attach="background" args={['#090d11']} />
           <ambientLight intensity={1.8} />
           <directionalLight position={[5, 8, 6]} intensity={3} />
           <directionalLight position={[-4, 2, -3]} intensity={1.5} />
@@ -291,13 +518,6 @@ export default function FirearmCanvas({
                 onSelect={onSelect}
               />
               <BoundsController resetKey={resetKey} />
-              <ExplosionBoundsController
-                exploded={exploded}
-                maxExplodeOrder={Math.max(
-                  0,
-                  ...components.map((component) => Number(component.explode_order) || 0),
-                )}
-              />
             </Suspense>
           </Bounds>
         </Canvas>
