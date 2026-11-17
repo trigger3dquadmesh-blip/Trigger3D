@@ -232,14 +232,16 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
           material.emissiveIntensity = original.emissiveIntensity
         }
 
-        if (object.name === selectedName) {
-          if (material.color) material.color.lerp(new Color('#68d391'), 0.65)
-          if (material.emissive) material.emissive.set('#14532d')
-          if (material.emissiveIntensity !== undefined) material.emissiveIntensity = 0.8
-        }
+        // Assembled view only: a strong green tint makes the selected part easy
+        // to spot inside the gun. In explode view the camera zooms in on the
+        // part (and it spins), so it keeps its real colors and texture.
+        if (object.name !== selectedName || exploded) return
+        if (material.color) material.color.lerp(new Color('#68d391'), 0.65)
+        if (material.emissive) material.emissive.set('#14532d')
+        if (material.emissiveIntensity !== undefined) material.emissiveIntensity = 0.8
       })
     })
-  }, [model, selectedName])
+  }, [exploded, model, selectedName])
 
   useEffect(() => {
     // Straighten any spinning part before parts start moving, so a part never
