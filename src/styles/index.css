@@ -4535,3 +4535,49 @@ body:has(.admin-reference-shell) .theme-toggle { z-index: 1300; pointer-events: 
     padding: 9px 11px;
   }
 }
+
+/* ---- Public /demo showcase (QR booth page) ----
+ * Page-scoped colors use the logo green (#109d1a, hue 124) at shades that
+ * pass WCAG AA; they match the brand tokens planned for the UI redesign. */
+.showcase-page {
+  --showcase-brand: #0e8816;          /* white text 4.61:1 */
+  --showcase-brand-hover: #0c7113;
+  --showcase-brand-text: #39ce44;     /* >= 4.6:1 on dark surfaces */
+  --showcase-brand-ring: #1eaa28;
+  --showcase-brand-soft: rgb(16 157 26 / 16%);
+  --showcase-warn: #fbbf24;
+}
+:root[data-theme='light'] .showcase-page {
+  --showcase-brand-text: #0c7914;     /* >= 4.6:1 on light surfaces */
+  --showcase-brand-ring: #109819;
+  --showcase-brand-soft: rgb(16 157 26 / 10%);
+  --showcase-warn: #b45309;
+}
+.showcase-page .viewer-canvas { border: 0; border-radius: 0; }
+.showcase-primary {
+  min-height: 44px; padding: 0 18px; border: 0; border-radius: 10px;
+  color: #fff; background: var(--showcase-brand); font-size: 0.875rem; font-weight: 800; cursor: pointer;
+}
+.showcase-primary:hover { background: var(--showcase-brand-hover); }
+.showcase-primary:focus-visible,
+.showcase-tool:focus-visible { outline: 2px solid var(--showcase-brand-ring); outline-offset: 2px; }
+.showcase-tool {
+  display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 10px;
+  color: var(--text); background: transparent; cursor: pointer; transition: opacity 0.2s;
+}
+.showcase-tool:hover:enabled { background: var(--showcase-brand-soft); }
+.showcase-tool--active { color: #fff; background: var(--showcase-brand); }
+.showcase-tool--active:hover:enabled { background: var(--showcase-brand-hover); }
+.showcase-tool:disabled { cursor: wait; opacity: 0.5; }
+.showcase-timer {
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px;
+  color: var(--text-muted); font-size: 0.75rem; font-weight: 700; white-space: nowrap;
+}
+.showcase-timer--low { border-color: var(--showcase-warn); color: var(--showcase-warn); }
+body:has(.showcase-page) .theme-toggle.theme-toggle--nav {
+  position: static; width: 2.5rem; height: 2.5rem; justify-content: center;
+  padding: 0; box-shadow: none;
+}
+.showcase-logo-dark { display: none; }
+:root[data-theme='dark'] .showcase-logo-light { display: none; }
+:root[data-theme='dark'] .showcase-logo-dark { display: block; }
