@@ -37,6 +37,11 @@ function BoundsController({ resetKey }) {
 // this CSS background shows through.
 const VIEWER_BACKGROUND = 'var(--viewer-backdrop)'
 
+// Selected-part glow in explode view: adds a faint logo-green light without
+// changing the part's own colors, so its texture and shading stay readable.
+const EXPLODED_SELECTION_GLOW = '#109d1a'
+const EXPLODED_SELECTION_GLOW_STRENGTH = 0.18
+
 const GLIDE_SECONDS = 0.9
 // How far back the camera sits from a focused part (1 = tight fit). Small
 // parts get more room so they don't fill the screen; big parts get a tight
@@ -232,10 +237,15 @@ function FirearmModel({ url, components, selectedName, exploded, onLoaded, onSel
           material.emissiveIntensity = original.emissiveIntensity
         }
 
-        // Assembled view only: a strong green tint makes the selected part easy
-        // to spot inside the gun. In explode view the camera zooms in on the
-        // part (and it spins), so it keeps its real colors and texture.
-        if (object.name !== selectedName || exploded) return
+        if (object.name !== selectedName) return
+        if (exploded) {
+          // Explode view zooms in on the part, so keep its real colors and
+          // texture; a faint green glow on top still marks it as selected.
+          if (material.emissive) material.emissive.set(EXPLODED_SELECTION_GLOW)
+          if (material.emissiveIntensity !== undefined) material.emissiveIntensity = EXPLODED_SELECTION_GLOW_STRENGTH
+          return
+        }
+        // Assembled view: a strong green tint makes the part easy to spot in the gun.
         if (material.color) material.color.lerp(new Color('#68d391'), 0.65)
         if (material.emissive) material.emissive.set('#14532d')
         if (material.emissiveIntensity !== undefined) material.emissiveIntensity = 0.8
