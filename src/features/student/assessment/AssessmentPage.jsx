@@ -27,6 +27,8 @@ import {
   restoreAssessmentTimeState,
 } from './assessment-duration.js'
 import { assessmentAttemptWasReset, resolveConnectionRecovery } from './assessment-connection.js'
+import { resolveAssessmentResultStatus } from './assessment-result-status.js'
+import { selectCurrentAssessmentAttempt } from '../../shared/current-assessment-attempts.js'
 
 const NO_ANSWER = '[No answer]'
 const TIME_EXPIRED_ANSWER = '[No answer: assessment time expired]'
@@ -72,6 +74,15 @@ function removeStoredDraft(attemptId) {
 }
 
 export default function AssessmentPage() {
+  const { user } = useAuth()
+  const { firearmId } = useParams()
+  const [searchParams] = useSearchParams()
+  // Each selected assignment owns its answers/result state. React otherwise
+  // reuses it when navigating between firearm URLs on the same route.
+  return <AssessmentContent key={`${user?.id || ''}:${searchParams.get('classId') || ''}:${firearmId}`} />
+}
+
+function AssessmentContent() {
   const { user } = useAuth()
   const { firearmId } = useParams()
   const [searchParams] = useSearchParams()
@@ -164,12 +175,17 @@ export default function AssessmentPage() {
     let active = true
 
     async function loadAssessment() {
+      setLoading(true)
+      setResult(null)
+      setReview([])
+      setAttemptId(null)
+      setError('')
       if (!classId) {
         setError('Open this assessment from one of your enrolled classes.')
         setLoading(false)
         return
       }
-      const [firearmResult, classResult, statusResult, releaseResult, questionCountResult] = await Promise.all([
+      const [firearmResult, classResult, statusResult, releaseResult, questionCountResult, scopedAttemptsResult] = await Promise.all([
         supabase
           .from('firearms')
           .select('id, name, caliber')
@@ -189,19 +205,23 @@ export default function AssessmentPage() {
           target_class_id: classId,
           target_firearm_id: firearmId,
         }),
+        supabase.from('assessment_attempts')
+          .select('id, student_id, class_id, firearm_id, status, attempt_number, started_at, submitted_at, timer_started_at, has_activity, correct_count, total_questions, percentage')
+          .eq('student_id', user?.id).eq('class_id', classId).eq('firearm_id', firearmId),
       ])
 
       if (!active) return
 
-      if (firearmResult.error || classResult.error || statusResult.error || releaseResult.error) {
-        setError(firearmResult.error?.message || classResult.error?.message || statusResult.error?.message || releaseResult.error.message)
+      if (firearmResult.error || classResult.error || statusResult.error || releaseResult.error || scopedAttemptsResult.error) {
+        setError(firearmResult.error?.message || classResult.error?.message || statusResult.error?.message || releaseResult.error?.message || scopedAttemptsResult.error.message)
       } else {
-        const statusData = Array.isArray(statusResult.data) ? statusResult.data[0] : statusResult.data
-        if (!statusData) {
+        const rawStatus = Array.isArray(statusResult.data) ? statusResult.data[0] : statusResult.data
+        if (!rawStatus) {
           setError('The assessment status could not be loaded. Please refresh and try again.')
           setLoading(false)
           return
         }
+        const statusData = resolveAssessmentResultStatus(rawStatus, selectCurrentAssessmentAttempt(scopedAttemptsResult.data || []), { studentId: user?.id, classId, firearmId })
         setFirearm(firearmResult.data)
         setClassItem(classResult.data)
         setStatus(statusData)
@@ -318,12 +338,20 @@ export default function AssessmentPage() {
   const currentQuestion = questions[currentIndex] ?? null
   useEffect(() => {
     if (!attemptId || result) return undefined
+    let active = true
     const poll = window.setInterval(async () => {
       const { data } = await supabase.rpc('get_assessment_status', {
         target_class_id: classId,
         target_firearm_id: firearmId,
       })
-      if (data?.attempt_status !== 'submitted') return
+      const rawStatus = Array.isArray(data) ? data[0] : data
+      if (rawStatus?.attempt_status !== 'submitted') return
+      const { data: savedAttempt, error: attemptError } = await supabase.from('assessment_attempts')
+        .select('id, student_id, class_id, firearm_id, status, timer_started_at, has_activity, correct_count, total_questions, percentage')
+        .eq('id', attemptId).eq('student_id', user?.id).eq('class_id', classId).eq('firearm_id', firearmId).maybeSingle()
+      if (!active || attemptError) return
+      const verified = resolveAssessmentResultStatus(rawStatus, savedAttempt, { studentId: user?.id, classId, firearmId })
+      if (verified.attempt_status !== 'submitted') return
       assessmentFinishedRef.current = true
       connectionInterruptedRef.current = false
       connectionReportConfirmedRef.current = false
@@ -336,12 +364,12 @@ export default function AssessmentPage() {
       setConnectionInterrupted(null)
       setIntegrityBlocked(null)
       setResult({
-        correct_count: data.correct_count,
-        total_questions: data.total_questions,
-        percentage: data.percentage,
+        correct_count: verified.correct_count,
+        total_questions: verified.total_questions,
+        percentage: verified.percentage,
       })
     }, 4000)
-    return () => window.clearInterval(poll)
+    return () => { active = false; window.clearInterval(poll) }
   }, [attemptId, classId, firearmId, result, user?.id])
 
   useEffect(() => {

@@ -23,6 +23,7 @@ export default function FirearmViewerPage() {
   const classQuery = classId ? `?classId=${encodeURIComponent(classId)}` : ''
   const [firearm, setFirearm] = useState(null)
   const [assessmentCompleted, setAssessmentCompleted] = useState(false)
+  const [assessmentOpen, setAssessmentOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [accessState, setAccessState] = useState('available')
@@ -41,12 +42,14 @@ export default function FirearmViewerPage() {
         return
       }
 
-      const [firearmResult, attemptResult] = await Promise.all([
+      const [firearmResult, attemptResult, releaseResult] = await Promise.all([
         supabase.from('firearms').select('id, identifier, name, caliber, description, firearm_type, tutorial_url, model_credit, status, created_at, glb_storage_path').eq('id', firearmId).single(),
         supabase.from('assessment_attempts').select(attemptAccessFields).eq('student_id', profile.id).eq('class_id', classId).eq('firearm_id', firearmId),
+        supabase.from('assessment_releases').select('is_open').eq('class_id', classId).eq('firearm_id', firearmId).maybeSingle(),
       ])
 
       if (!active) return
+      setAssessmentOpen(!releaseResult.error && Boolean(releaseResult.data?.is_open))
       if (firearmResult.error) {
         console.error('Unable to load the firearm record for the student viewer.', firearmResult.error)
         setError('The firearm information could not be loaded. Check your connection, then try again.')
@@ -95,6 +98,8 @@ export default function FirearmViewerPage() {
     let active = true
 
     async function refreshViewerLock() {
+      const releaseResult = await supabase.from('assessment_releases').select('is_open').eq('class_id', classId).eq('firearm_id', firearmId).maybeSingle()
+      if (active) setAssessmentOpen(!releaseResult.error && Boolean(releaseResult.data?.is_open))
       const { data, error: attemptError } = await supabase
         .from('assessment_attempts')
         .select(attemptAccessFields)
@@ -154,7 +159,7 @@ export default function FirearmViewerPage() {
   }
 
   const headerLeading = <Link className="student-viewer-back" to="/student" aria-label="Back to class"><AdminIcon name="arrowLeft" /><span>Back to class</span></Link>
-  const headerActions = assessmentCompleted ? null : <Link className="student-viewer-assessment" to={`/student/models/${firearmId}/assessment${classQuery}`}>Start Assessment</Link>
+  const headerActions = assessmentCompleted || !assessmentOpen ? null : <Link className="student-viewer-assessment" to={`/student/models/${firearmId}/assessment${classQuery}`}>Start Assessment</Link>
 
   return <AdminModelViewerPanel firearms={[firearm]} headerActions={headerActions} headerLeading={headerLeading} initialFirearmId={firearmId} lockSelection />
 }
