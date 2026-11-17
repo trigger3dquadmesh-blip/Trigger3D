@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import useAuth from '../auth/useAuth.js'
 import LandingFirearm from '../components/LandingFirearm.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
+import { CONTACT_EMAIL, buildMailtoUrl, sendContactMessage } from '../features/contact/contact-message.js'
 import brandLogoLight from '../assets/landing/brand-logo-light.png'
 import brandLogoDark from '../assets/landing/brand-logo-dark.png'
 import sdg04 from '../assets/landing/sdg-04.png'
@@ -49,6 +50,14 @@ const tutorials = [
     viewUrl: 'https://drive.google.com/file/d/1xPCNI0M-J3Ox4ZAZEWY2Q8jP1e0ezCwR/view?usp=sharing',
   },
 ]
+
+const CONTACT_STATUS_TEXT = {
+  sent: 'Thank you! Your message has been sent. We will get back to you as soon as possible.',
+  failed: 'Your message could not be sent right now. Please try again, or email us directly:',
+  'mail-app': 'Your email app should open with the message ready. If nothing opened, email us directly:',
+  copied: 'Email address copied. Paste it into any email app to send your message.',
+  'copy-failed': 'Copying is blocked on this device. Please select the address below and copy it.',
+}
 
 const navigationLinks = [
   ['Home', '#top'],
@@ -157,14 +166,41 @@ export default function HomePage() {
     return () => query.removeEventListener('change', update)
   }, [])
 
-  function handleContact(event) {
+  async function handleContact(event) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    const subject = String(form.get('subject') || 'Trigger3D inquiry')
-    const message = String(form.get('message') || '')
-    const sender = String(form.get('email') || '')
-    window.location.href = `mailto:trigger3d.quadmesh@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`${message}\n\nReply to: ${sender}`)}`
-    setContactStatus('Your email application should open with the message prepared.')
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
+    const contact = {
+      name: String(form.get('name') || '').trim(),
+      email: String(form.get('email') || '').trim(),
+      subject: String(form.get('subject') || '').trim(),
+      message: String(form.get('message') || '').trim(),
+      botcheck: form.get('botcheck') === 'on',
+    }
+    setContactStatus('sending')
+    const { status } = await sendContactMessage(contact)
+    if (status === 'sent') {
+      formElement.reset()
+      setContactStatus('sent')
+      return
+    }
+    if (status === 'no-service') {
+      // Sending isn't configured: open the visitor's email app instead. That
+      // only works when an email app is set up, so the address is offered too.
+      window.location.href = buildMailtoUrl(CONTACT_EMAIL, contact)
+      setContactStatus('mail-app')
+      return
+    }
+    setContactStatus('failed') // keeps what they typed so nothing is lost
+  }
+
+  async function copyContactEmail() {
+    try {
+      await navigator.clipboard.writeText(CONTACT_EMAIL)
+      setContactStatus('copied')
+    } catch {
+      setContactStatus('copy-failed')
+    }
   }
 
   return (
@@ -304,8 +340,22 @@ export default function HomePage() {
             <div className="grid gap-5 md:grid-cols-2"><label className="sr-only" htmlFor="contact-name">Name</label><input className={fieldClass} id="contact-name" name="name" placeholder="Enter name here..." required /><label className="sr-only" htmlFor="contact-email">Email address</label><input className={fieldClass} id="contact-email" name="email" type="email" placeholder="Email Address" required /></div>
             <label className="sr-only" htmlFor="contact-subject">Subject</label><input className={fieldClass} id="contact-subject" name="subject" placeholder="Subject" required />
             <label className="sr-only" htmlFor="contact-message">Message</label><textarea className={`${fieldClass} min-h-44 resize-y`} id="contact-message" name="message" placeholder="Message" required />
-            <button className={`${primaryButton} justify-self-center px-14`} type="submit">Submit</button>
-            {contactStatus && <p className="text-center text-sm text-[#109d1a]" role="status">{contactStatus}</p>}
+            {/* Spam trap: hidden from people, often filled in by bots. */}
+            <input aria-hidden="true" className="hidden" name="botcheck" tabIndex={-1} type="checkbox" />
+            <button className={`${primaryButton} justify-self-center px-14 disabled:cursor-wait disabled:opacity-60`} disabled={contactStatus === 'sending'} type="submit">
+              {contactStatus === 'sending' ? 'Sending…' : 'Submit'}
+            </button>
+            {contactStatus && contactStatus !== 'sending' && (
+              <div className="grid justify-items-center gap-2 text-center text-sm text-[var(--landing-text)]" role="status">
+                <p className="m-0">{CONTACT_STATUS_TEXT[contactStatus]}</p>
+                {contactStatus !== 'sent' && (
+                  <span className="flex flex-wrap items-center justify-center gap-2">
+                    <strong className="select-all break-all">{CONTACT_EMAIL}</strong>
+                    <button className={secondaryButton.replace('px-8 py-3', 'px-3 py-1.5')} onClick={copyContactEmail} type="button">Copy email</button>
+                  </span>
+                )}
+              </div>
+            )}
           </form>
         </div>
       </section>
