@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import AdminIcon from './AdminIcon.jsx'
 import { modelCreditHref } from './import/firearm-metadata.js'
@@ -16,6 +16,17 @@ function componentLabel(component) {
   return componentMeshName(component).replaceAll('_', ' ')
 }
 
+// Explode/reassemble and reset are locked while the parts and camera are
+// still moving: the part animation (800 ms + 120 ms per explode step) plus
+// the camera glide (900 ms), capped so a large model never feels stuck.
+const VIEW_ACTION_CAMERA_MS = 900
+const VIEW_ACTION_MAX_COOLDOWN_MS = 3000
+
+function viewActionCooldownMs(components) {
+  const maxExplodeOrder = Math.max(0, ...components.map((component) => Number(component.explode_order) || 0))
+  return Math.min(VIEW_ACTION_MAX_COOLDOWN_MS, 800 + maxExplodeOrder * 120 + VIEW_ACTION_CAMERA_MS)
+}
+
 export default function AdminModelViewerPanel({ dataLoading = false, firearms, headerActions = null, headerLeading = null, initialFirearmId = '', lockSelection = false }) {
   const [firearmId, setFirearmId] = useState(initialFirearmId)
   const [details, setDetails] = useState(null)
@@ -27,6 +38,10 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
   const [panelOpen, setPanelOpen] = useState(() => !window.matchMedia('(max-width: 760px)').matches)
   const [exploded, setExploded] = useState(false)
   const [resetKey, setResetKey] = useState(0)
+  const [viewActionCooling, setViewActionCooling] = useState(false)
+  // The ref blocks a fast double-click that lands before React re-renders.
+  const viewActionCoolingRef = useRef(false)
+  const viewActionTimerRef = useRef(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -91,9 +106,23 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
     }
   }, [])
 
+  useEffect(() => () => window.clearTimeout(viewActionTimerRef.current), [])
+
   function choose(name) {
     setSelectedName(name)
     setTab('details')
+  }
+
+  function runViewAction(action) {
+    if (viewActionCoolingRef.current) return
+    action()
+    viewActionCoolingRef.current = true
+    setViewActionCooling(true)
+    window.clearTimeout(viewActionTimerRef.current)
+    viewActionTimerRef.current = window.setTimeout(() => {
+      viewActionCoolingRef.current = false
+      setViewActionCooling(false)
+    }, viewActionCooldownMs(components))
   }
 
   if (dataLoading) return <section className="admin-live-model-viewer p-6"><DashboardLoading label="Loading firearms…" /></section>
@@ -106,9 +135,9 @@ export default function AdminModelViewerPanel({ dataLoading = false, firearms, h
         <div className="ml-auto flex items-center gap-2">{headerActions}<button aria-label={panelOpen ? 'Close information panel' : 'Show information panel'} className="viewer-panel-toggle grid h-8 w-8 place-items-center rounded-lg text-[var(--admin-muted)] hover:bg-[var(--admin-muted-surface)] hover:text-[var(--admin-text)]" onClick={() => setPanelOpen((value) => !value)} type="button"><AdminIcon name={panelOpen ? 'close' : 'panelOpen'} /></button></div>
       </header>
       {!activeFirearmId ? <div className="grid flex-1 place-items-center border border-[#b8c1bb] bg-[#171717] text-sm text-[#aeb8b2]">No uploaded firearm models are available.</div> : error ? <div className="grid flex-1 place-items-center border border-red-300 bg-red-50 p-6 text-center text-sm text-red-700"><div className="grid max-w-lg justify-items-center gap-4"><p className="m-0">{error}</p><button className="rounded-lg bg-[#109d1a] px-5 py-2.5 font-semibold text-white hover:bg-[#0c7d15]" onClick={() => setLoadKey((value) => value + 1)} type="button">Retry model</button></div></div> : <div className="flex min-h-0 flex-1 border-x border-b border-[#b8c1bb]">
-        <div className="relative min-w-0 flex-1 overflow-hidden bg-[#171717]">
+        <div className="relative min-w-0 flex-1 overflow-hidden bg-[var(--viewer-backdrop-edge)]">
           {loading || !modelUrl ? <DashboardLoading className="viewer-model-preparing" label={`Loading ${details?.name || '3D model'}…`} /> : <div className="admin-live-viewer-canvas h-full"><FirearmCanvas components={components} exploded={exploded} modelUrl={modelUrl} onSelect={(name) => name ? choose(name) : setSelectedName(null)} resetKey={resetKey} selectedName={selectedName} /></div>}
-          <div className="absolute right-3 top-1/2 z-10 flex -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-[#aab3ae] bg-[#d7dad8]/90 p-1.5 text-[#46534c] shadow"><button aria-label="Toggle exploded view" className={'grid h-10 w-10 place-items-center rounded-lg hover:bg-white/70 ' + (exploded ? 'bg-[#109d1a] text-white' : '')} onClick={() => setExploded((value) => !value)} title={exploded ? 'Reassemble model' : 'Exploded view'} type="button"><AdminIcon className="h-[18px] w-[18px]" name="explode" /></button><button aria-label="Reset model view" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/70" onClick={() => { setExploded(false); setSelectedName(null); setResetKey((value) => value + 1) }} title="Reset view" type="button"><AdminIcon className="h-[18px] w-[18px]" name="reset" /></button></div>
+          <div className="absolute right-3 top-1/2 z-10 flex -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-[#aab3ae] bg-[#d7dad8]/90 p-1.5 text-[#46534c] shadow"><button aria-label="Toggle exploded view" className={'grid h-10 w-10 place-items-center rounded-lg transition-opacity enabled:hover:bg-white/70 disabled:cursor-wait disabled:opacity-50 ' + (exploded ? 'bg-[#109d1a] text-white' : '')} disabled={viewActionCooling} onClick={() => runViewAction(() => setExploded((value) => !value))} title={viewActionCooling ? 'Please wait…' : exploded ? 'Reassemble model' : 'Exploded view'} type="button"><AdminIcon className="h-[18px] w-[18px]" name="explode" /></button><button aria-label="Reset model view" className="grid h-10 w-10 place-items-center rounded-lg transition-opacity enabled:hover:bg-white/70 disabled:cursor-wait disabled:opacity-50" disabled={viewActionCooling} onClick={() => runViewAction(() => { setExploded(false); setSelectedName(null); setResetKey((value) => value + 1) })} title={viewActionCooling ? 'Please wait…' : 'Reset view'} type="button"><AdminIcon className="h-[18px] w-[18px]" name="reset" /></button></div>
         </div>
         <aside className={'min-h-0 shrink-0 overflow-hidden bg-white transition-[width] ' + (panelOpen ? 'w-[300px] border-l border-[#b8c1bb]' : 'w-0')}>
           {panelOpen && <div className="flex h-full flex-col"><nav className="grid h-9 shrink-0 grid-cols-2 border-b border-[#b8c1bb]">{[['components', 'Components'], ['details', 'Details']].map(([id, label]) => <button className={'text-xs font-semibold ' + (tab === id ? 'border-b-2 border-[#109d1a] text-[#109d1a]' : 'text-[#5f6b63]')} key={id} onClick={() => setTab(id)} type="button">{label}</button>)}</nav>
