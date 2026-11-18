@@ -28,7 +28,7 @@ export default function AdminOverviewPanel({ data, error, loading, onNavigate })
   const readyFirearms = data.firearms.filter((firearm) => firearm.status === 'ready')
   const activeClasses = data.classes.filter((item) => !item.archived_at)
   const recentAccountEvents = data.auditEvents.filter((item) => item.entity_type === 'profile').slice(0, 4)
-  const recentFirearmEvents = getRecentFirearmEvents(data.auditEvents)
+  const recentFirearmEvents = getRecentFirearmEvents(data.auditEvents, data.firearms)
   const activeProfiles = data.profiles.filter((profile) => !profile.disabled_at)
   const roleCounts = ['student', 'faculty', 'admin'].map((role) => ({ role, count: activeProfiles.filter((profile) => profile.role === role).length }))
   const draftFirearms = data.firearms.filter((firearm) => firearm.status !== 'ready').length
