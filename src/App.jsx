@@ -25,6 +25,8 @@ const FirearmViewerPage = lazy(
 const AssessmentPage = lazy(
   () => import('./features/student/assessment/AssessmentPage.jsx'),
 )
+// Public QR booth showcase (no login, not linked anywhere on the site).
+const ShowcasePage = lazy(() => import('./features/showcase/ShowcasePage.jsx'))
 
 function RouteLoading() {
   return <main className="page status-page"><DashboardLoading className="dashboard-loading-route" label="Loading Trigger3D…" /></main>
@@ -38,6 +40,7 @@ export default function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/demo" element={<ShowcasePage />} />
       <Route
         path="/mfa/verify"
         element={
